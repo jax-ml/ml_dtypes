@@ -8,15 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    steps:
-    - uses: styfle/cancel-workflow-action@0.9.1
-      with:
-        access_token: ${{ github.token }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
 
+    steps:
     - uses: actions/checkout@v3
 
     # Install deps
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@v4
       with:
         python-version: 3.10
     - run: pip --version
