@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "third_party/pybind11/include/pybind11/pybind11.h"
-#include "third_party/py/ml_dtypes/_src/custom_floats.h"
+#include "pybind11/pybind11.h"
+#include "ml_dtypes/_src/custom_floats.h"
 
 
 PYBIND11_MODULE(_custom_floats, m) {

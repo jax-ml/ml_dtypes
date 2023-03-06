@@ -13,20 +13,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "third_party/py/ml_dtypes/_src/custom_floats.h"
+#include "ml_dtypes/_src/custom_floats.h"
 
 #include <array>
 #include <cmath>
 #include <limits>
 #include <locale>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 
 // Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
-#include "third_party/absl/strings/str_cat.h"
-#include "third_party/absl/log/log.h"
-#include "third_party/eigen3/Eigen/Core"
-#include "third_party/py/ml_dtypes/_src/numpy.h"
+#include "eigen/Eigen/Core"
+#include "ml_dtypes/_src/numpy.h"
 
 namespace ml_dtypes {
 namespace {
@@ -356,7 +358,8 @@ PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
       result = x >= y;
       break;
     default:
-      LOG(FATAL) << "Invalid op type " << op;
+      PyErr_SetString(PyExc_ValueError, "Invalid op type");
+      return nullptr;
   }
   return PyBool_FromLong(result);
 }
@@ -365,16 +368,18 @@ PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
 template <typename T>
 PyObject* PyCustomFloat_Repr(PyObject* self) {
   T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  std::string v = absl::StrCat(static_cast<float>(x));
-  return PyUnicode_FromString(v.c_str());
+  std::ostringstream s;
+  s << static_cast<float>(x);
+  return PyUnicode_FromString(s.str().c_str());
 }
 
 // Implementation of str() for PyCustomFloat.
 template <typename T>
 PyObject* PyCustomFloat_Str(PyObject* self) {
   T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  std::string v = absl::StrCat(static_cast<float>(x));
-  return PyUnicode_FromString(v.c_str());
+  std::ostringstream s;
+  s << static_cast<float>(x);
+  return PyUnicode_FromString(s.str().c_str());
 }
 
 // _Py_HashDouble changed its prototype for Python 3.10 so we use an overload to

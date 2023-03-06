@@ -67,7 +67,7 @@ def truncate(x, float_type):
     return type(x)(float_type(x))
 
 
-def test_binary_operation(a, b, op, float_type):
+def binary_operation_test(a, b, op, float_type):
   a = float_type(a)
   b = float_type(b)
   expected = op(np.float32(a), np.float32(b))
@@ -199,7 +199,7 @@ class CustomFloatTest(parameterized.TestCase):
     for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
                  (float("inf"), -2.25), (float("-inf"), -2.25),
                  (3.5, float("nan"))]:
-      test_binary_operation(a, b, op=lambda a, b: a + b, float_type=float_type)
+      binary_operation_test(a, b, op=lambda a, b: a + b, float_type=float_type)
 
   def testAddScalarTypePromotion(self, float_type):
     """Tests type promotion against Numpy scalar values."""
@@ -226,18 +226,18 @@ class CustomFloatTest(parameterized.TestCase):
     for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
                  (-2.25, float("inf")), (-2.25, float("-inf")),
                  (3.5, float("nan"))]:
-      test_binary_operation(a, b, op=lambda a, b: a - b, float_type=float_type)
+      binary_operation_test(a, b, op=lambda a, b: a - b, float_type=float_type)
 
   def testMul(self, float_type):
     for a, b in [(0, 0), (1, 0), (1, -1), (3.5, -2.25), (float("inf"), -2.25),
                  (float("-inf"), -2.25), (3.5, float("nan"))]:
-      test_binary_operation(a, b, op=lambda a, b: a * b, float_type=float_type)
+      binary_operation_test(a, b, op=lambda a, b: a * b, float_type=float_type)
 
   def testDiv(self, float_type):
     for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
                  (float("inf"), -2.25), (float("-inf"), -2.25),
                  (3.5, float("nan"))]:
-      test_binary_operation(a, b, op=lambda a, b: a / b, float_type=float_type)
+      binary_operation_test(a, b, op=lambda a, b: a / b, float_type=float_type)
 
   def testLess(self, float_type):
     for v in FLOAT_VALUES[float_type]:
