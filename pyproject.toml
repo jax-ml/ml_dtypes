@@ -1,5 +1,6 @@
 [project]
 name = "ml_dtypes"
+version = "0.0.1"
 description = ""
 readme = "README.md"
 requires-python = ">=3.7"
@@ -15,9 +16,6 @@ keywords = []
 
 # pip dependencies of the project
 dependencies = []
-
-# This is set automatically by flit using `ml_dtypes.__version__`
-dynamic = ["version"]
 
 [project.urls]
 homepage = "https://github.com/jax-ml/ml_dtypes"

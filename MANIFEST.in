@@ -1,0 +1,4 @@
+include ml_dtypes
+include eigen/Eigen/Core
+recursive-include eigen/Eigen/src/plugins *.h
+recursive-include eigen/Eigen/src/Core *.h
