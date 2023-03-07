@@ -17,7 +17,7 @@ limitations under the License.
 // ImportNumpy function to populate it.
 #define ML_DTYPES_IMPORT_NUMPY
 
-#include "third_party/py/ml_dtypes/_src/numpy.h"
+#include "_src/numpy.h"
 
 namespace ml_dtypes {
 

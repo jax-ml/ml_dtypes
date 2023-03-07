@@ -1,4 +1,4 @@
-/* Copyright 2022 The ml_dtypes Authors.
+/* Copyright 2022 The ml_dtypes Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,25 +13,35 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "third_party/py/ml_dtypes/_src/custom_floats.h"
+#ifndef ML_DTYPES_CUSTOM_FLOAT_H_
+#define ML_DTYPES_CUSTOM_FLOAT_H_
 
-#include <array>
-#include <cmath>
-#include <limits>
-#include <locale>
+// Must be included first
+// clang-format off
+#include "_src/numpy.h" // NOLINT
+// clang-format on
+
+// Support utilities for adding custom floating-point dtypes to TensorFlow,
+// such as bfloat16, and float8_*.
+
+#include <array>    // NOLINT
+#include <cmath>    // NOLINT
+#include <limits>   // NOLINT
+#include <locale>   // NOLINT
+#include <memory>   // NOLINT
+#include <sstream>  // NOLINT
+#include <vector>   // NOLINT
 
 // Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
-#include "third_party/absl/strings/str_cat.h"
-#include "third_party/absl/log/log.h"
-#include "third_party/eigen3/Eigen/Core"
-#include "third_party/py/ml_dtypes/_src/numpy.h"
+#include "eigen/Eigen/Core"
+
+#undef copysign  // TODO(ddunleavy): temporary fix for Windows bazel build
+                 // Possible this has to do with numpy.h being included before
+                 // system headers and in bfloat16.{cc,h}?
 
 namespace ml_dtypes {
-namespace {
-
-typedef Eigen::bfloat16 bfloat16;
 
 struct PyDecrefDeleter {
   void operator()(PyObject* p) const { Py_DECREF(p); }
@@ -40,11 +50,11 @@ struct PyDecrefDeleter {
 // Safe container for an owned PyObject. On destruction, the reference count of
 // the contained object will be decremented.
 using Safe_PyObjectPtr = std::unique_ptr<PyObject, PyDecrefDeleter>;
-Safe_PyObjectPtr make_safe(PyObject* object) {
+inline Safe_PyObjectPtr make_safe(PyObject* object) {
   return Safe_PyObjectPtr(object);
 }
 
-bool PyLong_CheckNoOverflow(PyObject* object) {
+inline bool PyLong_CheckNoOverflow(PyObject* object) {
   if (!PyLong_Check(object)) {
     return false;
   }
@@ -322,6 +332,12 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
       Py_INCREF(arg);
       return arg;
     }
+  } else if (PyUnicode_Check(arg) || PyBytes_Check(arg)) {
+    // Parse float from string, then cast to T.
+    PyObject* f = PyFloat_FromString(arg);
+    if (CastToCustomFloat<T>(f, &value)) {
+      return PyCustomFloat_FromT<T>(value).release();
+    }
   }
   PyErr_Format(PyExc_TypeError, "expected number, got %s",
                Py_TYPE(arg)->tp_name);
@@ -356,7 +372,8 @@ PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
       result = x >= y;
       break;
     default:
-      LOG(FATAL) << "Invalid op type " << op;
+      PyErr_SetString(PyExc_ValueError, "Invalid op type");
+      return nullptr;
   }
   return PyBool_FromLong(result);
 }
@@ -365,29 +382,33 @@ PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
 template <typename T>
 PyObject* PyCustomFloat_Repr(PyObject* self) {
   T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  std::string v = absl::StrCat(static_cast<float>(x));
-  return PyUnicode_FromString(v.c_str());
+  float f = static_cast<float>(x);
+  std::ostringstream s;
+  s << (std::isnan(f) ? std::abs(f) : f);
+  return PyUnicode_FromString(s.str().c_str());
 }
 
 // Implementation of str() for PyCustomFloat.
 template <typename T>
 PyObject* PyCustomFloat_Str(PyObject* self) {
   T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  std::string v = absl::StrCat(static_cast<float>(x));
-  return PyUnicode_FromString(v.c_str());
+  float f = static_cast<float>(x);
+  std::ostringstream s;
+  s << (std::isnan(f) ? std::abs(f) : f);
+  return PyUnicode_FromString(s.str().c_str());
 }
 
 // _Py_HashDouble changed its prototype for Python 3.10 so we use an overload to
 // handle the two possibilities.
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
-Py_hash_t HashImpl(Py_hash_t (*hash_double)(PyObject*, double), PyObject* self,
-                   double value) {
+inline Py_hash_t HashImpl(Py_hash_t (*hash_double)(PyObject*, double),
+                          PyObject* self, double value) {
   return hash_double(self, value);
 }
 
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
-Py_hash_t HashImpl(Py_hash_t (*hash_double)(double), PyObject* self,
-                   double value) {
+inline Py_hash_t HashImpl(Py_hash_t (*hash_double)(double), PyObject* self,
+                          double value) {
   return hash_double(value);
 }
 
@@ -500,7 +521,7 @@ int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
   return 0;
 }
 
-void ByteSwap16(void* value) {
+inline void ByteSwap16(void* value) {
   char* p = reinterpret_cast<char*>(value);
   std::swap(p[0], p[1]);
 }
@@ -1135,7 +1156,7 @@ struct Power {
 };
 template <typename T>
 struct Abs {
-  T operator()(T a) { return T(std::abs(static_cast<float>(a))); }
+  T operator()(T a) { return Eigen::numext::abs(a); }
 };
 template <typename T>
 struct Cbrt {
@@ -1145,8 +1166,42 @@ template <typename T>
 struct Ceil {
   T operator()(T a) { return T(std::ceil(static_cast<float>(a))); }
 };
+
+// Helper struct for getting a bit representation provided a byte size.
+template <int kNumBytes>
+struct GetUnsignedInteger;
+
+template <>
+struct GetUnsignedInteger<1> {
+  using type = uint8_t;
+};
+
+template <>
+struct GetUnsignedInteger<2> {
+  using type = uint16_t;
+};
+
 template <typename T>
-struct CopySign;
+using BitsType = typename GetUnsignedInteger<sizeof(T)>::type;
+
+template <typename T>
+std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
+  const BitsType<T> x_abs_bits =
+      Eigen::numext::bit_cast<BitsType<T>>(Eigen::numext::abs(x));
+  const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
+  const BitsType<T> x_sign = x_bits ^ x_abs_bits;
+  return {x_sign, x_abs_bits};
+}
+
+template <typename T>
+struct CopySign {
+  T operator()(T a, T b) {
+    auto [a_sign, a_abs_bits] = SignAndMagnitude(a);
+    auto [b_sign, b_abs_bits] = SignAndMagnitude(b);
+    BitsType<T> rep = a_abs_bits | b_sign;
+    return Eigen::numext::bit_cast<T>(rep);
+  }
+};
 
 template <typename T>
 struct Exp {
@@ -1174,18 +1229,16 @@ struct Frexp {
 };
 template <typename T>
 struct Heaviside {
-  T operator()(T bx, T h0) {
-    float x = static_cast<float>(bx);
+  T operator()(T x, T h0) {
     if (Eigen::numext::isnan(x)) {
-      return bx;
+      return x;
     }
-    if (x < 0) {
-      return T(0.0f);
+    auto [sign_x, abs_x] = SignAndMagnitude(x);
+    // x == 0
+    if (abs_x == 0) {
+      return h0;
     }
-    if (x > 0) {
-      return T(1.0f);
-    }
-    return h0;  // x == 0
+    return sign_x ? T(0.0f) : T(1.0f);
   }
 };
 template <typename T>
@@ -1194,15 +1247,15 @@ struct Conjugate {
 };
 template <typename T>
 struct IsFinite {
-  bool operator()(T a) { return std::isfinite(static_cast<float>(a)); }
+  bool operator()(T a) { return Eigen::numext::isfinite(a); }
 };
 template <typename T>
 struct IsInf {
-  bool operator()(T a) { return std::isinf(static_cast<float>(a)); }
+  bool operator()(T a) { return Eigen::numext::isinf(a); }
 };
 template <typename T>
 struct IsNan {
-  bool operator()(T a) { return Eigen::numext::isnan(static_cast<float>(a)); }
+  bool operator()(T a) { return Eigen::numext::isnan(a); }
 };
 template <typename T>
 struct Ldexp {
@@ -1282,19 +1335,22 @@ struct Rint {
 template <typename T>
 struct Sign {
   T operator()(T a) {
-    float f(a);
-    if (f < 0) {
-      return T(-1);
+    if (Eigen::numext::isnan(a)) {
+      return a;
     }
-    if (f > 0) {
-      return T(1);
+    auto [sign_a, abs_a] = SignAndMagnitude(a);
+    if (abs_a == 0) {
+      return a;
     }
-    return a;
+    return sign_a ? T(-1) : T(1);
   }
 };
 template <typename T>
 struct SignBit {
-  bool operator()(T a) { return std::signbit(static_cast<float>(a)); }
+  bool operator()(T a) {
+    auto [sign_a, abs_a] = SignAndMagnitude(a);
+    return sign_a;
+  }
 };
 template <typename T>
 struct Sqrt {
@@ -1443,15 +1499,19 @@ struct Fmin {
 
 template <typename T>
 struct LogicalNot {
-  npy_bool operator()(T a) { return !a; }
+  npy_bool operator()(T a) { return !static_cast<bool>(a); }
 };
 template <typename T>
 struct LogicalAnd {
-  npy_bool operator()(T a, T b) { return a && b; }
+  npy_bool operator()(T a, T b) {
+    return static_cast<bool>(a) && static_cast<bool>(b);
+  }
 };
 template <typename T>
 struct LogicalOr {
-  npy_bool operator()(T a, T b) { return a || b; }
+  npy_bool operator()(T a, T b) {
+    return static_cast<bool>(a) || static_cast<bool>(b);
+  }
 };
 template <typename T>
 struct LogicalXor {
@@ -1461,15 +1521,59 @@ struct LogicalXor {
 };
 
 template <typename T>
-struct NextAfter;
+struct NextAfter {
+  T operator()(T from, T to) {
+    BitsType<T> from_rep = Eigen::numext::bit_cast<BitsType<T>>(from);
+    BitsType<T> to_rep = Eigen::numext::bit_cast<BitsType<T>>(to);
+    if (Eigen::numext::isnan(from) || Eigen::numext::isnan(to)) {
+      return std::numeric_limits<T>::quiet_NaN();
+    }
+    if (from_rep == to_rep) {
+      return to;
+    }
+    auto [from_sign, from_abs] = SignAndMagnitude(from);
+    auto [to_sign, to_abs] = SignAndMagnitude(to);
+    if (from_abs == 0) {
+      if (to_abs == 0) {
+        return to;
+      } else {
+        // Smallest subnormal signed like `to`.
+        return Eigen::numext::bit_cast<T>(
+            static_cast<BitsType<T>>(0x01 | to_sign));
+      }
+    }
+    BitsType<T> magnitude_adjustment =
+        (from_abs > to_abs || from_sign != to_sign)
+            ? static_cast<BitsType<T>>(-1)
+            : static_cast<BitsType<T>>(1);
+    BitsType<T> out_int = from_rep + magnitude_adjustment;
+    T out = Eigen::numext::bit_cast<T>(out_int);
+    // Some non-IEEE compatible formats may have a representation for NaN
+    // instead of -0, ensure we return a zero in such cases.
+    if constexpr (!std::numeric_limits<T>::is_iec559) {
+      if (Eigen::numext::isnan(out)) {
+        return Eigen::numext::bit_cast<T>(BitsType<T>{0});
+      }
+    }
+    return out;
+  }
+};
 
 template <typename T>
 struct Spacing {
   T operator()(T x) {
+    CopySign<T> copysign;
+    if constexpr (!std::numeric_limits<T>::has_infinity) {
+      if (Eigen::numext::abs(x) == std::numeric_limits<T>::max()) {
+        return copysign(std::numeric_limits<T>::quiet_NaN(), x);
+      }
+    }
     // Compute the distance between the input and the next number with greater
     // magnitude. The result should have the sign of the input.
-    T away(std::copysign(std::numeric_limits<float>::infinity(),
-                         static_cast<float>(x)));
+    T away = std::numeric_limits<T>::has_infinity
+                 ? std::numeric_limits<T>::infinity()
+                 : std::numeric_limits<T>::max();
+    away = copysign(away, x);
     return NextAfter<T>()(x, away) - x;
   }
 };
@@ -1598,14 +1702,23 @@ bool RegisterUFuncs(PyObject* numpy) {
 
 }  // namespace ufuncs
 
+// Returns true if the numpy type for T is successfully registered, including if
+// it was already registered (e.g. by a different library). If
+// `already_registered` is non-null, it's set to true if the type was already
+// registered and false otherwise.
 template <typename T>
-bool RegisterNumpyDtype(PyObject* numpy) {
+bool RegisterNumpyDtype(PyObject* numpy, bool* already_registered = nullptr) {
+  if (already_registered != nullptr) {
+    *already_registered = false;
+  }
   // If another module (presumably either TF or JAX) has registered a bfloat16
   // type, use it. We don't want two bfloat16 types if we can avoid it since it
   // leads to confusion if we have two different types with the same name. This
   // assumes that the other module has a sufficiently complete bfloat16
   // implementation. The only known NumPy bfloat16 extension at the time of
   // writing is this one (distributed in TF and JAX).
+  // TODO(phawkins): distribute the bfloat16 extension as its own pip package,
+  // so we can unambiguously refer to a single canonical definition of bfloat16.
   int typenum =
       PyArray_TypeNumFromName(const_cast<char*>(TypeDescriptor<T>::kTypeName));
   if (typenum != NPY_NOTYPE) {
@@ -1616,6 +1729,9 @@ bool RegisterNumpyDtype(PyObject* numpy) {
     if (descr && descr->f && descr->f->argmax) {
       TypeDescriptor<T>::npy_type = typenum;
       TypeDescriptor<T>::type_ptr = descr->typeobj;
+      if (already_registered != nullptr) {
+        *already_registered = true;
+      }
       return true;
     }
   }
@@ -1674,118 +1790,6 @@ bool RegisterNumpyDtype(PyObject* numpy) {
   return RegisterCasts<T>() && ufuncs::RegisterUFuncs<T>(numpy);
 }
 
-namespace ufuncs {
-
-template <>
-struct CopySign<bfloat16> {
-  bfloat16 operator()(bfloat16 a, bfloat16 b) {
-    // LLVM is smart enough to turn this into (a & 0x7fff) | (b & 0x8000).
-    bfloat16 abs_a = Eigen::numext::abs(a);
-    return std::signbit(static_cast<float>(b)) ? -abs_a : abs_a;
-  }
-};
-
-template <>
-struct NextAfter<bfloat16> {
-  bfloat16 operator()(bfloat16 from, bfloat16 to) {
-    uint16_t from_as_int, to_as_int;
-    const uint16_t sign_mask = 1 << 15;
-    float from_as_float(from), to_as_float(to);
-    memcpy(&from_as_int, &from, sizeof(bfloat16));
-    memcpy(&to_as_int, &to, sizeof(bfloat16));
-    if (Eigen::numext::isnan(from_as_float) ||
-        Eigen::numext::isnan(to_as_float)) {
-      return bfloat16(std::numeric_limits<float>::quiet_NaN());
-    }
-    if (from_as_int == to_as_int) {
-      return to;
-    }
-    if (from_as_float == 0) {
-      if (to_as_float == 0) {
-        return to;
-      } else {
-        // Smallest subnormal signed like `to`.
-        uint16_t out_int = (to_as_int & sign_mask) | 1;
-        bfloat16 out;
-        memcpy(&out, &out_int, sizeof(bfloat16));
-        return out;
-      }
-    }
-    uint16_t from_sign = from_as_int & sign_mask;
-    uint16_t to_sign = to_as_int & sign_mask;
-    uint16_t from_abs = from_as_int & ~sign_mask;
-    uint16_t to_abs = to_as_int & ~sign_mask;
-    uint16_t magnitude_adjustment =
-        (from_abs > to_abs || from_sign != to_sign) ? 0xFFFF : 0x0001;
-    uint16_t out_int = from_as_int + magnitude_adjustment;
-    bfloat16 out;
-    memcpy(&out, &out_int, sizeof(bfloat16));
-    return out;
-  }
-};
-
-}  // namespace ufuncs
-
-using bfloat16 = Eigen::bfloat16;
-
-template <>
-struct TypeDescriptor<bfloat16> : CustomFloatTypeDescriptor<bfloat16> {
-  typedef bfloat16 T;
-  static constexpr const char* kTypeName = "bfloat16";
-  static constexpr const char* kTpDoc = "bfloat16 floating-point values";
-  // We must register bfloat16 with a kind other than "f", because numpy
-  // considers two types with the same kind and size to be equal, but
-  // float16 != bfloat16.
-  // The downside of this is that NumPy scalar promotion does not work with
-  // bfloat16 values.
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'E';
-  static constexpr char kNpyDescrByteorder = '=';
-};
-
-}  // namespace
-
-// Initializes the module.
-bool Initialize() {
-  ImportNumpy();
-  import_umath1(false);
-
-  Safe_PyObjectPtr numpy_str = make_safe(PyUnicode_FromString("numpy"));
-  if (!numpy_str) {
-    return false;
-  }
-  Safe_PyObjectPtr numpy = make_safe(PyImport_Import(numpy_str.get()));
-  if (!numpy) {
-    return false;
-  }
-
-  if (!RegisterNumpyDtype<bfloat16>(numpy.get())) {
-    return false;
-  }
-  return true;
-}
-
-bool RegisterNumpyBfloat16() {
-  if (TypeDescriptor<bfloat16>::Dtype() != NPY_NOTYPE) {
-    // Already initialized.
-    return true;
-  }
-  if (!Initialize()) {
-    if (!PyErr_Occurred()) {
-      PyErr_SetString(PyExc_RuntimeError, "cannot load bfloat16 module.");
-    }
-    PyErr_Print();
-    return false;
-  }
-  return true;
-}
-
-PyObject* Bfloat16Dtype() {
-  return reinterpret_cast<PyObject*>(TypeDescriptor<bfloat16>::type_ptr);
-}
-
-int Bfloat16NumpyType() { return TypeDescriptor<bfloat16>::Dtype(); }
-
 }  // namespace ml_dtypes
+
+#endif  // ML_DTYPES_CUSTOM_FLOAT_H_
