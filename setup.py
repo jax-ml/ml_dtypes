@@ -27,7 +27,7 @@ setup(
                 "ml_dtypes/_src/numpy.cc",
             ],
             include_dirs=[
-                ".",
+                "third_party",
                 "ml_dtypes",
                 np.get_include(),
             ],
