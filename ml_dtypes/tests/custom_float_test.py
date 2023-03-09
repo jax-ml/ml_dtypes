@@ -29,11 +29,13 @@
 """Test cases for custom floating point types."""
 
 import collections
+import contextlib
 import copy
 import itertools
 import math
 import sys
 from typing import Type
+import warnings
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -46,6 +48,13 @@ bfloat16 = ml_dtypes.bfloat16
 float8_e4m3b11 = ml_dtypes.float8_e4m3b11
 float8_e4m3fn = ml_dtypes.float8_e4m3fn
 float8_e5m2 = ml_dtypes.float8_e5m2
+
+
+@contextlib.contextmanager
+def ignore_warning(**kw):
+  with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", **kw)
+    yield
 
 
 def numpy_assert_allclose(a, b, float_type, **kwargs):
@@ -434,6 +443,8 @@ class CustomFloatTest(parameterized.TestCase):
                  (float("-inf"), -2.25), (3.5, float("nan"))]:
       binary_operation_test(a, b, op=lambda a, b: a * b, float_type=float_type)
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
+  @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
   def testDiv(self, float_type):
     for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
                  (float("inf"), -2.25), (float("-inf"), -2.25),
@@ -657,6 +668,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       self.assertTrue(np.all(x == z))
       self.assertEqual(dtype, z.dtype)
 
+  @ignore_warning(category=np.ComplexWarning)
   def testConformNumpyComplex(self, float_type):
     for dtype in [np.complex64, np.complex128, np.clongdouble]:
       x = np.array([1.5, 2.5 + 2.0j, 3.5], dtype=dtype)
@@ -685,6 +697,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.arange(-16.0, 16.0, 2.0, dtype=float_type),
     )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
+  @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
   def testUnaryUfunc(self, float_type):
     for op in UNARY_UFUNCS:
       with self.subTest(op.__name__):
@@ -696,6 +710,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             rtol=1e-4,
             float_type=float_type)
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
+  @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
   def testBinaryUfunc(self, float_type):
     for op in BINARY_UFUNCS:
       with self.subTest(op.__name__):
@@ -823,6 +839,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
           np.nextafter(
               np.array(a, dtype=float_type), np.array(b, dtype=float_type)))
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testSpacing(self, float_type):
     # Sweep a variety of binades to see that spacing gives the proper ULP.
     with self.subTest(name="Subnormals"):
