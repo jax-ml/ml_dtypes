@@ -15,7 +15,9 @@ classifiers = [
 keywords = []
 
 # pip dependencies of the project
-dependencies = []
+dependencies = [
+    "numpy>1.20"
+]
 
 [project.urls]
 homepage = "https://github.com/jax-ml/ml_dtypes"
@@ -26,6 +28,7 @@ repository = "https://github.com/jax-ml/ml_dtypes"
 # Development deps (unittest, linting, formating,...)
 # Installed through `pip install .[dev]`
 dev = [
+    "absl-py",
     "pytest",
     "pytest-xdist",
     "pylint>=2.6.0",
