@@ -312,6 +312,7 @@ class CustomFloatTest(parameterized.TestCase):
     for v in FLOAT_VALUES[float_type]:
       np.testing.assert_equal(v, float(float_type(v)))
 
+  @ignore_warning(category=RuntimeWarning, message="overflow encountered")
   def testRoundTripNumpyTypes(self, float_type):
     for dtype in [np.float16, np.float32, np.float64, np.longdouble]:
       for f in FLOAT_VALUES[float_type]:
@@ -329,6 +330,7 @@ class CustomFloatTest(parameterized.TestCase):
       self.assertEqual(v, int(float_type(v)))
       self.assertEqual(-v, int(float_type(-v)))
 
+  @ignore_warning(category=RuntimeWarning, message="overflow encountered")
   def testRoundTripToNumpy(self, float_type):
     for dtype in [
         float_type, np.float16, np.float32, np.float64, np.longdouble
