@@ -1,5 +1,6 @@
 # Compiled python modules.
 *.pyc
+*.so
 
 # Byte-compiled
 _pycache__/
@@ -23,3 +24,6 @@ poetry.lock
 
 # PyCharm
 .idea
+
+# pipenv
+Pipfile
