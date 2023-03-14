@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macOS-11]  # TODO(hawkinsp): explore adding windows-2019
+        os: [ubuntu-20.04, macOS-11, windows-2019]
 
     steps:
       - uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: cp38-* cp39-* cp310-* cp311-*
-          CIBW_SKIP: "*musllinux* *i686*"
+          CIBW_SKIP: "*musllinux* *i686* *win32*"
           CIBW_TEST_REQUIRES: absl-py pytest pytest-xdist
           CIBW_TEST_COMMAND: pytest -n auto {project}
 
