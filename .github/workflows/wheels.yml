@@ -1,16 +1,22 @@
 name: Build
 
-# TODO(jakevdp) trigger this on release and auto-upload to PyPI
 on:
-  push:  # post-submit trigger on main branch
-    branches:
-      - main
   workflow_dispatch: {}  # allows triggering this workflow manually
-  pull_request:  # pre-submit trigger on pull requests affecting this file
+  push:
+    branches: # trigger on commits to main branch
+      - main
+    tags:  # trigger when version tags are pushed
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+  pull_request:  # trigger on pull requests affecting this file
     branches:
       - main
     paths:
       - '**workflows/wheels.yml'
+  # In the future we could automatically trigger this on release.
+  # release:
+  #   types:
+  #     - published
 
 jobs:
   build_wheels:
@@ -44,3 +50,40 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Build sdist
+        run: pipx run build --sdist
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: dist/*.tar.gz
+
+  upload_pypi:
+    name: Release & Upload to PyPI
+    needs: [build_sdist, build_wheels]
+    runs-on: ubuntu-latest
+    # upload to PyPI on every tag starting with 'v'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # alternatively, to publish when a GitHub Release is created, use the following rule:
+    # if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          # unpacks default artifact into dist/
+          # if `name: artifact` is omitted, the action will create extra parent dir
+          name: artifact
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@v1.5.0
+        with:
+          # TODO(jakevdp): switch to pypi prod server when we are ready.
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
