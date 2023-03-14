@@ -14,9 +14,21 @@
 
 """Setuptool-based build for ml_dtypes."""
 
+import platform
 import numpy as np
 from pybind11.setup_helpers import Pybind11Extension
 from setuptools import setup
+
+if platform.system() == "Windows":
+  COMPILE_ARGS = [
+      "/std:c++17",
+      "/DEIGEN_MPL2_ONLY",
+  ]
+else:
+  COMPILE_ARGS = [
+      "-std=c++17",
+      "-DEIGEN_MPL2_ONLY",
+  ]
 
 setup(
     ext_modules=[
@@ -31,10 +43,7 @@ setup(
                 "ml_dtypes",
                 np.get_include(),
             ],
-            extra_compile_args=[
-                "-std=c++17",
-                "-DEIGEN_MPL2_ONLY",
-            ],
+            extra_compile_args=COMPILE_ARGS,
         )
     ]
 )
