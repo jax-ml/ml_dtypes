@@ -1,0 +1,46 @@
+name: Build
+
+# TODO(jakevdp) trigger this on release and auto-upload to PyPI
+on:
+  push:  # post-submit trigger on main branch
+    branches:
+      - main
+  workflow_dispatch: {}  # allows triggering this workflow manually
+  pull_request:  # pre-submit trigger on pull requests affecting this file
+    branches:
+      - main
+    paths:
+      - '**workflows/wheels.yml'
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macOS-11]  # TODO(hawkinsp): explore adding windows-2019
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      # Used to host cibuildwheel
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==2.12.1
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: cp38-* cp39-* cp310-* cp311-*
+          CIBW_SKIP: "*musllinux* *i686*"
+          CIBW_TEST_REQUIRES: absl-py pytest pytest-xdist
+          CIBW_TEST_COMMAND: pytest -n auto {project}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
