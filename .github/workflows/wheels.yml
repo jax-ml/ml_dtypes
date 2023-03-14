@@ -42,6 +42,7 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
+          CIBW_ARCHS_MACOS: universal2
           CIBW_BUILD: cp38-* cp39-* cp310-* cp311-*
           CIBW_SKIP: "*musllinux* *i686* *win32*"
           CIBW_TEST_REQUIRES: absl-py pytest pytest-xdist
