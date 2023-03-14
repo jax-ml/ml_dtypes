@@ -14,10 +14,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: ["ubuntu-latest"]
         python-version: ["3.8", "3.9", "3.10", "3.11"]
+        include:
+          - os: macOS-11
+            python-version: "3.11"
+          - os: windows-2019
+            python-version: "3.11"
+
     steps:
       - uses: actions/checkout@v3
         with:

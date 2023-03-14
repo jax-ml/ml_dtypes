@@ -771,6 +771,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         rtol=1e-2,
         float_type=float_type)
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testLdexp(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
