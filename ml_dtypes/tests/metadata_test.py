@@ -23,7 +23,7 @@ class CustomFloatTest(absltest.TestCase):
     try:
       ml_dtypes_metadata = metadata.metadata("ml_dtypes")
     except ImportError as err:
-      raise self.skipTest("Package metadata not found") from err
+      raise absltest.SkipTest("Package metadata not found") from err
 
     metadata_version = ml_dtypes_metadata["version"]
     package_version = ml_dtypes.__version__
