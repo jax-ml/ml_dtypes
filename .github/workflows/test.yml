@@ -1,4 +1,4 @@
-name: test
+name: Test
 
 on:
   # Trigger the workflow on push or pull request, but only on main branch
