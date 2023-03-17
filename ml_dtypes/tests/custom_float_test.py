@@ -19,6 +19,7 @@ import contextlib
 import copy
 import itertools
 import math
+import pickle
 import sys
 from typing import Type
 import warnings
@@ -296,6 +297,15 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testModuleName(self, float_type):
     self.assertEqual(float_type.__module__, "ml_dtypes")
+
+  def testPickleable(self, float_type):
+    # https://github.com/google/jax/discussions/8505
+    x = np.arange(10, dtype=float_type)
+    serialized = pickle.dumps(x)
+    x_out = pickle.loads(serialized)
+    self.assertEqual(x_out.dtype, x.dtype)
+    np.testing.assert_array_equal(
+        x_out.astype("float32"), x.astype("float32"))
 
   def testRoundTripToFloat(self, float_type):
     for v in FLOAT_VALUES[float_type]:
