@@ -294,6 +294,9 @@ BITS_TYPE = {
 class CustomFloatTest(parameterized.TestCase):
   """Tests the non-numpy Python methods of the custom float type."""
 
+  def testModuleName(self, float_type):
+    self.assertEqual(float_type.__module__, "ml_dtypes")
+
   def testRoundTripToFloat(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       np.testing.assert_equal(v, float(float_type(v)))
