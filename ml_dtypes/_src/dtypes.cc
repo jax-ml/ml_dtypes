@@ -42,6 +42,7 @@ template <>
 struct TypeDescriptor<bfloat16> : CustomFloatTypeDescriptor<bfloat16> {
   typedef bfloat16 T;
   static constexpr const char* kTypeName = "bfloat16";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.bfloat16";
   static constexpr const char* kTpDoc = "bfloat16 floating-point values";
   // We must register bfloat16 with a kind other than "f", because numpy
   // considers two types with the same kind and size to be equal, but
@@ -60,6 +61,7 @@ struct TypeDescriptor<float8_e4m3b11>
     : CustomFloatTypeDescriptor<float8_e4m3b11> {
   typedef float8_e4m3b11 T;
   static constexpr const char* kTypeName = "float8_e4m3b11";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3b11";
   static constexpr const char* kTpDoc = "float8_e4m3b11 floating-point values";
   // We must register float8_e4m3b11 with a kind other than "f", because numpy
   // considers two types with the same kind and size to be equal, and we
@@ -78,6 +80,7 @@ struct TypeDescriptor<float8_e4m3fn>
     : CustomFloatTypeDescriptor<float8_e4m3fn> {
   typedef float8_e4m3fn T;
   static constexpr const char* kTypeName = "float8_e4m3fn";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3fn";
   static constexpr const char* kTpDoc = "float8_e4m3fn floating-point values";
   // We must register float8_e4m3fn with a unique kind, because numpy
   // considers two types with the same kind and size to be equal.
@@ -94,6 +97,7 @@ template <>
 struct TypeDescriptor<float8_e5m2> : CustomFloatTypeDescriptor<float8_e5m2> {
   typedef float8_e5m2 T;
   static constexpr const char* kTypeName = "float8_e5m2";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2";
   static constexpr const char* kTpDoc = "float8_e5m2 floating-point values";
   // Treating e5m2 as the natural "float" type since it is IEEE-754 compliant.
   static constexpr char kNpyDescrKind = 'f';

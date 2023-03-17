@@ -422,7 +422,8 @@ Py_hash_t PyCustomFloat_Hash(PyObject* self) {
 // Python type for PyCustomFloat objects.
 template <typename T>
 PyTypeObject CustomFloatTypeDescriptor<T>::type = {
-    PyVarObject_HEAD_INIT(nullptr, 0) TypeDescriptor<T>::kTypeName,  // tp_name
+    PyVarObject_HEAD_INIT(nullptr, 0)  //
+    TypeDescriptor<T>::kQualifiedTypeName,  // tp_name
     sizeof(PyCustomFloat<T>),  // tp_basicsize
     0,                         // tp_itemsize
     nullptr,                   // tp_dealloc
