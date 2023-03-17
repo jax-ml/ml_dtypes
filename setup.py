@@ -14,10 +14,12 @@
 
 """Setuptool-based build for ml_dtypes."""
 
+import fnmatch
 import platform
 import numpy as np
 from pybind11.setup_helpers import Pybind11Extension
 from setuptools import setup
+from setuptools.command.build_py import build_py as build_py_orig
 
 if platform.system() == "Windows":
   COMPILE_ARGS = [
@@ -29,6 +31,22 @@ else:
       "-std=c++17",
       "-DEIGEN_MPL2_ONLY",
   ]
+
+exclude = ["third_party*", "*tests*"]
+
+
+class build_py(build_py_orig):  # pylint: disable=invalid-name
+
+  def find_package_modules(self, package, package_dir):
+    modules = super().find_package_modules(package, package_dir)
+    return [  # pylint: disable=g-complex-comprehension
+        (pkg, mod, file) for (pkg, mod, file) in modules
+        if not any(
+            fnmatch.fnmatchcase(pkg + "." + mod, pat=pattern)
+            for pattern in exclude
+        )
+    ]
+
 
 setup(
     ext_modules=[
@@ -45,5 +63,7 @@ setup(
             ],
             extra_compile_args=COMPILE_ARGS,
         )
-    ]
+    ],
+    include_package_data=False,
+    cmdclass={"build_py": build_py},
 )
