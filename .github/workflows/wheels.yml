@@ -5,11 +5,12 @@ on:
   push:
     branches: # trigger on commits to main branch
       - main
-  pull_request:  # trigger on pull requests affecting this file
+  pull_request:  # trigger on pull requests affecting relevant files
     branches:
       - main
     paths:
       - '**workflows/wheels.yml'
+      - 'pyproject.toml'
   release:  # trigger on published release
     types:
       - published
