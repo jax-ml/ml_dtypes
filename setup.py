@@ -32,7 +32,7 @@ else:
       "-DEIGEN_MPL2_ONLY",
   ]
 
-exclude = ["third_party*", "*tests*"]
+exclude = ["third_party*"]
 
 
 class build_py(build_py_orig):  # pylint: disable=invalid-name
