@@ -18,13 +18,21 @@
 
 ## Installation
 
-We will soon release pre-built wheels for this package at http://pypi.org/project/ml-dtypes, so this package can be easily pip installed.
-
-To build locally, clone the repository and run:
+The `ml_dtypes` package is tested with Python versions 3.9-3.11, and can be installed
+with the following command:
 ```
-$ git submodule init
-$ git submodule update
-$ pip install .
+pip install ml_dtypes
+```
+To test your installation, you can run the following:
+```
+pip install absl-py pytest
+pytest --pyargs ml_dtypes
+```
+To build from source, clone the repository and run:
+```
+git submodule init
+git submodule update
+pip install .
 ```
 
 ## Example Usage
