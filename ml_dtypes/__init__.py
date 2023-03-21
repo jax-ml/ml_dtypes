@@ -14,15 +14,19 @@
 
 __version__ = '0.0.2'  # Keep in sync with pyproject.toml:version
 
+from typing import Type
+
 from ml_dtypes._custom_floats import bfloat16
 from ml_dtypes._custom_floats import float8_e4m3b11
 from ml_dtypes._custom_floats import float8_e4m3fn
 from ml_dtypes._custom_floats import float8_e5m2
 import numpy as np
 
-bfloat16: np.generic
-float8_e4m3b11: np.generic
-float8_e4m3fn: np.generic
-float8_e5m2: np.generic
+bfloat16: Type[np.generic]
+float8_e4m3b11: Type[np.generic]
+float8_e4m3fn: Type[np.generic]
+float8_e5m2: Type[np.generic]
 
 __all__ = ['bfloat16', 'float8_e4m3b11', 'float8_e4m3fn', 'float8_e5m2']
+
+del np, Type
