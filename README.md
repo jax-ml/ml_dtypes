@@ -18,7 +18,7 @@
 
 ## Installation
 
-The `ml_dtypes` package is tested with Python versions 3.9-3.11, and can be installed
+The `ml_dtypes` package is tested with Python versions 3.8-3.11, and can be installed
 with the following command:
 ```
 pip install ml_dtypes
@@ -51,3 +51,10 @@ dtype(bfloat16)
 >>> np.dtype('float8_e5m2')
 dtype(float8_e5m2)
 ```
+
+## License
+
+The `ml_dtypes` source code is licensed under the Apache 2.0 license
+(see [LICENSE](LICENSE)). Pre-compiled wheels are built with the
+[EIGEN](https://eigen.tuxfamily.org/) project, which is released under the
+MPL 2.0 license (see [LICENSE.eigen](LICENSE.eigen)).
