@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.0.1'  # Keep in sync with pyproject.toml:version
+__version__ = '0.0.2'  # Keep in sync with pyproject.toml:version
 
 from ml_dtypes._custom_floats import bfloat16
 from ml_dtypes._custom_floats import float8_e4m3b11
