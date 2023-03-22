@@ -31,7 +31,6 @@ limitations under the License.
 
 #include "_src/custom_float.h"
 #include "_src/float8.h"
-#include "pybind11/pybind11.h"
 #include "eigen/Eigen/Core"
 
 namespace ml_dtypes {
@@ -195,22 +194,53 @@ bool Initialize() {
   return success;
 }
 
-PYBIND11_MODULE(_custom_floats, m) {
+static PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT,
+    "_custom_floats",
+};
+
+// TODO(phawkins): PyMODINIT_FUNC handles visibility correctly in Python 3.9+.
+// Just use PyMODINIT_FUNC after dropping Python 3.8 support.
+#if defined(WIN32) || defined(_WIN32)
+#define EXPORT_SYMBOL __declspec(dllexport)
+#else
+#define EXPORT_SYMBOL __attribute__((visibility("default")))
+#endif
+
+extern "C" EXPORT_SYMBOL PyObject* PyInit__custom_floats() {
+  Safe_PyObjectPtr m = make_safe(PyModule_Create(&module_def));
+  if (!m) {
+    return nullptr;
+  }
   if (!Initialize()) {
     if (!PyErr_Occurred()) {
       PyErr_SetString(PyExc_RuntimeError, "cannot load _custom_floats module.");
     }
-    throw pybind11::error_already_set();
+    return nullptr;
   }
 
-  m.attr("float8_e4m3b11") = pybind11::handle(
-      reinterpret_cast<PyObject*>(TypeDescriptor<float8_e4m3b11>::type_ptr));
-  m.attr("float8_e4m3fn") = pybind11::handle(
-      reinterpret_cast<PyObject*>(TypeDescriptor<float8_e4m3fn>::type_ptr));
-  m.attr("float8_e5m2") = pybind11::handle(
-      reinterpret_cast<PyObject*>(TypeDescriptor<float8_e5m2>::type_ptr));
-  m.attr("bfloat16") = pybind11::handle(
-      reinterpret_cast<PyObject*>(TypeDescriptor<bfloat16>::type_ptr));
+  if (PyObject_SetAttrString(m.get(), "float8_e4m3b11",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e4m3b11>::type_ptr)) <
+      0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(m.get(), "float8_e4m3fn",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e4m3fn>::type_ptr)) <
+      0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(m.get(), "float8_e5m2",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e5m2>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(m.get(), "bfloat16",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<bfloat16>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  return m.release();
 }
-
 }  // namespace ml_dtypes
