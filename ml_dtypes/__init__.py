@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.0.2'  # Keep in sync with pyproject.toml:version
+__version__ = '0.0.3'  # Keep in sync with pyproject.toml:version
 
 from typing import Type
 
