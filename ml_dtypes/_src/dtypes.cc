@@ -198,9 +198,8 @@ bool Initialize() {
 PYBIND11_MODULE(_custom_floats, m) {
   if (!Initialize()) {
     if (!PyErr_Occurred()) {
-      PyErr_SetString(PyExc_RuntimeError, "cannot load bfloat16 module.");
+      PyErr_SetString(PyExc_RuntimeError, "cannot load _custom_floats module.");
     }
-    PyErr_Print();
     throw pybind11::error_already_set();
   }
 

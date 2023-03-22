@@ -31,7 +31,6 @@ limitations under the License.
 #include <memory>   // NOLINT
 #include <sstream>  // NOLINT
 #include <vector>   // NOLINT
-
 // Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
@@ -77,22 +76,20 @@ struct CustomFloatTypeDescriptor {
   // code. Protected by the GIL.
   static int npy_type;
 
-  static PyTypeObject type;
   // Pointer to the python type object we are using. This is either a pointer
   // to type, if we choose to register it, or to the python type
   // registered by another system into NumPy.
-  static PyTypeObject* type_ptr;
+  static PyObject* type_ptr;
 
   static PyNumberMethods number_methods;
-
   static PyArray_ArrFuncs arr_funcs;
-
   static PyArray_Descr npy_descr;
 };
+
 template <typename T>
 int CustomFloatTypeDescriptor<T>::npy_type = NPY_NOTYPE;
 template <typename T>
-PyTypeObject* CustomFloatTypeDescriptor<T>::type_ptr = nullptr;
+PyObject* CustomFloatTypeDescriptor<T>::type_ptr = nullptr;
 
 // Representation of a Python custom float object.
 template <typename T>
@@ -104,8 +101,7 @@ struct PyCustomFloat {
 // Returns true if 'object' is a PyCustomFloat.
 template <typename T>
 bool PyCustomFloat_Check(PyObject* object) {
-  return PyObject_IsInstance(
-      object, reinterpret_cast<PyObject*>(&TypeDescriptor<T>::type));
+  return PyObject_IsInstance(object, TypeDescriptor<T>::type_ptr);
 }
 
 // Extracts the value of a PyCustomFloat object.
@@ -117,8 +113,9 @@ T PyCustomFloat_CustomFloat(PyObject* object) {
 // Constructs a PyCustomFloat object from PyCustomFloat<T>::T.
 template <typename T>
 Safe_PyObjectPtr PyCustomFloat_FromT(T x) {
-  Safe_PyObjectPtr ref =
-      make_safe(TypeDescriptor<T>::type.tp_alloc(&TypeDescriptor<T>::type, 0));
+  PyTypeObject* type =
+      reinterpret_cast<PyTypeObject*>(TypeDescriptor<T>::type_ptr);
+  Safe_PyObjectPtr ref = make_safe(type->tp_alloc(type, 0));
   PyCustomFloat<T>* p = reinterpret_cast<PyCustomFloat<T>*>(ref.get());
   if (p) {
     p->value = x;
@@ -419,72 +416,14 @@ Py_hash_t PyCustomFloat_Hash(PyObject* self) {
   return HashImpl(&_Py_HashDouble, self, static_cast<double>(x));
 }
 
-// Python type for PyCustomFloat objects.
-template <typename T>
-PyTypeObject CustomFloatTypeDescriptor<T>::type = {
-    PyVarObject_HEAD_INIT(nullptr, 0)  //
-    TypeDescriptor<T>::kQualifiedTypeName,  // tp_name
-    sizeof(PyCustomFloat<T>),  // tp_basicsize
-    0,                         // tp_itemsize
-    nullptr,                   // tp_dealloc
-#if PY_VERSION_HEX < 0x03080000
-    nullptr,  // tp_print
-#else
-    0,  // tp_vectorcall_offset
-#endif
-    nullptr,                                        // tp_getattr
-    nullptr,                                        // tp_setattr
-    nullptr,                                        // tp_compare / tp_reserved
-    PyCustomFloat_Repr<T>,                          // tp_repr
-    &CustomFloatTypeDescriptor<T>::number_methods,  // tp_as_number
-    nullptr,                                        // tp_as_sequence
-    nullptr,                                        // tp_as_mapping
-    PyCustomFloat_Hash<T>,                          // tp_hash
-    nullptr,                                        // tp_call
-    PyCustomFloat_Str<T>,                           // tp_str
-    nullptr,                                        // tp_getattro
-    nullptr,                                        // tp_setattro
-    nullptr,                                        // tp_as_buffer
-                                                    // tp_flags
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    TypeDescriptor<T>::kTpDoc,     // tp_doc
-    nullptr,                       // tp_traverse
-    nullptr,                       // tp_clear
-    PyCustomFloat_RichCompare<T>,  // tp_richcompare
-    0,                             // tp_weaklistoffset
-    nullptr,                       // tp_iter
-    nullptr,                       // tp_iternext
-    nullptr,                       // tp_methods
-    nullptr,                       // tp_members
-    nullptr,                       // tp_getset
-    nullptr,                       // tp_base
-    nullptr,                       // tp_dict
-    nullptr,                       // tp_descr_get
-    nullptr,                       // tp_descr_set
-    0,                             // tp_dictoffset
-    nullptr,                       // tp_init
-    nullptr,                       // tp_alloc
-    PyCustomFloat_New<T>,          // tp_new
-    nullptr,                       // tp_free
-    nullptr,                       // tp_is_gc
-    nullptr,                       // tp_bases
-    nullptr,                       // tp_mro
-    nullptr,                       // tp_cache
-    nullptr,                       // tp_subclasses
-    nullptr,                       // tp_weaklist
-    nullptr,                       // tp_del
-    0,                             // tp_version_tag
-};
-
 // Numpy support
 template <typename T>
 PyArray_ArrFuncs CustomFloatTypeDescriptor<T>::arr_funcs;
 
 template <typename T>
 PyArray_Descr CustomFloatTypeDescriptor<T>::npy_descr = {
-    PyObject_HEAD_INIT(nullptr)  //
-                                 /*typeobj=*/
-    (&TypeDescriptor<T>::type),
+    PyObject_HEAD_INIT(nullptr)
+    /*typeobj=*/nullptr,  // Filled in later
     /*kind=*/TypeDescriptor<T>::kNpyDescrKind,
     /*type=*/TypeDescriptor<T>::kNpyDescrType,
     /*byteorder=*/TypeDescriptor<T>::kNpyDescrByteorder,
@@ -1729,7 +1668,7 @@ bool RegisterNumpyDtype(PyObject* numpy, bool* already_registered = nullptr) {
     // an older version of TF or JAX.
     if (descr && descr->f && descr->f->argmax) {
       TypeDescriptor<T>::npy_type = typenum;
-      TypeDescriptor<T>::type_ptr = descr->typeobj;
+      TypeDescriptor<T>::type_ptr = reinterpret_cast<PyObject*>(descr->typeobj);
       if (already_registered != nullptr) {
         *already_registered = true;
       }
@@ -1737,9 +1676,51 @@ bool RegisterNumpyDtype(PyObject* numpy, bool* already_registered = nullptr) {
     }
   }
 
-  TypeDescriptor<T>::type.tp_base = &PyGenericArrType_Type;
+  // It's important that we heap-allocate our type. This is because tp_name
+  // is not a fully-qualified name for a heap-allocated type, and
+  // PyArray_TypeNumFromName() (above) looks at the tp_name field to find
+  // types. Existing implementations in JAX and TensorFlow look for "bfloat16",
+  // not "ml_dtypes.bfloat16" when searching for an implementation.
+  Safe_PyObjectPtr name =
+      make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
+  Safe_PyObjectPtr qualname =
+      make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
 
-  if (PyType_Ready(&TypeDescriptor<T>::type) < 0) {
+  PyHeapTypeObject* heap_type = reinterpret_cast<PyHeapTypeObject*>(
+      PyType_Type.tp_alloc(&PyType_Type, 0));
+  if (!heap_type) {
+    return false;
+  }
+  // Caution: we must not call any functions that might invoke the GC until
+  // PyType_Ready() is called. Otherwise the GC might see a half-constructed
+  // type object.
+  heap_type->ht_name = name.release();
+  heap_type->ht_qualname = qualname.release();
+  PyTypeObject* type = &heap_type->ht_type;
+  type->tp_name = TypeDescriptor<T>::kTypeName;
+  type->tp_basicsize = sizeof(PyCustomFloat<T>);
+  type->tp_flags =
+      Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HEAPTYPE;
+  type->tp_base = &PyGenericArrType_Type;
+  type->tp_new = PyCustomFloat_New<T>;
+  type->tp_repr = PyCustomFloat_Repr<T>;
+  type->tp_hash = PyCustomFloat_Hash<T>;
+  type->tp_str = PyCustomFloat_Str<T>;
+  type->tp_doc = const_cast<char*>(TypeDescriptor<T>::kTpDoc);
+  type->tp_richcompare = PyCustomFloat_RichCompare<T>;
+  type->tp_new = PyCustomFloat_New<T>;
+  type->tp_as_number = &CustomFloatTypeDescriptor<T>::number_methods;
+  if (PyType_Ready(type) < 0) {
+    return false;
+  }
+  TypeDescriptor<T>::type_ptr = reinterpret_cast<PyObject*>(type);
+
+  Safe_PyObjectPtr module = make_safe(PyUnicode_FromString("ml_dtypes"));
+  if (!module) {
+    return false;
+  }
+  if (PyObject_SetAttrString(TypeDescriptor<T>::type_ptr, "__module__",
+                             module.get()) < 0) {
     return false;
   }
 
@@ -1763,9 +1744,10 @@ bool RegisterNumpyDtype(PyObject* numpy, bool* already_registered = nullptr) {
 #else
   Py_SET_TYPE(&CustomFloatTypeDescriptor<T>::npy_descr, &PyArrayDescr_Type);
 #endif
+  TypeDescriptor<T>::npy_descr.typeobj = type;
+
   TypeDescriptor<T>::npy_type =
       PyArray_RegisterDataType(&CustomFloatTypeDescriptor<T>::npy_descr);
-  TypeDescriptor<T>::type_ptr = &TypeDescriptor<T>::type;
   if (TypeDescriptor<T>::Dtype() < 0) {
     return false;
   }
@@ -1775,16 +1757,16 @@ bool RegisterNumpyDtype(PyObject* numpy, bool* already_registered = nullptr) {
   if (!typeDict_obj) return false;
   // Add the type object to `numpy.typeDict`: that makes
   // `numpy.dtype(type_name)` work.
-  if (PyDict_SetItemString(
-          typeDict_obj.get(), TypeDescriptor<T>::kTypeName,
-          reinterpret_cast<PyObject*>(&TypeDescriptor<T>::type)) < 0) {
+  if (PyDict_SetItemString(typeDict_obj.get(), TypeDescriptor<T>::kTypeName,
+                           TypeDescriptor<T>::type_ptr) < 0) {
     return false;
   }
 
   // Support dtype(type_name)
-  if (PyDict_SetItemString(TypeDescriptor<T>::type.tp_dict, "dtype",
-                           reinterpret_cast<PyObject*>(
-                               &CustomFloatTypeDescriptor<T>::npy_descr)) < 0) {
+  if (PyObject_SetAttrString(TypeDescriptor<T>::type_ptr, "dtype",
+                             reinterpret_cast<PyObject*>(
+                                 &CustomFloatTypeDescriptor<T>::npy_descr)) <
+      0) {
     return false;
   }
 
