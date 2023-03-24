@@ -58,3 +58,6 @@ packages = ["ml_dtypes", "ml_dtypes._src"]
 
 [tool.setuptools.packages]
 find = {}
+
+[tool.setuptools.package-data]
+ml_dtypes = ["py.typed"]
