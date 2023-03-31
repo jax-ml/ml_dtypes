@@ -24,6 +24,11 @@ ALL_DTYPES = [
     ml_dtypes.float8_e5m2,
 ]
 
+UINT_TYPES = {
+    8: np.uint8,
+    16: np.uint16,
+}
+
 
 class FinfoTest(parameterized.TestCase):
 
@@ -38,8 +43,11 @@ class FinfoTest(parameterized.TestCase):
   )
   def testFInfo(self, dtype):
     info = ml_dtypes.finfo(dtype)
+
     assert ml_dtypes.finfo(dtype.name) is info
     assert ml_dtypes.finfo(dtype.type) is info
+
+    _ = str(info)  # doesn't crash
 
     def make_val(val):
       return np.array(val, dtype=dtype)
@@ -73,6 +81,12 @@ class FinfoTest(parameterized.TestCase):
     self.assertEqual(info.epsneg, make_val(2**info.negep))
     self.assertEqual(info.eps, make_val(2**info.machep))
     self.assertEqual(info.iexp, info.nexp)
+
+    # Check that minexp is consistent with nmant
+    self.assertEqual(
+        make_val(2**info.minexp).view(UINT_TYPES[info.bits]),
+        2**info.nmant,
+    )
 
 
 if __name__ == "__main__":
