@@ -1,0 +1,13 @@
+repos:
+  - repo: https://github.com/google/pyink
+    # ref: 23.3.0
+    rev: b8e19743180ba5996cff50b70d13c557f8b7dfd5
+    hooks:
+      - id: pyink
+        language_version: python3.8
+    args: [
+      "--line-length=80",
+      "--preview",
+      "--pyink-indentation=2",
+      "--pyink-use-majority-quotes"
+    ]

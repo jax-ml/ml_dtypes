@@ -51,8 +51,11 @@ def numpy_assert_allclose(a, b, float_type, **kwargs):
 
 
 def numpy_promote_types(
-    a: Type[np.generic], b: Type[np.generic], float_type: Type[np.generic],
-    next_largest_fp_type: Type[np.generic]) -> Type[np.generic]:
+    a: Type[np.generic],
+    b: Type[np.generic],
+    float_type: Type[np.generic],
+    next_largest_fp_type: Type[np.generic],
+) -> Type[np.generic]:
   if a == float_type and b == float_type:
     return float_type
   if a == float_type:
@@ -79,7 +82,8 @@ def binary_operation_test(a, b, op, float_type):
       raise AssertionError("%s expected to be nan." % repr(result))
   else:
     np.testing.assert_equal(
-        truncate(expected, float_type=float_type), float(result))
+        truncate(expected, float_type=float_type), float(result)
+    )
 
 
 def dtype_has_inf(dtype):
@@ -195,8 +199,7 @@ class CustomFloatTest(parameterized.TestCase):
     serialized = pickle.dumps(x)
     x_out = pickle.loads(serialized)
     self.assertEqual(x_out.dtype, x.dtype)
-    np.testing.assert_array_equal(
-        x_out.astype("float32"), x.astype("float32"))
+    np.testing.assert_array_equal(x_out.astype("float32"), x.astype("float32"))
 
   def testRoundTripToFloat(self, float_type):
     for v in FLOAT_VALUES[float_type]:
@@ -223,7 +226,11 @@ class CustomFloatTest(parameterized.TestCase):
   @ignore_warning(category=RuntimeWarning, message="overflow encountered")
   def testRoundTripToNumpy(self, float_type):
     for dtype in [
-        float_type, np.float16, np.float32, np.float64, np.longdouble
+        float_type,
+        np.float16,
+        np.float32,
+        np.float64,
+        np.longdouble,
     ]:
       with self.subTest(dtype.__name__):
         for v in FLOAT_VALUES[float_type]:
@@ -235,8 +242,10 @@ class CustomFloatTest(parameterized.TestCase):
         if dtype != float_type:
           np.testing.assert_equal(
               np.array(FLOAT_VALUES[float_type], dtype),
-              float_type(np.array(FLOAT_VALUES[float_type],
-                                  dtype)).astype(dtype))
+              float_type(np.array(FLOAT_VALUES[float_type], dtype)).astype(
+                  dtype
+              ),
+          )
 
   def testBetweenCustomTypes(self, float_type):
     for dtype in [bfloat16, float8_e4m3b11, float8_e4m3fn, float8_e5m2]:
@@ -247,8 +256,9 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testStr(self, float_type):
     for value in FLOAT_VALUES[float_type]:
-      self.assertEqual("%.6g" % float(float_type(value)),
-                       str(float_type(value)))
+      self.assertEqual(
+          "%.6g" % float(float_type(value)), str(float_type(value))
+      )
 
   def testFromStr(self, float_type):
     self.assertEqual(float_type(1.2), float_type("1.2"))
@@ -260,8 +270,9 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testRepr(self, float_type):
     for value in FLOAT_VALUES[float_type]:
-      self.assertEqual("%.6g" % float(float_type(value)),
-                       repr(float_type(value)))
+      self.assertEqual(
+          "%.6g" % float(float_type(value)), repr(float_type(value))
+      )
 
   def testItem(self, float_type):
     self.assertIsInstance(float_type(0).item(), float)
@@ -272,13 +283,16 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testHashNumbers(self, float_type):
     for value in np.extract(
-        np.isfinite(FLOAT_VALUES[float_type]), FLOAT_VALUES[float_type]):
+        np.isfinite(FLOAT_VALUES[float_type]), FLOAT_VALUES[float_type]
+    ):
       with self.subTest(value):
         self.assertEqual(hash(value), hash(float_type(value)), str(value))
 
   def testHashNan(self, float_type):
-    for name, nan in [("PositiveNan", float_type(float("nan"))),
-                      ("NegativeNan", float_type(float("-nan")))]:
+    for name, nan in [
+        ("PositiveNan", float_type(float("nan"))),
+        ("NegativeNan", float_type(float("-nan"))),
+    ]:
       with self.subTest(name):
         nan_hash = hash(nan)
         nan_object_hash = object.__hash__(nan)
@@ -296,12 +310,20 @@ class CustomFloatTest(parameterized.TestCase):
   def testNegate(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       np.testing.assert_equal(
-          float(float_type(-float(float_type(v)))), float(-float_type(v)))
+          float(float_type(-float(float_type(v)))), float(-float_type(v))
+      )
 
   def testAdd(self, float_type):
-    for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
-                 (float("inf"), -2.25), (float("-inf"), -2.25),
-                 (3.5, float("nan"))]:
+    for a, b in [
+        (0, 0),
+        (1, 0),
+        (1, -1),
+        (2, 3.5),
+        (3.5, -2.25),
+        (float("inf"), -2.25),
+        (float("-inf"), -2.25),
+        (3.5, float("nan")),
+    ]:
       binary_operation_test(a, b, op=lambda a, b: a + b, float_type=float_type)
 
   def testAddScalarTypePromotion(self, float_type):
@@ -319,28 +341,51 @@ class CustomFloatTest(parameterized.TestCase):
         self.assertEqual(expected_type, actual_type)
 
   def testAddArrayTypePromotion(self, float_type):
-    self.assertEqual(np.float32,
-                     type(float_type(3.5) + np.array(2.25, np.float32)))
-    self.assertEqual(np.float32,
-                     type(np.array(3.5, np.float32) + float_type(2.25)))
+    self.assertEqual(
+        np.float32, type(float_type(3.5) + np.array(2.25, np.float32))
+    )
+    self.assertEqual(
+        np.float32, type(np.array(3.5, np.float32) + float_type(2.25))
+    )
 
   def testSub(self, float_type):
-    for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
-                 (-2.25, float("inf")), (-2.25, float("-inf")),
-                 (3.5, float("nan"))]:
+    for a, b in [
+        (0, 0),
+        (1, 0),
+        (1, -1),
+        (2, 3.5),
+        (3.5, -2.25),
+        (-2.25, float("inf")),
+        (-2.25, float("-inf")),
+        (3.5, float("nan")),
+    ]:
       binary_operation_test(a, b, op=lambda a, b: a - b, float_type=float_type)
 
   def testMul(self, float_type):
-    for a, b in [(0, 0), (1, 0), (1, -1), (3.5, -2.25), (float("inf"), -2.25),
-                 (float("-inf"), -2.25), (3.5, float("nan"))]:
+    for a, b in [
+        (0, 0),
+        (1, 0),
+        (1, -1),
+        (3.5, -2.25),
+        (float("inf"), -2.25),
+        (float("-inf"), -2.25),
+        (3.5, float("nan")),
+    ]:
       binary_operation_test(a, b, op=lambda a, b: a * b, float_type=float_type)
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
   def testDiv(self, float_type):
-    for a, b in [(0, 0), (1, 0), (1, -1), (2, 3.5), (3.5, -2.25),
-                 (float("inf"), -2.25), (float("-inf"), -2.25),
-                 (3.5, float("nan"))]:
+    for a, b in [
+        (0, 0),
+        (1, 0),
+        (1, -1),
+        (2, 3.5),
+        (3.5, -2.25),
+        (float("inf"), -2.25),
+        (float("-inf"), -2.25),
+        (3.5, float("nan")),
+    ]:
       binary_operation_test(a, b, op=lambda a, b: a / b, float_type=float_type)
 
   def testLess(self, float_type):
@@ -377,18 +422,17 @@ class CustomFloatTest(parameterized.TestCase):
     a = np.isnan(float_type(float("nan")))
     self.assertTrue(a)
     numpy_assert_allclose(
-        np.array([1.0, a]), np.array([1.0, a]), float_type=float_type)
+        np.array([1.0, a]), np.array([1.0, a]), float_type=float_type
+    )
 
     a = np.array(
-        [float_type(1.34375),
-         float_type(1.4375),
-         float_type(float("nan"))],
-        dtype=float_type)
+        [float_type(1.34375), float_type(1.4375), float_type(float("nan"))],
+        dtype=float_type,
+    )
     b = np.array(
-        [float_type(1.3359375),
-         float_type(1.4375),
-         float_type(float("nan"))],
-        dtype=float_type)
+        [float_type(1.3359375), float_type(1.4375), float_type(float("nan"))],
+        dtype=float_type,
+    )
     numpy_assert_allclose(
         a,
         b,
@@ -397,7 +441,8 @@ class CustomFloatTest(parameterized.TestCase):
         equal_nan=True,
         err_msg="",
         verbose=True,
-        float_type=float_type)
+        float_type=float_type,
+    )
 
   def testSort(self, float_type):
     # Note: np.sort doesn't work properly with NaNs since they always compare
@@ -411,7 +456,8 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testArgmax(self, float_type):
     values_to_sort = np.float32(
-        float_type(np.float32(FLOAT_VALUES[float_type])))
+        float_type(np.float32(FLOAT_VALUES[float_type]))
+    )
     argmax_f32 = np.argmax(values_to_sort)
     argmax_float_type = np.argmax(values_to_sort.astype(float_type))  # pylint: disable=too-many-function-args
     np.testing.assert_equal(argmax_f32, argmax_float_type)
@@ -419,9 +465,11 @@ class CustomFloatTest(parameterized.TestCase):
   def testArgmaxOnNan(self, float_type):
     """Ensures we return the right thing for multiple NaNs."""
     one_with_nans = np.array(
-        [1.0, float("nan"), float("nan")], dtype=np.float32)
+        [1.0, float("nan"), float("nan")], dtype=np.float32
+    )
     np.testing.assert_equal(
-        np.argmax(one_with_nans.astype(float_type)), np.argmax(one_with_nans))
+        np.argmax(one_with_nans.astype(float_type)), np.argmax(one_with_nans)
+    )
 
   def testArgmaxOnNegativeInfinity(self, float_type):
     """Ensures we return the right thing for negative infinities."""
@@ -430,7 +478,8 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testArgmin(self, float_type):
     values_to_sort = np.float32(
-        float_type(np.float32(FLOAT_VALUES[float_type])))
+        float_type(np.float32(FLOAT_VALUES[float_type]))
+    )
     argmin_f32 = np.argmin(values_to_sort)
     argmin_float_type = np.argmin(values_to_sort.astype(float_type))  # pylint: disable=too-many-function-args
     np.testing.assert_equal(argmin_f32, argmin_float_type)
@@ -438,9 +487,11 @@ class CustomFloatTest(parameterized.TestCase):
   def testArgminOnNan(self, float_type):
     """Ensures we return the right thing for multiple NaNs."""
     one_with_nans = np.array(
-        [1.0, float("nan"), float("nan")], dtype=np.float32)
+        [1.0, float("nan"), float("nan")], dtype=np.float32
+    )
     np.testing.assert_equal(
-        np.argmin(one_with_nans.astype(float_type)), np.argmin(one_with_nans))
+        np.argmin(one_with_nans.astype(float_type)), np.argmin(one_with_nans)
+    )
 
   def testArgminOnPositiveInfinity(self, float_type):
     """Ensures we return the right thing for positive infinities."""
@@ -454,22 +505,74 @@ class CustomFloatTest(parameterized.TestCase):
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])
 
 UNARY_UFUNCS = [
-    np.negative, np.positive, np.absolute, np.fabs, np.rint, np.sign,
-    np.conjugate, np.exp, np.exp2, np.expm1, np.log, np.log10, np.log1p,
-    np.log2, np.sqrt, np.square, np.cbrt, np.reciprocal, np.sin, np.cos, np.tan,
-    np.arcsin, np.arccos, np.arctan, np.sinh, np.cosh, np.tanh, np.arcsinh,
-    np.arccosh, np.arctanh, np.deg2rad, np.rad2deg, np.floor, np.ceil, np.trunc
+    np.negative,
+    np.positive,
+    np.absolute,
+    np.fabs,
+    np.rint,
+    np.sign,
+    np.conjugate,
+    np.exp,
+    np.exp2,
+    np.expm1,
+    np.log,
+    np.log10,
+    np.log1p,
+    np.log2,
+    np.sqrt,
+    np.square,
+    np.cbrt,
+    np.reciprocal,
+    np.sin,
+    np.cos,
+    np.tan,
+    np.arcsin,
+    np.arccos,
+    np.arctan,
+    np.sinh,
+    np.cosh,
+    np.tanh,
+    np.arcsinh,
+    np.arccosh,
+    np.arctanh,
+    np.deg2rad,
+    np.rad2deg,
+    np.floor,
+    np.ceil,
+    np.trunc,
 ]
 
 BINARY_UFUNCS = [
-    np.add, np.subtract, np.multiply, np.divide, np.logaddexp, np.logaddexp2,
-    np.floor_divide, np.power, np.remainder, np.fmod, np.heaviside, np.arctan2,
-    np.hypot, np.maximum, np.minimum, np.fmax, np.fmin, np.copysign
+    np.add,
+    np.subtract,
+    np.multiply,
+    np.divide,
+    np.logaddexp,
+    np.logaddexp2,
+    np.floor_divide,
+    np.power,
+    np.remainder,
+    np.fmod,
+    np.heaviside,
+    np.arctan2,
+    np.hypot,
+    np.maximum,
+    np.minimum,
+    np.fmax,
+    np.fmin,
+    np.copysign,
 ]
 
 BINARY_PREDICATE_UFUNCS = [
-    np.equal, np.not_equal, np.less, np.greater, np.less_equal,
-    np.greater_equal, np.logical_and, np.logical_or, np.logical_xor
+    np.equal,
+    np.not_equal,
+    np.less,
+    np.greater,
+    np.less_equal,
+    np.greater_equal,
+    np.logical_and,
+    np.logical_or,
+    np.logical_xor,
 ]
 
 
@@ -533,24 +636,58 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         (float_type, np.clongdouble),
     ]
     all_dtypes = [
-        np.float16, np.float32, np.float64, np.longdouble, np.int8, np.int16,
-        np.int32, np.int64, np.complex64, np.complex128, np.clongdouble,
-        np.uint8, np.uint16, np.uint32, np.uint64, np.intc, np.int_,
-        np.longlong, np.uintc, np.ulonglong
+        np.float16,
+        np.float32,
+        np.float64,
+        np.longdouble,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.complex64,
+        np.complex128,
+        np.clongdouble,
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.intc,
+        np.int_,
+        np.longlong,
+        np.uintc,
+        np.ulonglong,
     ]
     for d in all_dtypes:
       with self.subTest(d.__name__):
-        self.assertEqual((float_type, d) in allowed_casts,
-                         np.can_cast(float_type, d))
-        self.assertEqual((d, float_type) in allowed_casts,
-                         np.can_cast(d, float_type))
+        self.assertEqual(
+            (float_type, d) in allowed_casts, np.can_cast(float_type, d)
+        )
+        self.assertEqual(
+            (d, float_type) in allowed_casts, np.can_cast(d, float_type)
+        )
 
   def testCasts(self, float_type):
     for dtype in [
-        np.float16, np.float32, np.float64, np.longdouble, np.int8, np.int16,
-        np.int32, np.int64, np.complex64, np.complex128, np.clongdouble,
-        np.uint8, np.uint16, np.uint32, np.uint64, np.intc, np.int_,
-        np.longlong, np.uintc, np.ulonglong
+        np.float16,
+        np.float32,
+        np.float64,
+        np.longdouble,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.complex64,
+        np.complex128,
+        np.clongdouble,
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.intc,
+        np.int_,
+        np.longlong,
+        np.uintc,
+        np.ulonglong,
     ]:
       x = np.array([[1, 2, 3]], dtype=dtype)
       y = x.astype(float_type)
@@ -575,7 +712,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testArange(self, float_type):
     np.testing.assert_equal(
         np.arange(100, dtype=np.float32).astype(float_type),
-        np.arange(100, dtype=float_type))
+        np.arange(100, dtype=float_type),
+    )
     np.testing.assert_equal(
         np.arange(-8, 8, 1, dtype=np.float32).astype(float_type),
         np.arange(-8, 8, 1, dtype=float_type),
@@ -600,7 +738,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             op(x).astype(np.float32),
             truncate(op(x.astype(np.float32)), float_type=float_type),
             rtol=1e-4,
-            float_type=float_type)
+            float_type=float_type,
+        )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
@@ -614,9 +753,11 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             op(x, y).astype(np.float32),
             truncate(
                 op(x.astype(np.float32), y.astype(np.float32)),
-                float_type=float_type),
+                float_type=float_type,
+            ),
             rtol=1e-4,
-            float_type=float_type)
+            float_type=float_type,
+        )
 
   def testBinaryPredicateUfunc(self, float_type):
     for op in BINARY_PREDICATE_UFUNCS:
@@ -625,7 +766,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         x = rng.randn(3, 7).astype(float_type)
         y = rng.randn(4, 1, 7).astype(float_type)
         np.testing.assert_equal(
-            op(x, y), op(x.astype(np.float32), y.astype(np.float32)))
+            op(x, y), op(x.astype(np.float32), y.astype(np.float32))
+        )
 
   def testPredicateUfunc(self, float_type):
     for op in [np.isfinite, np.isinf, np.isnan, np.signbit, np.logical_not]:
@@ -652,12 +794,14 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         o1,
         truncate(e1, float_type=float_type),
         rtol=1e-2,
-        float_type=float_type)
+        float_type=float_type,
+    )
     numpy_assert_allclose(
         o2,
         truncate(e2, float_type=float_type),
         rtol=1e-2,
-        float_type=float_type)
+        float_type=float_type,
+    )
 
   def testModf(self, float_type):
     rng = np.random.RandomState(seed=42)
@@ -668,12 +812,14 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         o1.astype(np.float32),
         truncate(e1, float_type=float_type),
         rtol=1e-2,
-        float_type=float_type)
+        float_type=float_type,
+    )
     numpy_assert_allclose(
         o2.astype(np.float32),
         truncate(e2, float_type=float_type),
         rtol=1e-2,
-        float_type=float_type)
+        float_type=float_type,
+    )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testLdexp(self, float_type):
@@ -686,7 +832,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         truncate(np.ldexp(x.astype(np.float32), y), float_type=float_type),
         rtol=1e-2,
         atol=1e-6,
-        float_type=float_type)
+        float_type=float_type,
+    )
 
   def testFrexp(self, float_type):
     rng = np.random.RandomState(seed=42)
@@ -709,9 +856,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         )
 
   def testNextAfter(self, float_type):
-    one = np.array(1., dtype=float_type)
-    two = np.array(2., dtype=float_type)
-    zero = np.array(0., dtype=float_type)
+    one = np.array(1.0, dtype=float_type)
+    two = np.array(2.0, dtype=float_type)
+    zero = np.array(0.0, dtype=float_type)
     nan = np.array(np.nan, dtype=float_type)
     np.testing.assert_equal(
         np.nextafter(one, two) - one, FLOAT_EPSILON[float_type]
@@ -725,12 +872,15 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     smallest_denormal = FLOAT_SMALLEST_SUBNORMAL[float_type]
     np.testing.assert_equal(np.nextafter(zero, one), smallest_denormal)
     np.testing.assert_equal(np.nextafter(zero, -one), -smallest_denormal)
-    for a, b in itertools.permutations([0., nan], 2):
+    for a, b in itertools.permutations([0.0, nan], 2):
       np.testing.assert_equal(
           np.nextafter(
-              np.array(a, dtype=np.float32), np.array(b, dtype=np.float32)),
+              np.array(a, dtype=np.float32), np.array(b, dtype=np.float32)
+          ),
           np.nextafter(
-              np.array(a, dtype=float_type), np.array(b, dtype=float_type)))
+              np.array(a, dtype=float_type), np.array(b, dtype=float_type)
+          ),
+      )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testSpacing(self, float_type):

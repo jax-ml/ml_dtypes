@@ -40,6 +40,8 @@ dev = [
 
 [tool.pyink]
 # Formatting configuration to follow Google style-guide
+line-length = 80
+preview = true
 pyink-indentation = 2
 pyink-use-majority-quotes = true
 

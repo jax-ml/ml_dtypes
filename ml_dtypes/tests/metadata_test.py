@@ -19,6 +19,7 @@ import ml_dtypes
 
 
 class CustomFloatTest(absltest.TestCase):
+
   def test_version_matches_package_metadata(self):
     try:
       ml_dtypes_metadata = metadata.metadata("ml_dtypes")
