@@ -1,7 +1,7 @@
 repos:
   - repo: https://github.com/google/pyink
-    # ref: 23.3.0
-    rev: b8e19743180ba5996cff50b70d13c557f8b7dfd5
+    # tags/23.3.0
+    rev: 941802bf61953a44f19acd8579d96439833ef532
     hooks:
       - id: pyink
         language_version: python3.8
@@ -11,3 +11,8 @@ repos:
           "--pyink-indentation=2",
           "--pyink-use-majority-quotes"
         ]
+  - repo: https://github.com/google/pytype
+    # tag/2023.03.31
+    rev: 23a79d8d1181342b94e59dbd70010cc7e91369e2
+    hooks:
+      - id: pytype
