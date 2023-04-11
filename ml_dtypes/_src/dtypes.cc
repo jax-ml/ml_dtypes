@@ -93,6 +93,20 @@ struct TypeDescriptor<float8_e4m3fn>
 };
 
 template <>
+struct TypeDescriptor<float8_e4m3fnuz>
+    : CustomFloatTypeDescriptor<float8_e4m3fnuz> {
+  typedef float8_e4m3fnuz T;
+  static constexpr const char* kTypeName = "float8_e4m3fnuz";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3fnuz";
+  static constexpr const char* kTpDoc = "float8_e4m3fnuz floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'G';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
 struct TypeDescriptor<float8_e5m2> : CustomFloatTypeDescriptor<float8_e5m2> {
   typedef float8_e5m2 T;
   static constexpr const char* kTypeName = "float8_e5m2";
@@ -103,6 +117,20 @@ struct TypeDescriptor<float8_e5m2> : CustomFloatTypeDescriptor<float8_e5m2> {
   // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
   // character is unique.
   static constexpr char kNpyDescrType = '5';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<float8_e5m2fnuz>
+    : CustomFloatTypeDescriptor<float8_e5m2fnuz> {
+  typedef float8_e5m2fnuz T;
+  static constexpr const char* kTypeName = "float8_e5m2fnuz";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2fnuz";
+  static constexpr const char* kTpDoc = "float8_e5m2fnuz floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'C';
   static constexpr char kNpyDescrByteorder = '=';
 };
 
@@ -165,9 +193,19 @@ bool Initialize() {
           numpy.get(), &float8_e4m3fn_already_registered)) {
     return false;
   }
+  bool float8_e4m3fnuz_already_registered;
+  if (!ml_dtypes::RegisterNumpyDtype<float8_e4m3fnuz>(
+          numpy.get(), &float8_e4m3fnuz_already_registered)) {
+    return false;
+  }
   bool float8_e5m2_already_registered;
   if (!ml_dtypes::RegisterNumpyDtype<float8_e5m2>(
           numpy.get(), &float8_e5m2_already_registered)) {
+    return false;
+  }
+  bool float8_e5m2fnuz_already_registered;
+  if (!ml_dtypes::RegisterNumpyDtype<float8_e5m2fnuz>(
+          numpy.get(), &float8_e5m2fnuz_already_registered)) {
     return false;
   }
 
@@ -178,6 +216,11 @@ bool Initialize() {
   // uninitialized type descriptor in this library.
   if (!float8_e4m3b11_already_registered &&
       !RegisterCustomFloatCast<float8_e4m3b11, bfloat16>()) {
+    return false;
+  }
+  if (!float8_e4m3fnuz_already_registered &&
+      !float8_e5m2fnuz_already_registered &&
+      !RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2fnuz>()) {
     return false;
   }
   if (!float8_e4m3fn_already_registered && !float8_e5m2_already_registered &&
@@ -191,6 +234,14 @@ bool Initialize() {
   success &= RegisterTwoWayCustomCast<float8_e4m3b11, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e5m2>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, bfloat16>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, bfloat16>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3b11>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3b11>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3fn>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3fn>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e5m2>();
   return success;
 }
 
@@ -231,9 +282,21 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__custom_floats() {
       0) {
     return nullptr;
   }
+  if (PyObject_SetAttrString(m.get(), "float8_e4m3fnuz",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e4m3fnuz>::type_ptr)) <
+      0) {
+    return nullptr;
+  }
   if (PyObject_SetAttrString(m.get(), "float8_e5m2",
                              reinterpret_cast<PyObject*>(
                                  TypeDescriptor<float8_e5m2>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(m.get(), "float8_e5m2fnuz",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e5m2fnuz>::type_ptr)) <
+      0) {
     return nullptr;
   }
   if (PyObject_SetAttrString(m.get(), "bfloat16",

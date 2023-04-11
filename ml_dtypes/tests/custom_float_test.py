@@ -34,7 +34,9 @@ import numpy as np
 bfloat16 = ml_dtypes.bfloat16
 float8_e4m3b11 = ml_dtypes.float8_e4m3b11
 float8_e4m3fn = ml_dtypes.float8_e4m3fn
+float8_e4m3fnuz = ml_dtypes.float8_e4m3fnuz
 float8_e5m2 = ml_dtypes.float8_e5m2
+float8_e5m2fnuz = ml_dtypes.float8_e5m2fnuz
 
 
 @contextlib.contextmanager
@@ -104,28 +106,36 @@ FLOAT_EPSILON = {
     bfloat16: float.fromhex("1.0p-7"),
     float8_e4m3b11: float.fromhex("1.0p-3"),
     float8_e4m3fn: float.fromhex("1.0p-3"),
+    float8_e4m3fnuz: float.fromhex("1.0p-3"),
     float8_e5m2: float.fromhex("1.0p-2"),
+    float8_e5m2fnuz: float.fromhex("1.0p-2"),
 }
 
 FLOAT_MAX = {
     bfloat16: float.fromhex("1.FEp127"),
     float8_e4m3b11: float.fromhex("1.Ep4"),
     float8_e4m3fn: float.fromhex("1.Cp8"),
+    float8_e4m3fnuz: float.fromhex("1.Ep7"),
     float8_e5m2: float.fromhex("1.Cp15"),
+    float8_e5m2fnuz: float.fromhex("1.Cp15"),
 }
 
 FLOAT_SMALLEST_SUBNORMAL = {
     bfloat16: float.fromhex("1.0p-133"),
     float8_e4m3b11: float.fromhex("1.0p-13"),
     float8_e4m3fn: float.fromhex("1.0p-9"),
+    float8_e4m3fnuz: float.fromhex("1.0p-10"),
     float8_e5m2: float.fromhex("1.0p-16"),
+    float8_e5m2fnuz: float.fromhex("1.0p-17"),
 }
 
 FLOAT_SMALLEST_NORMAL = {
     bfloat16: float.fromhex("1.0p-126"),
     float8_e4m3b11: float.fromhex("1.0p-10"),
     float8_e4m3fn: float.fromhex("1.0p-6"),
+    float8_e4m3fnuz: float.fromhex("1.0p-7"),
     float8_e5m2: float.fromhex("1.0p-14"),
+    float8_e5m2fnuz: float.fromhex("1.0p-15"),
 }
 
 # Values that should round trip exactly to float and back.
@@ -165,7 +175,17 @@ INT_VALUES = {
             range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(9)
         )
     )[:-1],
+    float8_e4m3fnuz: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(8)
+        )
+    )[:-1],
     float8_e5m2: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
+        )
+    ),
+    float8_e5m2fnuz: list(
         itertools.chain.from_iterable(
             range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
         )
@@ -176,15 +196,26 @@ BITS_TYPE = {
     bfloat16: np.uint16,
     float8_e4m3b11: np.uint8,
     float8_e4m3fn: np.uint8,
+    float8_e4m3fnuz: np.uint8,
     float8_e5m2: np.uint8,
+    float8_e5m2fnuz: np.uint8,
 }
+
+FLOAT_DTYPES = [
+    bfloat16,
+    float8_e4m3b11,
+    float8_e4m3fn,
+    float8_e4m3fnuz,
+    float8_e5m2,
+    float8_e5m2fnuz,
+]
 
 
 # pylint: disable=g-complex-comprehension
 @parameterized.named_parameters(
     (
         {"testcase_name": "_" + dtype.__name__, "float_type": dtype}
-        for dtype in [bfloat16, float8_e4m3b11, float8_e4m3fn, float8_e5m2]
+        for dtype in FLOAT_DTYPES
     )
 )
 class CustomFloatTest(parameterized.TestCase):
@@ -248,7 +279,7 @@ class CustomFloatTest(parameterized.TestCase):
           )
 
   def testBetweenCustomTypes(self, float_type):
-    for dtype in [bfloat16, float8_e4m3b11, float8_e4m3fn, float8_e5m2]:
+    for dtype in FLOAT_DTYPES:
       x = np.array(FLOAT_VALUES[float_type], dtype=dtype)
       y = x.astype(float_type)
       z = x.astype(float).astype(float_type)
@@ -580,7 +611,7 @@ BINARY_PREDICATE_UFUNCS = [
 @parameterized.named_parameters(
     (
         {"testcase_name": "_" + dtype.__name__, "float_type": dtype}
-        for dtype in [bfloat16, float8_e4m3b11, float8_e4m3fn, float8_e5m2]
+        for dtype in FLOAT_DTYPES
     )
 )
 class CustomFloatNumPyTest(parameterized.TestCase):

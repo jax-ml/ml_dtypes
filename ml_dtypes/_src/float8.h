@@ -33,8 +33,10 @@ namespace float8_internal {
 
 // Forward-declarations of classes.
 class float8_e4m3fn;
+class float8_e4m3fnuz;
 class float8_e4m3b11;
 class float8_e5m2;
+class float8_e5m2fnuz;
 
 template <typename Derived>
 class float8_base {
@@ -183,7 +185,11 @@ class float8_e4m3fn : public float8_base<float8_e4m3fn> {
       : float8_e4m3fn(ConvertFrom(f16)) {}
   explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e5m2& f8)
       : float8_e4m3fn(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e5m2fnuz& f8)
+      : float8_e4m3fn(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e4m3b11& f8)
+      : float8_e4m3fn(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e4m3fnuz& f8)
       : float8_e4m3fn(ConvertFrom(f8)) {}
 
   template <typename T,
@@ -235,7 +241,11 @@ class float8_e4m3b11 : public float8_base<float8_e4m3b11> {
       : float8_e4m3b11(ConvertFrom(f16)) {}
   explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e5m2& f8)
       : float8_e4m3b11(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e5m2fnuz& f8)
+      : float8_e4m3b11(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e4m3fn& f8)
+      : float8_e4m3b11(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e4m3fnuz& f8)
       : float8_e4m3b11(ConvertFrom(f8)) {}
 
   constexpr float8_e4m3b11 operator-() const {
@@ -246,6 +256,84 @@ class float8_e4m3b11 : public float8_base<float8_e4m3b11> {
   }
 
   float8_e4m3b11 operator-(const float8_e4m3b11& other) const {
+    return Base::operator-(other);
+  }
+
+  template <typename T,
+            typename EnableIf = std::enable_if<std::is_arithmetic_v<T>>>
+  explicit EIGEN_DEVICE_FUNC operator T() const {
+    return static_cast<T>(static_cast<float>(*this));
+  }
+  explicit EIGEN_DEVICE_FUNC operator double() const {
+    return ConvertTo<double>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator float() const {
+    return ConvertTo<float>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator Eigen::bfloat16() const {
+    return ConvertTo<Eigen::bfloat16>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator Eigen::half() const {
+    return ConvertTo<Eigen::half>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
+};
+
+class float8_e4m3fnuz : public float8_base<float8_e4m3fnuz> {
+  // 8-bit floating point with 3 bit mantissa.
+  //
+  // An 8-bit floating point type with 1 sign bit, 4 bits exponent and 3 bits
+  // mantissa. The suffix "fnuz" is consistent with LLVM/MLIR naming and is
+  // derived from the differences to IEEE floating point conventions. `F` is
+  // for "finite" (no infinities), `N` for with special NaN encoding, `UZ` for
+  // unsigned zero.
+  //
+  // This type has the following characteristics:
+  // * bit encoding: S1E4M3 - `0bSEEEEMMM`
+  // * exponent bias: 8
+  // * infinities: Not supported
+  // * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits
+  // set to all 0s - `0b10000000`
+  // * denormals when exponent is 0
+ private:
+  using Base = float8_base<float8_e4m3fnuz>;
+  friend class float8_base<float8_e4m3fnuz>;
+
+  constexpr float8_e4m3fnuz(uint8_t rep, ConstructFromRepTag)
+      : Base(rep, ConstructFromRepTag{}) {}
+
+ public:
+  constexpr float8_e4m3fnuz() = default;
+
+  template <typename T,
+            typename EnableIf = std::enable_if<std::is_arithmetic_v<T>>>
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(T f)
+      : float8_e4m3fnuz(ConvertFrom(static_cast<float>(f))) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(double f64)
+      : float8_e4m3fnuz(ConvertFrom(f64)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(float f32)
+      : float8_e4m3fnuz(ConvertFrom(f32)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(Eigen::bfloat16 bf16)
+      : float8_e4m3fnuz(ConvertFrom(bf16)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(Eigen::half f16)
+      : float8_e4m3fnuz(ConvertFrom(f16)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e5m2& f8)
+      : float8_e4m3fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e5m2fnuz& f8)
+      : float8_e4m3fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3b11& f8)
+      : float8_e4m3fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3fn& f8)
+      : float8_e4m3fnuz(ConvertFrom(f8)) {}
+
+  constexpr float8_e4m3fnuz operator-() const {
+    if ((rep() & 0x7f) == 0x00) {
+      return float8_e4m3fnuz(rep(), ConstructFromRepTag{});
+    }
+    return Base::operator-();
+  }
+
+  float8_e4m3fnuz operator-(const float8_e4m3fnuz& other) const {
     return Base::operator-(other);
   }
 
@@ -296,7 +384,11 @@ class float8_e5m2 : public float8_base<float8_e5m2> {
       : float8_e5m2(ConvertFrom(f16)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3fn f8)
       : float8_e5m2(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3fnuz f8)
+      : float8_e5m2(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3b11 f8)
+      : float8_e5m2(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e5m2fnuz& f8)
       : float8_e5m2(ConvertFrom(f8)) {}
 
   template <typename T,
@@ -319,6 +411,84 @@ class float8_e5m2 : public float8_base<float8_e5m2> {
   explicit EIGEN_DEVICE_FUNC operator bool() const {
     return (rep() & 0x7F) != 0;
   }
+};
+
+class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
+  // 8-bit floating point with 2 bit mantissa.
+  //
+  // An 8-bit floating point type with 1 sign bit, 5 bits exponent and 2 bits
+  // mantissa. The suffix "fnuz" is consistent with LLVM/MLIR naming and is
+  // derived from the differences to IEEE floating point conventions. `F` is
+  // for "finite" (no infinities), `N` for with special NaN encoding, `UZ` for
+  // unsigned zero.
+  //
+  // This type has the following characteristics:
+  // * bit encoding: S1E5M2 - `0bSEEEEEMM`
+  // * exponent bias: 16
+  // * infinities: Not supported
+  // * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits
+  // set to all 0s - `0b10000000`
+  // * denormals when exponent is 0
+ private:
+  using Base = float8_base<float8_e5m2fnuz>;
+  friend class float8_base<float8_e5m2fnuz>;
+
+  constexpr float8_e5m2fnuz(uint8_t rep, ConstructFromRepTag)
+      : Base(rep, ConstructFromRepTag{}) {}
+
+ public:
+  constexpr float8_e5m2fnuz() = default;
+
+  template <typename T,
+            typename EnableIf = std::enable_if<std::is_arithmetic_v<T>>>
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(T f)
+      : float8_e5m2fnuz(ConvertFrom(static_cast<float>(f))) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(double f64)
+      : float8_e5m2fnuz(ConvertFrom(f64)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(float f32)
+      : float8_e5m2fnuz(ConvertFrom(f32)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(Eigen::bfloat16 bf16)
+      : float8_e5m2fnuz(ConvertFrom(bf16)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(Eigen::half f16)
+      : float8_e5m2fnuz(ConvertFrom(f16)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e5m2& f8)
+      : float8_e5m2fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3b11& f8)
+      : float8_e5m2fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fn& f8)
+      : float8_e5m2fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fnuz& f8)
+      : float8_e5m2fnuz(ConvertFrom(f8)) {}
+
+  constexpr float8_e5m2fnuz operator-() const {
+    if ((rep() & 0x7f) == 0x00) {
+      return float8_e5m2fnuz(rep(), ConstructFromRepTag{});
+    }
+    return Base::operator-();
+  }
+
+  float8_e5m2fnuz operator-(const float8_e5m2fnuz& other) const {
+    return Base::operator-(other);
+  }
+
+  template <typename T,
+            typename EnableIf = std::enable_if<std::is_arithmetic_v<T>>>
+  explicit EIGEN_DEVICE_FUNC operator T() const {
+    return static_cast<T>(static_cast<float>(*this));
+  }
+  explicit EIGEN_DEVICE_FUNC operator double() const {
+    return ConvertTo<double>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator float() const {
+    return ConvertTo<float>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator Eigen::bfloat16() const {
+    return ConvertTo<Eigen::bfloat16>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator Eigen::half() const {
+    return ConvertTo<Eigen::half>(*this);
+  }
+  explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
 };
 
 // Structures for use in specializing std::numeric_limits.
@@ -452,6 +622,56 @@ struct numeric_limits_float8<float8_e4m3b11>
 };
 
 template <>
+struct numeric_limits_float8<float8_e4m3fnuz>
+    : public numeric_limits_float8_base {
+  // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const int digits = 4;
+  static inline constexpr const int digits10 = 0;      // floor(3 * log10(2));
+  static inline constexpr const int max_digits10 = 3;  // ceil(4 * log10(2) + 1)
+  static inline constexpr const int min_exponent = -6;
+  static inline constexpr const int min_exponent10 = -2;
+  static inline constexpr const int max_exponent = 7;
+  static inline constexpr const int max_exponent10 = 2;
+  static inline constexpr const bool is_iec559 = false;
+  static inline constexpr const bool has_infinity = false;
+  static inline constexpr const bool has_signaling_NaN = false;
+  // NOLINTEND
+
+  static constexpr float8_e4m3fnuz min() {
+    return float8_e4m3fnuz::FromRep(0x08);
+  }
+  static constexpr float8_e4m3fnuz lowest() {
+    return float8_e4m3fnuz::FromRep(0xFF);
+  }
+  static constexpr float8_e4m3fnuz max() {
+    return float8_e4m3fnuz::FromRep(0x7F);
+  }
+  static constexpr float8_e4m3fnuz epsilon() {
+    constexpr int kExponentBias = 8;
+    constexpr int kMantissaBits = 3;
+    return float8_e4m3fnuz::FromRep((kExponentBias - kMantissaBits)
+                                    << kMantissaBits);
+  }
+  static constexpr float8_e4m3fnuz round_error() {
+    constexpr int kExponentBias = 8;
+    constexpr int kMantissaBits = 3;
+    return float8_e4m3fnuz::FromRep((kExponentBias - 1) << kMantissaBits);
+  }
+  static constexpr float8_e4m3fnuz infinity() {
+    return float8_e4m3fnuz::FromRep(0x80);
+  }  // NaN.
+  static constexpr float8_e4m3fnuz quiet_NaN() {
+    return float8_e4m3fnuz::FromRep(0x80);
+  }
+  static constexpr float8_e4m3fnuz signaling_NaN() {
+    return float8_e4m3fnuz::FromRep(0x80);
+  }
+  static constexpr float8_e4m3fnuz denorm_min() {
+    return float8_e4m3fnuz::FromRep(0x01);
+  }
+};
+
+template <>
 struct numeric_limits_float8<float8_e5m2> : public numeric_limits_float8_base {
   // NOLINTBEGIN: these names must match std::numeric_limits.
   static inline constexpr const int digits = 3;
@@ -485,6 +705,56 @@ struct numeric_limits_float8<float8_e5m2> : public numeric_limits_float8_base {
   }
 };
 
+template <>
+struct numeric_limits_float8<float8_e5m2fnuz>
+    : public numeric_limits_float8_base {
+  // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const int digits = 3;
+  static inline constexpr const int digits10 = 0;      // floor(2 * log10(2))
+  static inline constexpr const int max_digits10 = 2;  // ceil(3 * log10(2) + 1)
+  static inline constexpr const int min_exponent = -14;
+  static inline constexpr const int min_exponent10 = -4;
+  static inline constexpr const int max_exponent = 16;
+  static inline constexpr const int max_exponent10 = 4;
+  static inline constexpr const bool is_iec559 = false;
+  static inline constexpr const bool has_infinity = false;
+  static inline constexpr const bool has_signaling_NaN = false;
+  // NOLINTEND
+
+  static constexpr float8_e5m2fnuz min() {
+    return float8_e5m2fnuz::FromRep(0x08);
+  }
+  static constexpr float8_e5m2fnuz lowest() {
+    return float8_e5m2fnuz::FromRep(0xFF);
+  }
+  static constexpr float8_e5m2fnuz max() {
+    return float8_e5m2fnuz::FromRep(0x7F);
+  }
+  static constexpr float8_e5m2fnuz epsilon() {
+    constexpr int kExponentBias = 16;
+    constexpr int kMantissaBits = 2;
+    return float8_e5m2fnuz::FromRep((kExponentBias - kMantissaBits)
+                                    << kMantissaBits);
+  }
+  static constexpr float8_e5m2fnuz round_error() {
+    constexpr int kExponentBias = 16;
+    constexpr int kMantissaBits = 2;
+    return float8_e5m2fnuz::FromRep((kExponentBias - 1) << kMantissaBits);
+  }
+  static constexpr float8_e5m2fnuz infinity() {
+    return float8_e5m2fnuz::FromRep(0x80);
+  }  // NaN.
+  static constexpr float8_e5m2fnuz quiet_NaN() {
+    return float8_e5m2fnuz::FromRep(0x80);
+  }
+  static constexpr float8_e5m2fnuz signaling_NaN() {
+    return float8_e5m2fnuz::FromRep(0x80);
+  }
+  static constexpr float8_e5m2fnuz denorm_min() {
+    return float8_e5m2fnuz::FromRep(0x01);
+  }
+};
+
 }  // namespace float8_internal
 }  // namespace ml_dtypes
 
@@ -501,9 +771,19 @@ struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3b11>
           ml_dtypes::float8_internal::float8_e4m3b11> {};
 
 template <>
+struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3fnuz>
+    : public ml_dtypes::float8_internal::numeric_limits_float8<
+          ml_dtypes::float8_internal::float8_e4m3fnuz> {};
+
+template <>
 struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2>
     : public ml_dtypes::float8_internal::numeric_limits_float8<
           ml_dtypes::float8_internal::float8_e5m2> {};
+
+template <>
+struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2fnuz>
+    : public ml_dtypes::float8_internal::numeric_limits_float8<
+          ml_dtypes::float8_internal::float8_e5m2fnuz> {};
 }  // namespace std
 
 namespace ml_dtypes {
@@ -541,6 +821,23 @@ constexpr inline bool isfinite(const float8_e4m3b11& a) {
   return !isnan(a) && !isinf(a);
 }
 
+constexpr inline float8_e4m3fnuz abs(const float8_e4m3fnuz& a) {
+  return (a.rep() & 0x7F) == 0 ? float8_e4m3fnuz::FromRep(a.rep())
+                               : float8_e4m3fnuz::FromRep(a.rep() & 0x7F);
+}
+
+constexpr inline bool isnan(const float8_e4m3fnuz& a) {
+  return a.rep() == 0x80;
+}
+
+constexpr inline bool isinf(const float8_e4m3fnuz& a) {
+  return false;  // No inf representation.
+}
+
+constexpr inline bool isfinite(const float8_e4m3fnuz& a) {
+  return !isnan(a) && !isinf(a);
+}
+
 constexpr inline float8_e5m2 abs(const float8_e5m2& a) {
   return float8_e5m2::FromRep(a.rep() & 0x7F);
 }
@@ -554,6 +851,23 @@ constexpr inline bool isinf(const float8_e5m2& a) {
 }
 
 constexpr inline bool isfinite(const float8_e5m2& a) {
+  return !isnan(a) && !isinf(a);
+}
+
+constexpr inline float8_e5m2fnuz abs(const float8_e5m2fnuz& a) {
+  return (a.rep() & 0x7F) == 0 ? float8_e5m2fnuz::FromRep(a.rep())
+                               : float8_e5m2fnuz::FromRep(a.rep() & 0x7F);
+}
+
+constexpr inline bool isnan(const float8_e5m2fnuz& a) {
+  return a.rep() == 0x80;
+}
+
+constexpr inline bool isinf(const float8_e5m2fnuz& a) {
+  return false;  // No inf representation.
+}
+
+constexpr inline bool isfinite(const float8_e5m2fnuz& a) {
   return !isnan(a) && !isinf(a);
 }
 
@@ -652,6 +966,38 @@ struct Traits<float8_e4m3b11> : public TraitsBase<float8_e4m3b11> {
       sign = 0;
     }
     return Eigen::numext::bit_cast<float8_e4m3b11>(
+        static_cast<typename Base::BitsType>(bits | sign));
+  }
+};
+
+template <>
+struct Traits<float8_e4m3fnuz> : public TraitsBase<float8_e4m3fnuz> {
+  using Base = TraitsBase<float8_e4m3fnuz>;
+  static constexpr int kExponentBias = 8;
+  static EIGEN_DEVICE_FUNC float8_e4m3fnuz ConstructFromSignAndBits(
+      typename Base::BitsType sign, typename Base::BitsType bits) {
+    // float8_e4m3fnuz does not support signed zero, ignore the sign if we try
+    // to make one.
+    if (bits == 0) {
+      sign = 0;
+    }
+    return Eigen::numext::bit_cast<float8_e4m3fnuz>(
+        static_cast<typename Base::BitsType>(bits | sign));
+  }
+};
+
+template <>
+struct Traits<float8_e5m2fnuz> : public TraitsBase<float8_e5m2fnuz> {
+  using Base = TraitsBase<float8_e5m2fnuz>;
+  static constexpr int kExponentBias = 16;
+  static EIGEN_DEVICE_FUNC float8_e5m2fnuz ConstructFromSignAndBits(
+      typename Base::BitsType sign, typename Base::BitsType bits) {
+    // float8_e5m2fnuz does not support signed zero, ignore the sign if we try
+    // to make one.
+    if (bits == 0) {
+      sign = 0;
+    }
+    return Eigen::numext::bit_cast<float8_e5m2fnuz>(
         static_cast<typename Base::BitsType>(bits | sign));
   }
 };
@@ -930,6 +1276,25 @@ struct ConvertImpl<Eigen::half, float8_e5m2, kTruncate, false> {
   }
 };
 
+template <bool kTruncate, bool kSaturate>
+struct ConvertImpl<Eigen::half, float8_e5m2fnuz, kTruncate, kSaturate> {
+  static EIGEN_DEVICE_FUNC inline float8_e5m2fnuz run(const Eigen::half& from) {
+    // Cast via float because float8_e5m2fnuz and Eigen::half have overlapping
+    // subnormal range.
+    return ConvertImpl<float, float8_e5m2fnuz, kTruncate, kSaturate>::run(from);
+  }
+};
+
+template <bool kTruncate, bool kSaturate>
+struct ConvertImpl<float8_e5m2fnuz, Eigen::half, kTruncate, kSaturate> {
+  static EIGEN_DEVICE_FUNC inline Eigen::half run(const float8_e5m2fnuz& from) {
+    // Cast via float because float8_e5m2fnuz and Eigen::half have overlapping
+    // subnormal range.
+    return static_cast<Eigen::half>(
+        ConvertImpl<float8_e5m2fnuz, float, kTruncate, kSaturate>::run(from));
+  }
+};
+
 // Saturation has no impact when casting Eigen::half to e5m2.
 template <bool kTruncate>
 struct ConvertImpl<Eigen::half, float8_e5m2, /*kSaturate=*/true, kTruncate> {
@@ -973,8 +1338,10 @@ EIGEN_DEVICE_FUNC To float8_base<Derived>::ConvertTo(const Derived& from) {
 
 // Exported types.
 using float8_e4m3fn = float8_internal::float8_e4m3fn;
+using float8_e4m3fnuz = float8_internal::float8_e4m3fnuz;
 using float8_e4m3b11 = float8_internal::float8_e4m3b11;
 using float8_e5m2 = float8_internal::float8_e5m2;
+using float8_e5m2fnuz = float8_internal::float8_e5m2fnuz;
 
 }  // namespace ml_dtypes
 
@@ -1024,8 +1391,20 @@ EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3b11>(
 }
 
 template <>
+EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3fnuz>(
+    const ml_dtypes::float8_e4m3fnuz& x) {
+  return ml_dtypes::float8_internal::isinf(x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m2>(
     const ml_dtypes::float8_e5m2& x) {
+  return ml_dtypes::float8_internal::isinf(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m2fnuz>(
+    const ml_dtypes::float8_e5m2fnuz& x) {
   return ml_dtypes::float8_internal::isinf(x);
 }
 
@@ -1042,8 +1421,20 @@ EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3b11>(
 }
 
 template <>
+EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3fnuz>(
+    const ml_dtypes::float8_e4m3fnuz& x) {
+  return ml_dtypes::float8_internal::isnan(x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e5m2>(
     const ml_dtypes::float8_e5m2& x) {
+  return ml_dtypes::float8_internal::isnan(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e5m2fnuz>(
+    const ml_dtypes::float8_e5m2fnuz& x) {
   return ml_dtypes::float8_internal::isnan(x);
 }
 
@@ -1060,8 +1451,20 @@ EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3b11>(
 }
 
 template <>
+EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3fnuz>(
+    const ml_dtypes::float8_e4m3fnuz& x) {
+  return ml_dtypes::float8_internal::isfinite(x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m2>(
     const ml_dtypes::float8_e5m2& x) {
+  return ml_dtypes::float8_internal::isfinite(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m2fnuz>(
+    const ml_dtypes::float8_e5m2fnuz& x) {
   return ml_dtypes::float8_internal::isfinite(x);
 }
 
