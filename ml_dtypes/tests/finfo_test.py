@@ -26,6 +26,13 @@ ALL_DTYPES = [
     ml_dtypes.float8_e5m2fnuz,
 ]
 
+DTYPES_WITH_NO_INFINITY = [
+    ml_dtypes.float8_e4m3b11,
+    ml_dtypes.float8_e4m3fn,
+    ml_dtypes.float8_e4m3fnuz,
+    ml_dtypes.float8_e5m2fnuz,
+]
+
 UINT_TYPES = {
     8: np.uint8,
     16: np.uint16,
@@ -58,7 +65,11 @@ class FinfoTest(parameterized.TestCase):
       self.assertEqual(make_val(val).item(), val)
 
     def assert_infinite(val):
-      self.assertNanEqual(make_val(val), make_val(np.inf))
+      val = make_val(val)
+      if dtype in DTYPES_WITH_NO_INFINITY:
+        self.assertTrue(np.isnan(val), f"expected NaN, got {val}")
+      else:
+        self.assertTrue(np.isposinf(val), f"expected inf, got {val}")
 
     def assert_zero(val):
       self.assertEqual(make_val(val), make_val(0))
@@ -70,7 +81,13 @@ class FinfoTest(parameterized.TestCase):
     self.assertEqual(info.nmant + info.nexp + 1, info.bits)
 
     assert_representable(info.tiny)
+
     assert_representable(info.max)
+    assert_infinite(np.spacing(info.max))
+
+    assert_representable(info.min)
+    assert_infinite(-np.spacing(info.min))
+
     assert_representable(2.0 ** (info.maxexp - 1))
     assert_infinite(2.0**info.maxexp)
 
