@@ -100,43 +100,14 @@ def dtype_has_inf(dtype):
   return is_inf
 
 
-# Configure bounds and properties for our custom types, to be used in tests
-# below.
-FLOAT_EPSILON = {
-    bfloat16: float.fromhex("1.0p-7"),
-    float8_e4m3b11: float.fromhex("1.0p-3"),
-    float8_e4m3fn: float.fromhex("1.0p-3"),
-    float8_e4m3fnuz: float.fromhex("1.0p-3"),
-    float8_e5m2: float.fromhex("1.0p-2"),
-    float8_e5m2fnuz: float.fromhex("1.0p-2"),
-}
-
-FLOAT_MAX = {
-    bfloat16: float.fromhex("1.FEp127"),
-    float8_e4m3b11: float.fromhex("1.Ep4"),
-    float8_e4m3fn: float.fromhex("1.Cp8"),
-    float8_e4m3fnuz: float.fromhex("1.Ep7"),
-    float8_e5m2: float.fromhex("1.Cp15"),
-    float8_e5m2fnuz: float.fromhex("1.Cp15"),
-}
-
-FLOAT_SMALLEST_SUBNORMAL = {
-    bfloat16: float.fromhex("1.0p-133"),
-    float8_e4m3b11: float.fromhex("1.0p-13"),
-    float8_e4m3fn: float.fromhex("1.0p-9"),
-    float8_e4m3fnuz: float.fromhex("1.0p-10"),
-    float8_e5m2: float.fromhex("1.0p-16"),
-    float8_e5m2fnuz: float.fromhex("1.0p-17"),
-}
-
-FLOAT_SMALLEST_NORMAL = {
-    bfloat16: float.fromhex("1.0p-126"),
-    float8_e4m3b11: float.fromhex("1.0p-10"),
-    float8_e4m3fn: float.fromhex("1.0p-6"),
-    float8_e4m3fnuz: float.fromhex("1.0p-7"),
-    float8_e5m2: float.fromhex("1.0p-14"),
-    float8_e5m2fnuz: float.fromhex("1.0p-15"),
-}
+FLOAT_DTYPES = [
+    bfloat16,
+    float8_e4m3b11,
+    float8_e4m3fn,
+    float8_e4m3fnuz,
+    float8_e5m2,
+    float8_e5m2fnuz,
+]
 
 # Values that should round trip exactly to float and back.
 # pylint: disable=g-complex-comprehension
@@ -147,23 +118,23 @@ FLOAT_VALUES = {
         -1.0,
         0.5,
         -0.5,
-        FLOAT_EPSILON[dtype],
-        1.0 + FLOAT_EPSILON[dtype],
-        1.0 - FLOAT_EPSILON[dtype],
-        -1.0 - FLOAT_EPSILON[dtype],
-        -1.0 + FLOAT_EPSILON[dtype],
+        float(ml_dtypes.finfo(dtype).eps),
+        1.0 + float(ml_dtypes.finfo(dtype).eps),
+        1.0 - float(ml_dtypes.finfo(dtype).eps),
+        -1.0 - float(ml_dtypes.finfo(dtype).eps),
+        -1.0 + float(ml_dtypes.finfo(dtype).eps),
         3.5,
         4,
         5,
         7,
-        FLOAT_MAX[dtype],
-        -FLOAT_MAX[dtype],
+        float(ml_dtypes.finfo(dtype).max),
+        -float(ml_dtypes.finfo(dtype).max),
         float("nan"),
         float("-nan"),
         float("inf") if dtype_has_inf(dtype) else 0.0,
         float("-inf") if dtype_has_inf(dtype) else 0.0,
     ]
-    for dtype in FLOAT_EPSILON.keys()
+    for dtype in FLOAT_DTYPES
 }
 
 # Values that should round trip exactly to integer and back.
@@ -200,15 +171,6 @@ BITS_TYPE = {
     float8_e5m2: np.uint8,
     float8_e5m2fnuz: np.uint8,
 }
-
-FLOAT_DTYPES = [
-    bfloat16,
-    float8_e4m3b11,
-    float8_e4m3fn,
-    float8_e4m3fnuz,
-    float8_e5m2,
-    float8_e5m2fnuz,
-]
 
 
 # pylint: disable=g-complex-comprehension
@@ -892,15 +854,15 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     zero = np.array(0.0, dtype=float_type)
     nan = np.array(np.nan, dtype=float_type)
     np.testing.assert_equal(
-        np.nextafter(one, two) - one, FLOAT_EPSILON[float_type]
+        np.nextafter(one, two) - one, ml_dtypes.finfo(float_type).eps
     )
     np.testing.assert_equal(
-        np.nextafter(one, zero) - one, -FLOAT_EPSILON[float_type] / 2
+        np.nextafter(one, zero) - one, -ml_dtypes.finfo(float_type).eps / 2
     )
     np.testing.assert_equal(np.isnan(np.nextafter(nan, one)), True)
     np.testing.assert_equal(np.isnan(np.nextafter(one, nan)), True)
     np.testing.assert_equal(np.nextafter(one, one), one)
-    smallest_denormal = FLOAT_SMALLEST_SUBNORMAL[float_type]
+    smallest_denormal = ml_dtypes.finfo(float_type).smallest_subnormal
     np.testing.assert_equal(np.nextafter(zero, one), smallest_denormal)
     np.testing.assert_equal(np.nextafter(zero, -one), -smallest_denormal)
     for a, b in itertools.permutations([0.0, nan], 2):
@@ -918,21 +880,21 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     # Sweep a variety of binades to see that spacing gives the proper ULP.
     with self.subTest(name="Subnormals"):
       for i in range(
-          int(np.log2(FLOAT_SMALLEST_SUBNORMAL[float_type])),
-          int(np.log2(FLOAT_SMALLEST_NORMAL[float_type])),
+          int(np.log2(float(ml_dtypes.finfo(float_type).smallest_subnormal))),
+          int(np.log2(float(ml_dtypes.finfo(float_type).smallest_normal))),
       ):
         power_of_two = float_type(2.0**i)
-        distance = FLOAT_SMALLEST_SUBNORMAL[float_type]
+        distance = ml_dtypes.finfo(float_type).smallest_subnormal
         np.testing.assert_equal(np.spacing(power_of_two), distance)
         np.testing.assert_equal(np.spacing(-power_of_two), -distance)
     # Normals have a distance which depends on their binade.
     with self.subTest(name="Normals"):
       for i in range(
-          int(np.log2(FLOAT_SMALLEST_NORMAL[float_type])),
-          int(np.log2(FLOAT_MAX[float_type])),
+          int(np.log2(float(ml_dtypes.finfo(float_type).smallest_normal))),
+          int(np.log2(float(ml_dtypes.finfo(float_type).max))),
       ):
         power_of_two = float_type(2.0**i)
-        distance = FLOAT_EPSILON[float_type] * power_of_two
+        distance = ml_dtypes.finfo(float_type).eps * power_of_two
         np.testing.assert_equal(np.spacing(power_of_two), distance)
         np.testing.assert_equal(np.spacing(-power_of_two), -distance)
 
