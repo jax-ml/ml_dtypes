@@ -4,8 +4,6 @@
 [![Wheel Build](https://github.com/jax-ml/ml_dtypes/actions/workflows/wheels.yml/badge.svg)](https://github.com/jax-ml/ml_dtypes/actions/workflows/wheels.yml)
 [![PyPI version](https://badge.fury.io/py/ml_dtypes.svg)](https://badge.fury.io/py/ml_dtypes)
 
-*This is not an officially supported Google product.*
-
 `ml_dtypes` is a stand-alone implementation of several NumPy dtype extensions used in machine learning libraries, including:
 
 - [`bfloat16`](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format):
@@ -108,8 +106,50 @@ This type has the following characteristics:
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
 
+## Quirks of low-precision Arithmetic
+
+If you're exploring the use of low-precision dtypes in your code, you should be
+careful to anticipate when the precision loss might lead to surprising results.
+One example is the behavior of aggregations like `sum`; consider this `bfloat16`
+summation in NumPy (run with version 1.24.2):
+```python
+>>> from ml_dtypes import bfloat16
+>>> import numpy as np
+>>> rng = np.random.default_rng(seed=0)
+>>> vals = rng.uniform(size=10000).astype(bfloat16)
+>>> vals.sum()
+256
+```
+The true sum should be close to 5000, but numpy returns exactly 256: this is
+because `bfloat16` does not have the precision to increment `256` by values less than
+`1`:
+```python
+>>> bfloat16(256) + bfloat16(1)
+256
+```
+After 256, the next representable value in bfloat16 is 258:
+```python
+>>> np.nextafter(bfloat16(256), bfloat16(np.inf))
+258
+```
+For better results you can specify that the accumulation should happen in a
+higher-precision type like `float32`:
+```python
+>>> vals.sum(dtype='float32').astype(bfloat16)
+4992
+```
+In contrast to NumPy, projects like [JAX](http://jax.readthedocs.io/) which support
+low-precision arithmetic more natively will often do these kinds of higher-precision
+accumulations automatically:
+```python
+>>> import jax.numpy as jnp
+>>> jnp.array(vals).sum()
+Array(4992, dtype=bfloat16)
+```
 
 ## License
+
+*This is not an officially supported Google product.*
 
 The `ml_dtypes` source code is licensed under the Apache 2.0 license
 (see [LICENSE](LICENSE)). Pre-compiled wheels are built with the
