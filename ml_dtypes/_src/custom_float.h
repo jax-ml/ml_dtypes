@@ -1126,11 +1126,15 @@ using BitsType = typename GetUnsignedInteger<sizeof(T)>::type;
 
 template <typename T>
 std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
+  // For types that represent NaN by -0, (i.e. float8_e4m3b11, *fnuz),
+  // abs(x) remains -0 without flipping the sign. Therefore, we need to
+  // explicitly check the most-significant bit.
+  constexpr BitsType<T> kSignMask = BitsType<T>(1)
+                                    << (sizeof(BitsType<T>) * CHAR_BIT - 1);
   const BitsType<T> x_abs_bits =
       Eigen::numext::bit_cast<BitsType<T>>(Eigen::numext::abs(x));
   const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
-  const BitsType<T> x_sign = x_bits ^ x_abs_bits;
-  return {x_sign, x_abs_bits};
+  return {x_bits & kSignMask, x_abs_bits};
 }
 
 template <typename T>

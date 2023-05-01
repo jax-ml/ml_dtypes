@@ -29,9 +29,9 @@ limitations under the License.
 // Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
-#include "_src/custom_float.h"
-#include "_src/float8.h"
 #include "eigen/Eigen/Core"
+#include "_src/custom_float.h"
+#include "include/float8.h"
 
 namespace ml_dtypes {
 
