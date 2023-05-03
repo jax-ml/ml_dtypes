@@ -659,6 +659,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             (d, float_type) in allowed_casts, np.can_cast(d, float_type)
         )
 
+  @ignore_warning(
+      category=RuntimeWarning, message="invalid value encountered in cast"
+  )
   def testCasts(self, float_type):
     for dtype in [
         np.float16,
