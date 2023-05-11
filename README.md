@@ -10,7 +10,7 @@
   an alternative to the standard [`float16`](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) format
 - `float8_*`: several experimental 8-bit floating point representations
   including:
-  * `float8_e4m3b11`
+  * `float8_e4m3b11fnuz`
   * `float8_e4m3fn`
   * `float8_e4m3fnuz`
   * `float8_e5m2`
@@ -62,7 +62,7 @@ A `bfloat16` number is a single-precision float truncated at 16 bits.
 
 Exponent: 8, Mantissa: 7, exponent bias: 127. IEEE 754, with NaN and inf.
 
-### float8_e4m3b11
+### float8_e4m3b11fnuz
 
 Exponent: 4, Mantissa: 3, bias: 11.
 

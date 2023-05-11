@@ -19,7 +19,7 @@ import numpy as np
 
 ALL_DTYPES = [
     ml_dtypes.bfloat16,
-    ml_dtypes.float8_e4m3b11,
+    ml_dtypes.float8_e4m3b11fnuz,
     ml_dtypes.float8_e4m3fn,
     ml_dtypes.float8_e4m3fnuz,
     ml_dtypes.float8_e5m2,
@@ -27,7 +27,7 @@ ALL_DTYPES = [
 ]
 
 DTYPES_WITH_NO_INFINITY = [
-    ml_dtypes.float8_e4m3b11,
+    ml_dtypes.float8_e4m3b11fnuz,
     ml_dtypes.float8_e4m3fn,
     ml_dtypes.float8_e4m3fnuz,
     ml_dtypes.float8_e5m2fnuz,

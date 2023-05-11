@@ -40,7 +40,7 @@ namespace float8_internal {
 // Forward-declarations of classes.
 class float8_e4m3fn;
 class float8_e4m3fnuz;
-class float8_e4m3b11;
+class float8_e4m3b11fnuz;
 class float8_e5m2;
 class float8_e5m2fnuz;
 
@@ -249,41 +249,44 @@ class float8_e4m3fn : public float8_base<float8_e4m3fn> {
  public:
   explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e5m2& f8)
       : float8_e4m3fn(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e4m3b11& f8)
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e4m3b11fnuz& f8)
       : float8_e4m3fn(ConvertFrom(f8)) {}
 };
 
-class float8_e4m3b11 : public float8_base<float8_e4m3b11> {
+class float8_e4m3b11fnuz : public float8_base<float8_e4m3b11fnuz> {
   // Exponent: 4, Mantissa: 3, bias: 11.
   // Extended range: no inf, NaN represented by 0b1000'0000.
  private:
-  using Base = float8_base<float8_e4m3b11>;
-  friend class float8_base<float8_e4m3b11>;
+  using Base = float8_base<float8_e4m3b11fnuz>;
+  friend class float8_base<float8_e4m3b11fnuz>;
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e5m2& f8)
-      : float8_e4m3b11(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e5m2fnuz& f8)
-      : float8_e4m3b11(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e4m3fn& f8)
-      : float8_e4m3b11(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11(const float8_e4m3fnuz& f8)
-      : float8_e4m3b11(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e5m2& f8)
+      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e5m2fnuz& f8)
+      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e4m3fn& f8)
+      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e4m3fnuz& f8)
+      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
 
-  constexpr float8_e4m3b11 operator-() const {
+  constexpr float8_e4m3b11fnuz operator-() const {
     if ((rep() & 0x7f) == 0x00) {
       return *this;
     }
     return Base::operator-();
   }
 
-  float8_e4m3b11 operator-(const float8_e4m3b11& other) const {
+  float8_e4m3b11fnuz operator-(const float8_e4m3b11fnuz& other) const {
     return Base::operator-(other);
   }
 
   explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
 };
+
+// Legacy name used in XLA (TODO(jewillco): remove).
+using float8_e4m3b11 = float8_e4m3b11fnuz;
 
 class float8_e4m3fnuz : public float8_base<float8_e4m3fnuz> {
   // 8-bit floating point with 3 bit mantissa.
@@ -311,7 +314,7 @@ class float8_e4m3fnuz : public float8_base<float8_e4m3fnuz> {
       : float8_e4m3fnuz(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e5m2fnuz& f8)
       : float8_e4m3fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3b11& f8)
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3b11fnuz& f8)
       : float8_e4m3fnuz(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3fn& f8)
       : float8_e4m3fnuz(ConvertFrom(f8)) {}
@@ -343,7 +346,7 @@ class float8_e5m2 : public float8_base<float8_e5m2> {
       : float8_e5m2(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3fnuz f8)
       : float8_e5m2(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3b11 f8)
+  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3b11fnuz f8)
       : float8_e5m2(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e5m2fnuz& f8)
       : float8_e5m2(ConvertFrom(f8)) {}
@@ -373,7 +376,7 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
  public:
   explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e5m2& f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3b11& f8)
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3b11fnuz& f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fn& f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
@@ -537,7 +540,7 @@ struct numeric_limits_float8_e4m3fn : public numeric_limits_float8_base {
   }
 };
 
-struct numeric_limits_float8_e4m3b11 : public numeric_limits_float8_base {
+struct numeric_limits_float8_e4m3b11fnuz : public numeric_limits_float8_base {
  private:
   static inline constexpr const int kExponentBias = 11;
   static inline constexpr const int kMantissaBits = 3;
@@ -561,39 +564,39 @@ struct numeric_limits_float8_e4m3b11 : public numeric_limits_float8_base {
   // NOLINTEND
 
   // 1.0 * 2^(0b0001 - 11) = 1.0 * 2^-10 = 0.0009765625
-  static constexpr float8_e4m3b11 min() {
-    return float8_e4m3b11::FromRep(1 << kMantissaBits);
+  static constexpr float8_e4m3b11fnuz min() {
+    return float8_e4m3b11fnuz::FromRep(1 << kMantissaBits);
   }
   // -(1 + 0b111 * 2^-3) * 2^(0b1111 - 11) = -1.875 * 2^4 = -30
-  static constexpr float8_e4m3b11 lowest() {
-    return float8_e4m3b11::FromRep(0b1'1111'111);
+  static constexpr float8_e4m3b11fnuz lowest() {
+    return float8_e4m3b11fnuz::FromRep(0b1'1111'111);
   }
   // (1 + 0b111 * 2^-3) * 2^(0b1111 - 11) = 1.875 * 2^4 = 30
-  static constexpr float8_e4m3b11 max() {
-    return float8_e4m3b11::FromRep(0b0'1111'111);
+  static constexpr float8_e4m3b11fnuz max() {
+    return float8_e4m3b11fnuz::FromRep(0b0'1111'111);
   }
   // 1.0 * 2^-3 = 0.125
-  static constexpr float8_e4m3b11 epsilon() {
-    return float8_e4m3b11::FromRep((-kMantissaBits + kExponentBias)
-                                   << kMantissaBits);
+  static constexpr float8_e4m3b11fnuz epsilon() {
+    return float8_e4m3b11fnuz::FromRep((-kMantissaBits + kExponentBias)
+                                       << kMantissaBits);
   }
   // 1.0 * 2^-1 = 0.5
-  static constexpr float8_e4m3b11 round_error() {
-    return float8_e4m3b11::FromRep((-1 + kExponentBias) << kMantissaBits);
+  static constexpr float8_e4m3b11fnuz round_error() {
+    return float8_e4m3b11fnuz::FromRep((-1 + kExponentBias) << kMantissaBits);
   }
-  static constexpr float8_e4m3b11 infinity() {
-    return float8_e4m3b11::FromRep(0b1'0000'000);
+  static constexpr float8_e4m3b11fnuz infinity() {
+    return float8_e4m3b11fnuz::FromRep(0b1'0000'000);
   }
   // NaN.
-  static constexpr float8_e4m3b11 quiet_NaN() {
-    return float8_e4m3b11::FromRep(0b1'0000'000);
+  static constexpr float8_e4m3b11fnuz quiet_NaN() {
+    return float8_e4m3b11fnuz::FromRep(0b1'0000'000);
   }
-  static constexpr float8_e4m3b11 signaling_NaN() {
-    return float8_e4m3b11::FromRep(0b1'0000'000);
+  static constexpr float8_e4m3b11fnuz signaling_NaN() {
+    return float8_e4m3b11fnuz::FromRep(0b1'0000'000);
   }
   // 1.0 * 2^(-11 - 3 + 1) = 1.0 * 2^-13 = 0.0001220703125
-  static constexpr float8_e4m3b11 denorm_min() {
-    return float8_e4m3b11::FromRep(0b0'0000'001);
+  static constexpr float8_e4m3b11fnuz denorm_min() {
+    return float8_e4m3b11fnuz::FromRep(0b0'0000'001);
   }
 };
 
@@ -777,8 +780,8 @@ struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3fn>
     : public ml_dtypes::float8_internal::numeric_limits_float8_e4m3fn {};
 
 template <>
-struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3b11>
-    : public ml_dtypes::float8_internal::numeric_limits_float8_e4m3b11 {};
+struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3b11fnuz>
+    : public ml_dtypes::float8_internal::numeric_limits_float8_e4m3b11fnuz {};
 
 template <>
 struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3fnuz>
@@ -805,14 +808,14 @@ constexpr inline bool(isnan)(const float8_e4m3fn& a) {
   return abs(a).rep() == std::numeric_limits<float8_e4m3fn>::quiet_NaN().rep();
 }
 
-constexpr inline float8_e4m3b11 abs(const float8_e4m3b11& a) {
+constexpr inline float8_e4m3b11fnuz abs(const float8_e4m3b11fnuz& a) {
   return (a.rep() & 0b0'1111'111) == 0
-             ? float8_e4m3b11::FromRep(a.rep())
-             : float8_e4m3b11::FromRep(a.rep() & 0b0'1111'111);
+             ? float8_e4m3b11fnuz::FromRep(a.rep())
+             : float8_e4m3b11fnuz::FromRep(a.rep() & 0b0'1111'111);
 }
 
-constexpr inline bool(isnan)(const float8_e4m3b11& a) {
-  return a.rep() == std::numeric_limits<float8_e4m3b11>::quiet_NaN().rep();
+constexpr inline bool(isnan)(const float8_e4m3b11fnuz& a) {
+  return a.rep() == std::numeric_limits<float8_e4m3b11fnuz>::quiet_NaN().rep();
 }
 
 constexpr inline float8_e4m3fnuz abs(const float8_e4m3fnuz& a) {
@@ -913,7 +916,7 @@ template <typename Float>
 struct Traits : public TraitsBase<Float> {};
 
 template <>
-struct Traits<float8_e4m3b11> : public TraitsBase<float8_e4m3b11> {
+struct Traits<float8_e4m3b11fnuz> : public TraitsBase<float8_e4m3b11fnuz> {
   static constexpr int kExponentBias = 11;
 };
 
@@ -1258,7 +1261,7 @@ EIGEN_DEVICE_FUNC To float8_base<Derived>::ConvertTo(const Derived& from) {
 // Exported types.
 using float8_e4m3fn = float8_internal::float8_e4m3fn;
 using float8_e4m3fnuz = float8_internal::float8_e4m3fnuz;
-using float8_e4m3b11 = float8_internal::float8_e4m3b11;
+using float8_e4m3b11fnuz = float8_internal::float8_e4m3b11fnuz;
 using float8_e5m2 = float8_internal::float8_e5m2;
 using float8_e5m2fnuz = float8_internal::float8_e5m2fnuz;
 
@@ -1304,8 +1307,8 @@ EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3fn>(
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3b11>(
-    const ml_dtypes::float8_e4m3b11& x) {
+EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3b11fnuz>(
+    const ml_dtypes::float8_e4m3b11fnuz& x) {
   return ml_dtypes::float8_internal::isinf(x);
 }
 
@@ -1334,8 +1337,8 @@ EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3fn>(
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3b11>(
-    const ml_dtypes::float8_e4m3b11& x) {
+EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3b11fnuz>(
+    const ml_dtypes::float8_e4m3b11fnuz& x) {
   return ml_dtypes::float8_internal::isnan(x);
 }
 
@@ -1364,8 +1367,8 @@ EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3fn>(
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3b11>(
-    const ml_dtypes::float8_e4m3b11& x) {
+EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3b11fnuz>(
+    const ml_dtypes::float8_e4m3b11fnuz& x) {
   return ml_dtypes::float8_internal::isfinite(x);
 }
 

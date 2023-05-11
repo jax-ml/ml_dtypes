@@ -56,17 +56,19 @@ struct TypeDescriptor<bfloat16> : CustomFloatTypeDescriptor<bfloat16> {
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3b11>
-    : CustomFloatTypeDescriptor<float8_e4m3b11> {
-  typedef float8_e4m3b11 T;
-  static constexpr const char* kTypeName = "float8_e4m3b11";
-  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3b11";
-  static constexpr const char* kTpDoc = "float8_e4m3b11 floating-point values";
-  // We must register float8_e4m3b11 with a kind other than "f", because numpy
-  // considers two types with the same kind and size to be equal, and we
+struct TypeDescriptor<float8_e4m3b11fnuz>
+    : CustomFloatTypeDescriptor<float8_e4m3b11fnuz> {
+  typedef float8_e4m3b11fnuz T;
+  static constexpr const char* kTypeName = "float8_e4m3b11fnuz";
+  static constexpr const char* kQualifiedTypeName =
+      "ml_dtypes.float8_e4m3b11fnuz";
+  static constexpr const char* kTpDoc =
+      "float8_e4m3b11fnuz floating-point values";
+  // We must register float8_e4m3b11fnuz with a kind other than "f", because
+  // numpy considers two types with the same kind and size to be equal, and we
   // expect multiple 1 byte floating point types.
   // The downside of this is that NumPy scalar promotion does not work with
-  // float8_e4m3b11 values.
+  // float8_e4m3b11fnuz values.
   static constexpr char kNpyDescrKind = 'V';
   // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
   // character is unique.
@@ -183,9 +185,9 @@ bool Initialize() {
   if (!RegisterNumpyDtype<bfloat16>(numpy.get())) {
     return false;
   }
-  bool float8_e4m3b11_already_registered;
-  if (!RegisterNumpyDtype<float8_e4m3b11>(numpy.get(),
-                                          &float8_e4m3b11_already_registered)) {
+  bool float8_e4m3b11fnuz_already_registered;
+  if (!RegisterNumpyDtype<float8_e4m3b11fnuz>(
+          numpy.get(), &float8_e4m3b11fnuz_already_registered)) {
     return false;
   }
   bool float8_e4m3fn_already_registered;
@@ -209,13 +211,13 @@ bool Initialize() {
     return false;
   }
 
-  // Casts between bfloat16 and float8_e4m3b11. Only perform the cast if
-  // float8_e4m3b11 hasn't been previously registered, presumably by a different
-  // library. In this case, we assume the cast has also already been registered,
-  // and registering it again can cause segfaults due to accessing an
-  // uninitialized type descriptor in this library.
-  if (!float8_e4m3b11_already_registered &&
-      !RegisterCustomFloatCast<float8_e4m3b11, bfloat16>()) {
+  // Casts between bfloat16 and float8_e4m3b11fnuz. Only perform the cast if
+  // float8_e4m3b11fnuz hasn't been previously registered, presumably by a
+  // different library. In this case, we assume the cast has also already been
+  // registered, and registering it again can cause segfaults due to accessing
+  // an uninitialized type descriptor in this library.
+  if (!float8_e4m3b11fnuz_already_registered &&
+      !RegisterCustomFloatCast<float8_e4m3b11fnuz, bfloat16>()) {
     return false;
   }
   if (!float8_e4m3fnuz_already_registered &&
@@ -229,15 +231,15 @@ bool Initialize() {
   }
   bool success = true;
   // Continue trying to register casts, just in case some types are not
-  // registered (i.e. float8_e4m3b11)
-  success &= RegisterTwoWayCustomCast<float8_e4m3b11, float8_e4m3fn>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3b11, float8_e5m2>();
+  // registered (i.e. float8_e4m3b11fnuz)
+  success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e4m3fn>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, bfloat16>();
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, bfloat16>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3b11>();
-  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3b11>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3b11fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3b11fnuz>();
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2>();
@@ -270,10 +272,10 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__custom_floats() {
     return nullptr;
   }
 
-  if (PyObject_SetAttrString(m.get(), "float8_e4m3b11",
-                             reinterpret_cast<PyObject*>(
-                                 TypeDescriptor<float8_e4m3b11>::type_ptr)) <
-      0) {
+  if (PyObject_SetAttrString(
+          m.get(), "float8_e4m3b11fnuz",
+          reinterpret_cast<PyObject*>(
+              TypeDescriptor<float8_e4m3b11fnuz>::type_ptr)) < 0) {
     return nullptr;
   }
   if (PyObject_SetAttrString(m.get(), "float8_e4m3fn",
