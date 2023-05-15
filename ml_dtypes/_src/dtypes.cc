@@ -31,6 +31,7 @@ limitations under the License.
 
 #include "eigen/Eigen/Core"
 #include "_src/custom_float.h"
+#include "_src/int4.h"
 #include "include/float8.h"
 
 namespace ml_dtypes {
@@ -38,8 +39,10 @@ namespace ml_dtypes {
 using bfloat16 = Eigen::bfloat16;
 
 template <>
-struct TypeDescriptor<bfloat16> : CustomFloatTypeDescriptor<bfloat16> {
+struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
   typedef bfloat16 T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "bfloat16";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.bfloat16";
   static constexpr const char* kTpDoc = "bfloat16 floating-point values";
@@ -57,8 +60,10 @@ struct TypeDescriptor<bfloat16> : CustomFloatTypeDescriptor<bfloat16> {
 
 template <>
 struct TypeDescriptor<float8_e4m3b11fnuz>
-    : CustomFloatTypeDescriptor<float8_e4m3b11fnuz> {
+    : CustomFloatType<float8_e4m3b11fnuz> {
   typedef float8_e4m3b11fnuz T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3b11fnuz";
   static constexpr const char* kQualifiedTypeName =
       "ml_dtypes.float8_e4m3b11fnuz";
@@ -77,9 +82,10 @@ struct TypeDescriptor<float8_e4m3b11fnuz>
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3fn>
-    : CustomFloatTypeDescriptor<float8_e4m3fn> {
+struct TypeDescriptor<float8_e4m3fn> : CustomFloatType<float8_e4m3fn> {
   typedef float8_e4m3fn T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3fn";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3fn";
   static constexpr const char* kTpDoc = "float8_e4m3fn floating-point values";
@@ -95,9 +101,10 @@ struct TypeDescriptor<float8_e4m3fn>
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3fnuz>
-    : CustomFloatTypeDescriptor<float8_e4m3fnuz> {
+struct TypeDescriptor<float8_e4m3fnuz> : CustomFloatType<float8_e4m3fnuz> {
   typedef float8_e4m3fnuz T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3fnuz";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3fnuz";
   static constexpr const char* kTpDoc = "float8_e4m3fnuz floating-point values";
@@ -109,8 +116,10 @@ struct TypeDescriptor<float8_e4m3fnuz>
 };
 
 template <>
-struct TypeDescriptor<float8_e5m2> : CustomFloatTypeDescriptor<float8_e5m2> {
+struct TypeDescriptor<float8_e5m2> : CustomFloatType<float8_e5m2> {
   typedef float8_e5m2 T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e5m2";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2";
   static constexpr const char* kTpDoc = "float8_e5m2 floating-point values";
@@ -123,9 +132,10 @@ struct TypeDescriptor<float8_e5m2> : CustomFloatTypeDescriptor<float8_e5m2> {
 };
 
 template <>
-struct TypeDescriptor<float8_e5m2fnuz>
-    : CustomFloatTypeDescriptor<float8_e5m2fnuz> {
+struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
   typedef float8_e5m2fnuz T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e5m2fnuz";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2fnuz";
   static constexpr const char* kTpDoc = "float8_e5m2fnuz floating-point values";
@@ -133,6 +143,36 @@ struct TypeDescriptor<float8_e5m2fnuz>
   // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
   // character is unique.
   static constexpr char kNpyDescrType = 'C';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<int4> : Int4TypeDescriptor<int4> {
+  typedef int4 T;
+  static constexpr bool is_floating = false;
+  static constexpr bool is_integral = true;
+  static constexpr const char* kTypeName = "int4";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.int4";
+  static constexpr const char* kTpDoc = "int4 integer values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'a';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<uint4> : Int4TypeDescriptor<uint4> {
+  typedef uint4 T;
+  static constexpr bool is_floating = false;
+  static constexpr bool is_integral = true;
+  static constexpr const char* kTypeName = "uint4";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint4";
+  static constexpr const char* kTpDoc = "uint4 integer values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'A';
   static constexpr char kNpyDescrByteorder = '=';
 };
 
@@ -182,37 +222,45 @@ bool Initialize() {
     return false;
   }
 
-  if (!RegisterNumpyDtype<bfloat16>(numpy.get())) {
+  if (!RegisterFloatDtype<bfloat16>(numpy.get())) {
     return false;
   }
   bool float8_e4m3b11fnuz_already_registered;
-  if (!RegisterNumpyDtype<float8_e4m3b11fnuz>(
+  if (!RegisterFloatDtype<float8_e4m3b11fnuz>(
           numpy.get(), &float8_e4m3b11fnuz_already_registered)) {
     return false;
   }
   bool float8_e4m3fn_already_registered;
-  if (!ml_dtypes::RegisterNumpyDtype<float8_e4m3fn>(
+  if (!ml_dtypes::RegisterFloatDtype<float8_e4m3fn>(
           numpy.get(), &float8_e4m3fn_already_registered)) {
     return false;
   }
   bool float8_e4m3fnuz_already_registered;
-  if (!ml_dtypes::RegisterNumpyDtype<float8_e4m3fnuz>(
+  if (!ml_dtypes::RegisterFloatDtype<float8_e4m3fnuz>(
           numpy.get(), &float8_e4m3fnuz_already_registered)) {
     return false;
   }
   bool float8_e5m2_already_registered;
-  if (!ml_dtypes::RegisterNumpyDtype<float8_e5m2>(
+  if (!ml_dtypes::RegisterFloatDtype<float8_e5m2>(
           numpy.get(), &float8_e5m2_already_registered)) {
     return false;
   }
   bool float8_e5m2fnuz_already_registered;
-  if (!ml_dtypes::RegisterNumpyDtype<float8_e5m2fnuz>(
+  if (!ml_dtypes::RegisterFloatDtype<float8_e5m2fnuz>(
           numpy.get(), &float8_e5m2fnuz_already_registered)) {
     return false;
   }
 
-  // Casts between bfloat16 and float8_e4m3b11fnuz. Only perform the cast if
-  // float8_e4m3b11fnuz hasn't been previously registered, presumably by a
+  if (!ml_dtypes::RegisterInt4Dtype<int4>(numpy.get())) {
+    return false;
+  }
+
+  if (!ml_dtypes::RegisterInt4Dtype<uint4>(numpy.get())) {
+    return false;
+  }
+
+  // Casts between bfloat16 and float8_e4m3b11nuz. Only perform the cast if
+  // float8_e4m3b11nuz hasn't been previously registered, presumably by a
   // different library. In this case, we assume the cast has also already been
   // registered, and registering it again can cause segfaults due to accessing
   // an uninitialized type descriptor in this library.
@@ -304,6 +352,16 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__custom_floats() {
   if (PyObject_SetAttrString(m.get(), "bfloat16",
                              reinterpret_cast<PyObject*>(
                                  TypeDescriptor<bfloat16>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(
+          m.get(), "int4",
+          reinterpret_cast<PyObject*>(TypeDescriptor<int4>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(
+          m.get(), "uint4",
+          reinterpret_cast<PyObject*>(TypeDescriptor<uint4>::type_ptr)) < 0) {
     return nullptr;
   }
   return m.release();

@@ -15,8 +15,9 @@
   * `float8_e4m3fnuz`
   * `float8_e5m2`
   * `float8_e5m2fnuz`
+- `int4` and `uint4`: low precision integer types.
 
-See below for specifications of these floating point formats.
+See below for specifications of these number formats.
 
 ## Installation
 
@@ -56,19 +57,19 @@ dtype(float8_e5m2)
 
 ## Specifications of implemented floating point formats
 
-### bfloat16
+### `bfloat16`
 
 A `bfloat16` number is a single-precision float truncated at 16 bits.
 
 Exponent: 8, Mantissa: 7, exponent bias: 127. IEEE 754, with NaN and inf.
 
-### float8_e4m3b11fnuz
+### `float8_e4m3b11fnuz`
 
 Exponent: 4, Mantissa: 3, bias: 11.
 
 Extended range: no inf, NaN represented by 0b1000'0000.
 
-### float8_e4m3fn
+### `float8_e4m3fn`
 
 Exponent: 4, Mantissa: 3, bias: 7.
 
@@ -76,7 +77,7 @@ Extended range: no inf, NaN represented by 0bS111'1111.
 
 The `fn` suffix is for consistency with the corresponding LLVM/MLIR type, signaling this type is not consistent with IEEE-754.  The `f` indicates it is finite values only. The `n` indicates it includes NaNs, but only at the outer range.
 
-### float8_e4m3fnuz
+### `float8_e4m3fnuz`
 
 8-bit floating point with 3 bit mantissa.
 
@@ -89,11 +90,11 @@ This type has the following characteristics:
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
 
-### float8_e5m2
+### `float8_e5m2`
 
 Exponent: 5, Mantissa: 2, bias: 15. IEEE 754, with NaN and inf.
 
-### float8_e5m2fnuz
+### `float8_e5m2fnuz`
 
 8-bit floating point with 2 bit mantissa.
 
@@ -105,6 +106,19 @@ This type has the following characteristics:
  * infinities: Not supported
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
+
+## `int4` and `uint4`
+
+4-bit integer types, where each element is represented unpacked (i.e., padded up
+to a byte in memory).
+
+NumPy does not support types smaller than a single byte. For example, the
+distance between adjacent elements in an array (`.strides`) is expressed in
+bytes. Relaxing this restriction would be a considerable engineering project.
+The `int4` and `uint4` types therefore use an unpacked representation, where
+each element of the array is padded up to a byte in memory. The lower four bits
+of each byte contain the representation of the number, whereas the upper four
+bits are ignored.
 
 ## Quirks of low-precision Arithmetic
 

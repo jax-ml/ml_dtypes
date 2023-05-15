@@ -23,6 +23,8 @@ __all__ = [
     'float8_e4m3fnuz',
     'float8_e5m2',
     'float8_e5m2fnuz',
+    'int4',
+    'uint4',
 ]
 
 from typing import Type
@@ -33,6 +35,8 @@ from ml_dtypes._custom_floats import float8_e4m3fn
 from ml_dtypes._custom_floats import float8_e4m3fnuz
 from ml_dtypes._custom_floats import float8_e5m2
 from ml_dtypes._custom_floats import float8_e5m2fnuz
+from ml_dtypes._custom_floats import int4
+from ml_dtypes._custom_floats import uint4
 from ml_dtypes._finfo import finfo
 
 import numpy as np
@@ -43,6 +47,8 @@ float8_e4m3fn: Type[np.generic]
 float8_e4m3fnuz: Type[np.generic]
 float8_e5m2: Type[np.generic]
 float8_e5m2fnuz: Type[np.generic]
+int4: Type[np.generic]
+uint4: Type[np.generic]
 
 # Legacy name for XLA (TODO(jewillco): Remove).
 float8_e4m3b11: Type[np.generic]
