@@ -23,6 +23,7 @@ __all__ = [
     'float8_e4m3fnuz',
     'float8_e5m2',
     'float8_e5m2fnuz',
+    'iinfo',
     'int4',
     'uint4',
 ]
@@ -38,6 +39,7 @@ from ml_dtypes._custom_floats import float8_e5m2fnuz
 from ml_dtypes._custom_floats import int4
 from ml_dtypes._custom_floats import uint4
 from ml_dtypes._finfo import finfo
+from ml_dtypes._iinfo import iinfo
 
 import numpy as np
 
