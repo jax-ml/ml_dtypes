@@ -26,7 +26,7 @@ limitations under the License.
 #include <ostream>   //NOLINT
 #include <sstream>   //NOLINT
 
-#include "eigen/Eigen/Core"
+#include "Eigen/Core"
 #include "_src/common.h"  // NOLINT
 #include "_src/ufuncs.h"  // NOLINT
 

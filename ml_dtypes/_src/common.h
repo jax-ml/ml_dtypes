@@ -25,7 +25,7 @@ limitations under the License.
 
 #include <complex>  //NOLINT
 
-#include "eigen/Eigen/Core"
+#include "Eigen/Core"
 
 namespace ml_dtypes {
 

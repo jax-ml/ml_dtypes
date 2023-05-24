@@ -34,7 +34,7 @@ limitations under the License.
 // Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
-#include "eigen/Eigen/Core"
+#include "Eigen/Core"
 #include "_src/common.h" // NOLINT
 #include "_src/ufuncs.h"  // NOLINT
 

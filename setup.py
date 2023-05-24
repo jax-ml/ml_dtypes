@@ -58,13 +58,13 @@ setup(
                 "ml_dtypes/_src/numpy.cc",
             ],
             include_dirs=[
-                "third_party",
+                "third_party/eigen",
                 "ml_dtypes",
                 np.get_include(),
             ],
             extra_compile_args=COMPILE_ARGS,
         )
     ],
-    include_package_data=False,
+    include_package_data=True,  # Export headers.
     cmdclass={"build_py": build_py},
 )

@@ -37,7 +37,7 @@ limitations under the License.
 #include <bit>
 #endif
 
-#include "eigen/Eigen/Core"
+#include "Eigen/Core"
 
 namespace ml_dtypes {
 namespace float8_internal {
