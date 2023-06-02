@@ -22,6 +22,7 @@ limitations under the License.
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include "third_party/absl/strings/str_cat.h"
 #include "unsupported/Eigen/CXX11/Tensor"
 
 namespace ml_dtypes {

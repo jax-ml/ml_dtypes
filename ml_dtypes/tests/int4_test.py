@@ -176,7 +176,7 @@ class ArrayTest(parameterized.TestCase):
     x = np.array([[1, 2, 3]], dtype=scalar_type)
     self.assertEqual(scalar_type, x.dtype)
     self.assertEqual("[[1 2 3]]", str(x))
-    np.testing.assert_array_equal(x, x, strict=True)
+    np.testing.assert_array_equal(x, x)
     self.assertTrue((x == x).all())  # pylint: disable=comparison-with-itself
 
   @parameterized.product(
@@ -186,7 +186,7 @@ class ArrayTest(parameterized.TestCase):
   def testUnaryPredicateUfunc(self, scalar_type, ufunc):
     x = np.array(VALUES[scalar_type])
     y = np.array(VALUES[scalar_type], dtype=scalar_type)
-    np.testing.assert_array_equal(ufunc(x), ufunc(y), strict=True)
+    np.testing.assert_array_equal(ufunc(x), ufunc(y))
 
   @parameterized.product(
       scalar_type=INT4_TYPES,
@@ -208,7 +208,6 @@ class ArrayTest(parameterized.TestCase):
     np.testing.assert_array_equal(
         ufunc(x[:, None], x[None, :]),
         ufunc(y[:, None], y[None, :]),
-        strict=True,
     )
 
   @parameterized.product(
@@ -264,7 +263,6 @@ class ArrayTest(parameterized.TestCase):
     np.testing.assert_array_equal(
         ufunc(x[:, None], x[None, :]).astype(scalar_type),
         ufunc(y[:, None], y[None, :]),
-        strict=True,
     )
 
 

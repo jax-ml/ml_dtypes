@@ -21,9 +21,15 @@ limitations under the License.
 #include "_src/numpy.h"
 // clang-format on
 
-#include <complex>  //NOLINT
+#include <cmath>    // NOLINT
+#include <complex>  // NOLINT
 
 #include "_src/common.h"  // NOLINT
+
+// Some versions of MSVC define a "copysign" macro which wreaks havoc.
+#if defined(_MSC_VER) && defined(copysign)
+#undef copysign
+#endif
 
 namespace ml_dtypes {
 
