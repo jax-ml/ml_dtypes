@@ -18,7 +18,6 @@ __all__ = [
     'bfloat16',
     'finfo',
     'float8_e4m3b11fnuz',
-    'float8_e4m3b11',
     'float8_e4m3fn',
     'float8_e4m3fnuz',
     'float8_e5m2',
@@ -52,8 +51,21 @@ float8_e5m2fnuz: Type[np.generic]
 int4: Type[np.generic]
 uint4: Type[np.generic]
 
-# Legacy name for XLA (TODO(jewillco): Remove).
-float8_e4m3b11: Type[np.generic]
-float8_e4m3b11 = float8_e4m3b11fnuz
-
 del np, Type
+
+
+# TODO(jakevdp) remove this deprecated name.
+def __getattr__(name):  # pylint: disable=invalid-name
+  if name == 'float8_e4m3b11':
+    import warnings  # pylint: disable=g-import-not-at-top
+
+    warnings.warn(
+        (
+            'ml_dtypes.float8_e4m3b11 is deprecated. Use'
+            ' ml_dtypes.float8_e4m3b11fnuz'
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return float8_e4m3b11fnuz
+  raise AttributeError(f'cannot import name {name!r} from {__name__!r}')
