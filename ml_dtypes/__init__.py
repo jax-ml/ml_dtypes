@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.1.0'  # Keep in sync with pyproject.toml:version
+__version__ = '0.2.0'  # Keep in sync with pyproject.toml:version
 __all__ = [
     '__version__',
     'bfloat16',
