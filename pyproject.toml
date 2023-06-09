@@ -55,11 +55,10 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
-[tools.setuptools]
-packages = ["ml_dtypes", "ml_dtypes._src"]
-
-[tool.setuptools.packages]
-find = {}
+[tool.setuptools]
+packages = ["ml_dtypes"]
+include-package-data = false
 
 [tool.setuptools.package-data]
 ml_dtypes = ["py.typed"]
+"ml_dtypes.include" = ["*.h"]

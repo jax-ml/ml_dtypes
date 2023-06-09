@@ -65,6 +65,5 @@ setup(
             extra_compile_args=COMPILE_ARGS,
         )
     ],
-    include_package_data=True,  # Export headers.
     cmdclass={"build_py": build_py},
 )
