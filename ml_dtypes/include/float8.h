@@ -954,7 +954,7 @@ constexpr inline Bits RoundBitsToNearestEven(Bits bits, int roundoff) {
 }
 
 #if (defined(__cpp_lib_bitops) && __cpp_lib_bitops >= 201907L)
-using countl_zero = std::countl_zero;
+using std::countl_zero;
 #else
 static constexpr inline int countl_zero(uint64_t x) {
   int zeroes = 60;
