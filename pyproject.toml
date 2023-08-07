@@ -50,8 +50,8 @@ requires = [
     # Build with oldest supported numpy for each Python version.
     "numpy~=1.21.2; python_version<'3.11'",
     "numpy~=1.23.3; python_version>='3.11'",
-    "pybind11~=2.10.0",
-    "setuptools~=67.6.0",
+    "pybind11~=2.11.1",
+    "setuptools~=68.0.0",
 ]
 build-backend = "setuptools.build_meta"
 
