@@ -20,6 +20,7 @@ dependencies = [
     "numpy>1.20",
     "numpy>=1.21.2; python_version>'3.9'",
     "numpy>=1.23.3; python_version>'3.10'",
+    "numpy>=1.26.0; python_version>'3.12'",
 ]
 
 [project.urls]
@@ -49,9 +50,10 @@ pyink-use-majority-quotes = true
 requires = [
     # Build with oldest supported numpy for each Python version.
     "numpy~=1.21.2; python_version<'3.11'",
-    "numpy~=1.23.3; python_version>='3.11'",
+    "numpy~=1.23.3; python_version>='3.11' and python_version<'3.12'",
+    "numpy~=1.26.0; python_version>='3.12'",
     "pybind11~=2.11.1",
-    "setuptools~=68.0.0",
+    "setuptools~=68.1.0",
 ]
 build-backend = "setuptools.build_meta"
 
