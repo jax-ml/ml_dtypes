@@ -13,94 +13,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_INT4_H_
-#define ML_DTYPES_INT4_H_
+#ifndef ML_DTYPES_INT4_NUMPY_H_
+#define ML_DTYPES_INT4_NUMPY_H_
 
 // Must be included first
 // clang-format off
 #include "_src/numpy.h"
 // clang-format on
 
-#include <cstdint>   //NOLINT
-#include <optional>  //NOLINT
-#include <ostream>   //NOLINT
-#include <sstream>   //NOLINT
-
 #include "Eigen/Core"
 #include "_src/common.h"  // NOLINT
 #include "_src/ufuncs.h"  // NOLINT
+#include "include/int4.h"
 
 namespace ml_dtypes {
-
-template <typename UnderlyingTy>
-struct i4 {
- private:
-  UnderlyingTy v : 4;
-
- public:
-  i4() : v(0) {}
-  explicit i4(UnderlyingTy val) : v(val & 0x0F) {}
-  template <typename T>
-  explicit i4(T t) : i4(static_cast<UnderlyingTy>(t)) {}
-  i4(const i4& other) = default;
-
-  static constexpr i4 lowest() {
-    return std::is_signed<UnderlyingTy>::value ? i4(-8) : i4(0);
-  }
-  static constexpr i4 highest() {
-    return std::is_signed<UnderlyingTy>::value ? i4(7) : i4(15);
-  }
-
-  template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-  explicit operator T() const {
-    return static_cast<T>(v);
-  }
-  // NOLINTNEXTLINE(google-explicit-constructor)
-  operator std::optional<int64_t>() const { return static_cast<int64_t>(v); }
-
-  i4 operator-() const { return i4(-v); }
-  i4 operator+(const i4& other) const { return i4((v + other.v)); }
-  i4 operator-(const i4& other) const { return i4((v - other.v)); }
-  i4 operator*(const i4& other) const { return i4((v * other.v)); }
-  i4 operator/(const i4& other) const { return i4((v / other.v)); }
-  i4 operator%(const i4& other) const { return i4((v % other.v)); }
-
-  i4 operator>>(const int amount) const { return i4((v >> amount)); }
-  i4 operator<<(const int amount) const { return i4((v << amount)); }
-
-  bool operator==(const i4& other) const { return v == other.v; }
-  bool operator!=(const i4& other) const { return v != other.v; }
-  bool operator<(const i4& other) const { return v < other.v; }
-  bool operator>(const i4& other) const { return v > other.v; }
-  bool operator<=(const i4& other) const { return v <= other.v; }
-  bool operator>=(const i4& other) const { return v >= other.v; }
-
-  bool operator==(const int64_t other) const { return v == other; }
-  bool operator!=(const int64_t other) const { return v != other; }
-  bool operator<(const int64_t other) const { return v < other; }
-  bool operator>(const int64_t other) const { return v > other; }
-  bool operator<=(const int64_t other) const { return v <= other; }
-  bool operator>=(const int64_t other) const { return v >= other; }
-
-  i4& operator++() {
-    v = (v + 1) & 0x0F;
-    return *this;
-  }
-
-  friend ::std::ostream& operator<<(::std::ostream& os, const i4& num) {
-    os << static_cast<int16_t>(num.v);
-    return os;
-  }
-
-  std::string ToString() const {
-    std::ostringstream os;
-    os << static_cast<int16_t>(v);
-    return os.str();
-  }
-};
-
-using int4 = i4<int8_t>;
-using uint4 = i4<uint8_t>;
 
 template <typename T>
 struct Int4TypeDescriptor {
@@ -878,4 +804,4 @@ bool RegisterInt4Dtype(PyObject* numpy) {
 
 }  // namespace ml_dtypes
 
-#endif  // ML_DTYPES_INT4_H_
+#endif  // ML_DTYPES_INT4_NUMPY_H_
