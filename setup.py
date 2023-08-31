@@ -52,7 +52,7 @@ class build_py(build_py_orig):  # pylint: disable=invalid-name
 setup(
     ext_modules=[
         Pybind11Extension(
-            "ml_dtypes._ml_dtypes_lib",
+            "ml_dtypes._ml_dtypes_ext",
             [
                 "ml_dtypes/_src/dtypes.cc",
                 "ml_dtypes/_src/numpy.cc",
