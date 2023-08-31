@@ -31,8 +31,9 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "_src/custom_float.h"
-#include "_src/int4.h"
+#include "_src/int4_numpy.h"
 #include "include/float8.h"
+#include "include/int4.h"
 
 namespace ml_dtypes {
 
@@ -297,7 +298,7 @@ bool Initialize() {
 
 static PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT,
-    "_custom_floats",
+    "_ml_dtypes_ext",
 };
 
 // TODO(phawkins): PyMODINIT_FUNC handles visibility correctly in Python 3.9+.
@@ -308,14 +309,14 @@ static PyModuleDef module_def = {
 #define EXPORT_SYMBOL __attribute__((visibility("default")))
 #endif
 
-extern "C" EXPORT_SYMBOL PyObject* PyInit__custom_floats() {
+extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
   Safe_PyObjectPtr m = make_safe(PyModule_Create(&module_def));
   if (!m) {
     return nullptr;
   }
   if (!Initialize()) {
     if (!PyErr_Occurred()) {
-      PyErr_SetString(PyExc_RuntimeError, "cannot load _custom_floats module.");
+      PyErr_SetString(PyExc_RuntimeError, "cannot load _ml_dtypes_ext module.");
     }
     return nullptr;
   }

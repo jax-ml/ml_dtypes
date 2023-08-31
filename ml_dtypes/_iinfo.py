@@ -14,9 +14,8 @@
 
 """Overload of numpy.iinfo to handle dtypes defined in ml_dtypes."""
 
-from ml_dtypes._custom_floats import int4
-from ml_dtypes._custom_floats import uint4
-
+from ml_dtypes._ml_dtypes_ext import int4
+from ml_dtypes._ml_dtypes_ext import uint4
 import numpy as np
 
 _int4_dtype = np.dtype(int4)
