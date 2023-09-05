@@ -48,7 +48,7 @@ struct i4 {
     return std::is_signed<UnderlyingTy>::value ? i4(7) : i4(15);
   }
 
-  template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
+  template <typename T>
   explicit constexpr operator T() const {
     return static_cast<T>(v);
   }
