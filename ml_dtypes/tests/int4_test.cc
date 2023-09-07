@@ -287,12 +287,26 @@ TYPED_TEST(Int4Test, ToString) {
   }
 }
 
+struct CustomInt {
+  constexpr CustomInt() : x(0) {}
+  constexpr CustomInt(int x) : x(x) {}
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  constexpr operator int() const { return x; }
+  constexpr bool operator==(const CustomInt& other) const {
+    return x == other.x;
+  }
+
+ private:
+  int x;
+};
+
 #define GEN_DEST_TYPES(Type)                                               \
   std::pair<Type, bool>, std::pair<Type, uint4>, std::pair<Type, uint8_t>, \
       std::pair<Type, uint16_t>, std::pair<Type, uint32_t>,                \
       std::pair<Type, uint64_t>, std::pair<Type, int4>,                    \
       std::pair<Type, int8_t>, std::pair<Type, int16_t>,                   \
-      std::pair<Type, int32_t>, std::pair<Type, int64_t>
+      std::pair<Type, int32_t>, std::pair<Type, int64_t>,                  \
+      std::pair<Type, CustomInt>
 
 #define GEN_TYPE_PAIRS() GEN_DEST_TYPES(int4), GEN_DEST_TYPES(uint4)
 
