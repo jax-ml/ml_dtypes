@@ -23,7 +23,10 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-## [0.2.0] - 2022-01-06
+* Dropped support for Python 3.8, following [NEP 29].
+* Added support for Python 3.12.
+
+## [0.2.0] - 2023-06-06
 
 * New features:
   * added new 4-bit integer types: `ml_dtypes.int4` and `ml_dtypes.uint4`
@@ -33,10 +36,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
     consistency with other dtype names. The former name will still be available until
     version 0.3.0, but will raise a deprecation warning.
 
-## [0.1.0] - 2022-11-01
+## [0.1.0] - 2023-04-11
 
 * Initial release
 
 [Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jax-ml/ml_dtypes/releases/tag/v0.1.0
+[NEP 29]: https://numpy.org/neps/nep-0029-deprecation_policy.html

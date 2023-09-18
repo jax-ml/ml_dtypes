@@ -3,7 +3,7 @@ name = "ml_dtypes"
 version = "0.2.0"  # Keep in sync with ml_dtypes/__init__.py:__version__
 description = ""
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {file = "LICENSE"}
 authors = [{name = "ml_dtypes authors", email="ml_dtypes@google.com"}]
 classifiers = [

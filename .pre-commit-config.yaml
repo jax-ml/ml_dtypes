@@ -9,7 +9,7 @@ repos:
     rev: 23.3.1
     hooks:
       - id: pyink
-        language_version: python3.8
+        language_version: python3.9
         args: [
           "--line-length=80",
           "--preview",
