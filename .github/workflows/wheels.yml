@@ -47,7 +47,7 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: universal2
-          CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
+          CIBW_BUILD: cp39-* cp310-* cp311-* cp312-*
           CIBW_SKIP: "*musllinux* *i686* *win32*"
           CIBW_TEST_REQUIRES: absl-py pytest pytest-xdist
           CIBW_TEST_COMMAND: pytest -n auto {project}

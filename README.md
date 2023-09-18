@@ -21,7 +21,7 @@ See below for specifications of these number formats.
 
 ## Installation
 
-The `ml_dtypes` package is tested with Python versions 3.8-3.11, and can be installed
+The `ml_dtypes` package is tested with Python versions 3.9-3.12, and can be installed
 with the following command:
 ```
 pip install ml_dtypes
