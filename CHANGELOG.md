@@ -25,6 +25,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Dropped support for Python 3.8, following [NEP 29].
 * Added support for Python 3.12.
+* Removed deprecated name `ml_dtypes.float8_e4m3b11`;
+  use `ml_dtypes.float8_e4m3b11fnuz` instead.
 
 ## [0.2.0] - 2023-06-06
 
