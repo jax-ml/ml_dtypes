@@ -260,8 +260,8 @@ bool Initialize() {
     return false;
   }
 
-  // Casts between bfloat16 and float8_e4m3b11nuz. Only perform the cast if
-  // float8_e4m3b11nuz hasn't been previously registered, presumably by a
+  // Casts between bfloat16 and float8_e4m3b11fnuz. Only perform the cast if
+  // float8_e4m3b11fnuz hasn't been previously registered, presumably by a
   // different library. In this case, we assume the cast has also already been
   // registered, and registering it again can cause segfaults due to accessing
   // an uninitialized type descriptor in this library.
