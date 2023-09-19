@@ -23,6 +23,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.3.0] - 2023-09-19
+
 * Dropped support for Python 3.8, following [NEP 29].
 * Added support for Python 3.12.
 * Removed deprecated name `ml_dtypes.float8_e4m3b11`;
@@ -42,7 +44,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Initial release
 
-[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jax-ml/ml_dtypes/releases/tag/v0.1.0
 [NEP 29]: https://numpy.org/neps/nep-0029-deprecation_policy.html

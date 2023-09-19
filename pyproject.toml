@@ -1,6 +1,6 @@
 [project]
 name = "ml_dtypes"
-version = "0.2.0"  # Keep in sync with ml_dtypes/__init__.py:__version__
+version = "0.3.0"  # Keep in sync with ml_dtypes/__init__.py:__version__
 description = ""
 readme = "README.md"
 requires-python = ">=3.9"
