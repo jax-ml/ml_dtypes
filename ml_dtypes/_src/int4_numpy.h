@@ -712,6 +712,20 @@ bool RegisterInt4UFuncs(PyObject* numpy) {
 
 template <typename T>
 bool RegisterInt4Dtype(PyObject* numpy) {
+  int typenum =
+      PyArray_TypeNumFromName(const_cast<char*>(TypeDescriptor<T>::kTypeName));
+  if (typenum != NPY_NOTYPE) {
+    PyArray_Descr* descr = PyArray_DescrFromType(typenum);
+    // The test for an argmax function here is to verify that the
+    // (u)int4 implementation is sufficiently new, and, say, not from
+    // an older version of TF or JAX.
+    if (descr && descr->f && descr->f->argmax) {
+      TypeDescriptor<T>::npy_type = typenum;
+      TypeDescriptor<T>::type_ptr = reinterpret_cast<PyObject*>(descr->typeobj);
+      return true;
+    }
+  }
+
   Safe_PyObjectPtr name =
       make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
   Safe_PyObjectPtr qualname =
