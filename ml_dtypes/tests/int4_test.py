@@ -155,6 +155,64 @@ class ScalarTest(parameterized.TestCase):
           self.assertIsInstance(out, scalar_type)
           self.assertEqual(scalar_type(op(v, w)), out, msg=(v, w))
 
+  @parameterized.product(
+      scalar_type=INT4_TYPES,
+      dtype=[
+          np.float16,
+          np.float32,
+          np.float64,
+          np.int8,
+          np.int16,
+          np.int32,
+          np.int64,
+          np.complex64,
+          np.complex128,
+          np.uint8,
+          np.uint16,
+          np.uint32,
+          np.uint64,
+          np.intc,
+          np.int_,
+          np.longlong,
+          np.uintc,
+          np.ulonglong,
+      ],
+  )
+  def testCanCast(self, scalar_type, dtype):
+    allowed_casts = [
+        (np.bool_, int4),
+        (int4, np.int8),
+        (int4, np.int16),
+        (int4, np.int32),
+        (int4, np.int64),
+        (int4, np.float16),
+        (int4, np.float32),
+        (int4, np.float64),
+        (int4, np.complex64),
+        (int4, np.complex128),
+        (np.bool_, uint4),
+        (uint4, np.int8),
+        (uint4, np.int16),
+        (uint4, np.int32),
+        (uint4, np.int64),
+        (uint4, np.uint8),
+        (uint4, np.uint16),
+        (uint4, np.uint32),
+        (uint4, np.uint64),
+        (uint4, np.float16),
+        (uint4, np.float32),
+        (uint4, np.float64),
+        (uint4, np.complex64),
+        (uint4, np.complex128),
+    ]
+
+    assert ((scalar_type, dtype) in allowed_casts) == np.can_cast(
+        scalar_type, dtype
+    )
+    assert ((dtype, scalar_type) in allowed_casts) == np.can_cast(
+        dtype, scalar_type
+    )
+
 
 # Tests for the Python scalar type
 class ArrayTest(parameterized.TestCase):
