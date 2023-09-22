@@ -16,6 +16,8 @@ limitations under the License.
 #ifndef ML_DTYPES_INT4_NUMPY_H_
 #define ML_DTYPES_INT4_NUMPY_H_
 
+#include <type_traits>
+
 // Must be included first
 // clang-format off
 #include "_src/numpy.h"
@@ -27,6 +29,8 @@ limitations under the License.
 #include "include/int4.h"
 
 namespace ml_dtypes {
+
+constexpr char kOutOfRange[] = "out of range value cannot be converted to int4";
 
 template <typename T>
 struct Int4TypeDescriptor {
@@ -114,8 +118,7 @@ bool CastToInt4(PyObject* arg, T* output) {
     }
     if (d < static_cast<double>(T::lowest()) ||
         d > static_cast<double>(T::highest())) {
-      PyErr_SetString(PyExc_OverflowError,
-                      "out of range value cannot be converted to int4");
+      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
     }
     *output = T(d);
     return true;
@@ -131,7 +134,35 @@ bool CastToInt4(PyObject* arg, T* output) {
   if (PyArray_IsScalar(arg, Integer)) {
     int64_t v;
     PyArray_CastScalarToCtype(arg, &v, PyArray_DescrFromType(NPY_INT64));
+
+    if (!(std::numeric_limits<T>::min() <= v &&
+          v <= std::numeric_limits<T>::max())) {
+      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      return false;
+    }
     *output = T(v);
+    return true;
+  }
+  if (PyArray_IsScalar(arg, Float)) {
+    float f;
+    PyArray_ScalarAsCtype(arg, &f);
+    if (!(std::numeric_limits<T>::min() <= f &&
+          f <= std::numeric_limits<T>::max())) {
+      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      return false;
+    }
+    *output = T(static_cast<::int8_t>(f));
+    return true;
+  }
+  if (PyArray_IsScalar(arg, Double)) {
+    double d;
+    PyArray_ScalarAsCtype(arg, &d);
+    if (!(std::numeric_limits<T>::min() <= d &&
+          d <= std::numeric_limits<T>::max())) {
+      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      return false;
+    }
+    *output = T(static_cast<::int8_t>(d));
     return true;
   }
   return false;
@@ -652,7 +683,41 @@ bool RegisterInt4Casts() {
   }
 
   // Safe casts from T to other types
-  // TODO(phawkins): add integer types
+  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT8,
+                              NPY_NOSCALAR) < 0) {
+    return false;
+  }
+  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT16,
+                              NPY_NOSCALAR) < 0) {
+    return false;
+  }
+  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT32,
+                              NPY_NOSCALAR) < 0) {
+    return false;
+  }
+  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT64,
+                              NPY_NOSCALAR) < 0) {
+    return false;
+  }
+
+  if (std::is_same_v<uint4, T>) {
+    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT8,
+                                NPY_NOSCALAR) < 0) {
+      return false;
+    }
+    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT16,
+                                NPY_NOSCALAR) < 0) {
+      return false;
+    }
+    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT32,
+                                NPY_NOSCALAR) < 0) {
+      return false;
+    }
+    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT64,
+                                NPY_NOSCALAR) < 0) {
+      return false;
+    }
+  }
   if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_FLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;

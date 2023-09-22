@@ -23,6 +23,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.3.1] - 2023-09-22
+
+* Added support for int4 casting to wider integers such as int8
+* Addes support to cast np.float32 and np.float64 into int4
+
 ## [0.3.0] - 2023-09-19
 
 * Dropped support for Python 3.8, following [NEP 29].
@@ -44,7 +49,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Initial release
 
-[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jax-ml/ml_dtypes/releases/tag/v0.1.0
