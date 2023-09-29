@@ -214,6 +214,9 @@ class CustomFloatTest(parameterized.TestCase):
       self.assertEqual(v, int(float_type(v)))
       self.assertEqual(-v, int(float_type(-v)))
 
+  @ignore_warning(
+      category=RuntimeWarning, message="invalid value encountered in cast"
+  )
   @ignore_warning(category=RuntimeWarning, message="overflow encountered")
   def testRoundTripToNumpy(self, float_type):
     for dtype in [
@@ -457,6 +460,9 @@ class CustomFloatTest(parameterized.TestCase):
     sorted_float_type = np.sort(values_to_sort.astype(float_type))  # pylint: disable=too-many-function-args
     np.testing.assert_equal(sorted_f32, np.float32(sorted_float_type))
 
+  @ignore_warning(
+      category=RuntimeWarning, message="invalid value encountered in cast"
+  )
   def testArgmax(self, float_type):
     values_to_sort = np.float32(
         float_type(np.float32(FLOAT_VALUES[float_type]))
@@ -479,6 +485,9 @@ class CustomFloatTest(parameterized.TestCase):
     inf = np.array([float("-inf")], dtype=np.float32)
     np.testing.assert_equal(np.argmax(inf.astype(float_type)), np.argmax(inf))
 
+  @ignore_warning(
+      category=RuntimeWarning, message="invalid value encountered in cast"
+  )
   def testArgmin(self, float_type):
     values_to_sort = np.float32(
         float_type(np.float32(FLOAT_VALUES[float_type]))
