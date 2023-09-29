@@ -117,7 +117,9 @@ class ScalarTest(parameterized.TestCase):
   def testComparison(self, scalar_type, op):
     for v in VALUES[scalar_type]:
       for w in VALUES[scalar_type]:
-        self.assertEqual(op(v, w), op(scalar_type(v), scalar_type(w)))
+        result = op(scalar_type(v), scalar_type(w))
+        self.assertEqual(op(v, w), result)
+        self.assertIsInstance(result, np.bool_)
 
   @parameterized.product(
       scalar_type=INT4_TYPES,

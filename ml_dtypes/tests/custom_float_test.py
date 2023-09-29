@@ -26,9 +26,7 @@ import warnings
 
 from absl.testing import absltest
 from absl.testing import parameterized
-
 import ml_dtypes
-
 import numpy as np
 
 bfloat16 = ml_dtypes.bfloat16
@@ -384,32 +382,44 @@ class CustomFloatTest(parameterized.TestCase):
   def testLess(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       for w in FLOAT_VALUES[float_type]:
-        self.assertEqual(v < w, float_type(v) < float_type(w))
+        result = float_type(v) < float_type(w)
+        self.assertEqual(v < w, result)
+        self.assertIsInstance(result, np.bool_)
 
   def testLessEqual(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       for w in FLOAT_VALUES[float_type]:
-        self.assertEqual(v <= w, float_type(v) <= float_type(w))
+        result = float_type(v) <= float_type(w)
+        self.assertEqual(v <= w, result)
+        self.assertIsInstance(result, np.bool_)
 
   def testGreater(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       for w in FLOAT_VALUES[float_type]:
-        self.assertEqual(v > w, float_type(v) > float_type(w))
+        result = float_type(v) > float_type(w)
+        self.assertEqual(v > w, result)
+        self.assertIsInstance(result, np.bool_)
 
   def testGreaterEqual(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       for w in FLOAT_VALUES[float_type]:
-        self.assertEqual(v >= w, float_type(v) >= float_type(w))
+        result = float_type(v) >= float_type(w)
+        self.assertEqual(v >= w, result)
+        self.assertIsInstance(result, np.bool_)
 
   def testEqual(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       for w in FLOAT_VALUES[float_type]:
-        self.assertEqual(v == w, float_type(v) == float_type(w))
+        result = float_type(v) == float_type(w)
+        self.assertEqual(v == w, result)
+        self.assertIsInstance(result, np.bool_)
 
   def testNotEqual(self, float_type):
     for v in FLOAT_VALUES[float_type]:
       for w in FLOAT_VALUES[float_type]:
-        self.assertEqual(v != w, float_type(v) != float_type(w))
+        result = float_type(v) != float_type(w)
+        self.assertEqual(v != w, result)
+        self.assertIsInstance(result, np.bool_)
 
   def testNan(self, float_type):
     a = np.isnan(float_type(float("nan")))

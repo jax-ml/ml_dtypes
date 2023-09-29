@@ -35,6 +35,7 @@ limitations under the License.
 #include <Python.h>
 
 #include "numpy/arrayobject.h"
+#include "numpy/arrayscalars.h"
 #include "numpy/ufuncobject.h"
 
 namespace ml_dtypes {

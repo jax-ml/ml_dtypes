@@ -396,7 +396,7 @@ PyObject* PyInt4_RichCompare(PyObject* a, PyObject* b, int op) {
       PyErr_SetString(PyExc_ValueError, "Invalid op type");
       return nullptr;
   }
-  return PyBool_FromLong(result);
+  PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
 }
 
 // Numpy support
