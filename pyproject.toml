@@ -18,9 +18,9 @@ keywords = []
 dependencies = [
     # Ensure numpy release supports Python version.
     "numpy>1.20",
-    "numpy>=1.21.2; python_version>'3.9'",
-    "numpy>=1.23.3; python_version>'3.10'",
-    "numpy>=1.26.0; python_version>'3.12'",
+    "numpy>=1.21.2; python_version>='3.10'",
+    "numpy>=1.23.3; python_version>='3.11'",
+    "numpy>=1.26.0; python_version>='3.12'",
 ]
 
 [project.urls]
