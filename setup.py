@@ -30,6 +30,11 @@ else:
   COMPILE_ARGS = [
       "-std=c++17",
       "-DEIGEN_MPL2_ONLY",
+      # -ftrapping-math is necessary because NumPy looks at floating point
+      # exception state to determine whether to emit, e.g., invalid value
+      # warnings. Without this setting, on Mac ARM we see spurious "invalid
+      # value" warnings when running the tests.
+      "-ftrapping-math",
   ]
 
 exclude = ["third_party*"]
