@@ -23,6 +23,9 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Fixed spurious invalid value warnings when casting between floating point
+  types on Mac ARM.
+
 ## [0.3.1] - 2023-09-22
 
 * Added support for int4 casting to wider integers such as int8
