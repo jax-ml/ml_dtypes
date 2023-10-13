@@ -718,6 +718,10 @@ bool RegisterInt4Casts() {
       return false;
     }
   }
+  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_HALF,
+                              NPY_NOSCALAR) < 0) {
+    return false;
+  }
   if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_FLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
@@ -745,14 +749,6 @@ bool RegisterInt4Casts() {
 
   // Safe casts to T from other types
   if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
-                              TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_UBYTE),
-                              TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BYTE),
                               TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
     return false;
   }
