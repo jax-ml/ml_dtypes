@@ -59,9 +59,9 @@ class float8_base {
  public:
   constexpr float8_base() : rep_(0) {}
 
-  template <typename T,
-            typename EnableIf = std::enable_if<std::is_arithmetic_v<T>>>
-  explicit EIGEN_DEVICE_FUNC float8_base(T f)
+  template <typename T>
+  explicit EIGEN_DEVICE_FUNC float8_base(
+      T f, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0)
       : float8_base(ConvertFrom(static_cast<float>(f)).rep(),
                     ConstructFromRepTag{}) {}
   explicit EIGEN_DEVICE_FUNC float8_base(double f64)
@@ -239,6 +239,10 @@ class float8_base {
   uint8_t rep_;
 };
 
+template <typename T>
+using RequiresIsDerivedFromFloat8Base =
+    std::enable_if_t<std::is_base_of_v<float8_base<T>, T>, int>;
+
 class float8_e4m3fn : public float8_base<float8_e4m3fn> {
   // Exponent: 4, Mantissa: 3, bias: 7.
   // Extended range: no inf, NaN represented by 0bS111'1111.
@@ -252,9 +256,8 @@ class float8_e4m3fn : public float8_base<float8_e4m3fn> {
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e5m2& f8)
-      : float8_e4m3fn(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(const float8_e4m3b11fnuz& f8)
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fn(T f8)
       : float8_e4m3fn(ConvertFrom(f8)) {}
 };
 
@@ -267,13 +270,8 @@ class float8_e4m3b11fnuz : public float8_base<float8_e4m3b11fnuz> {
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e5m2& f8)
-      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e5m2fnuz& f8)
-      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e4m3fn& f8)
-      : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(const float8_e4m3fnuz& f8)
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e4m3b11fnuz(T f8)
       : float8_e4m3b11fnuz(ConvertFrom(f8)) {}
 
   constexpr float8_e4m3b11fnuz operator-() const {
@@ -315,13 +313,8 @@ class float8_e4m3fnuz : public float8_base<float8_e4m3fnuz> {
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e5m2& f8)
-      : float8_e4m3fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e5m2fnuz& f8)
-      : float8_e4m3fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3b11fnuz& f8)
-      : float8_e4m3fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(const float8_e4m3fn& f8)
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e4m3fnuz(T f8)
       : float8_e4m3fnuz(ConvertFrom(f8)) {}
 
   constexpr float8_e4m3fnuz operator-() const {
@@ -347,13 +340,8 @@ class float8_e5m2 : public float8_base<float8_e5m2> {
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3fn f8)
-      : float8_e5m2(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3fnuz f8)
-      : float8_e5m2(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e4m3b11fnuz f8)
-      : float8_e5m2(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2(float8_e5m2fnuz& f8)
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e5m2(T f8)
       : float8_e5m2(ConvertFrom(f8)) {}
 };
 
