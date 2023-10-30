@@ -61,13 +61,13 @@ class float8_base {
 
   template <typename T>
   explicit EIGEN_DEVICE_FUNC float8_base(
-      T f, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0)
-      : float8_base(ConvertFrom(static_cast<float>(f)).rep(),
+      T i, std::enable_if_t<std::is_integral_v<T>, int> = 0)
+      : float8_base(ConvertFrom(static_cast<float>(i)).rep(),
                     ConstructFromRepTag{}) {}
-  explicit EIGEN_DEVICE_FUNC float8_base(double f64)
-      : float8_base(ConvertFrom(f64).rep(), ConstructFromRepTag{}) {}
-  explicit EIGEN_DEVICE_FUNC float8_base(float f32)
-      : float8_base(ConvertFrom(f32).rep(), ConstructFromRepTag{}) {}
+  template <typename T>
+  explicit EIGEN_DEVICE_FUNC float8_base(
+      T f, std::enable_if_t<std::is_floating_point_v<T>, int> = 0)
+      : float8_base(ConvertFrom(f).rep(), ConstructFromRepTag{}) {}
   explicit EIGEN_DEVICE_FUNC float8_base(Eigen::bfloat16 bf16)
       : float8_base(ConvertFrom(bf16).rep(), ConstructFromRepTag{}) {}
   explicit EIGEN_DEVICE_FUNC float8_base(Eigen::half f16)
@@ -112,10 +112,10 @@ class float8_base {
 
   // Conversions allowing saturation and truncation.
   template <bool kSaturate = false, bool kTruncate = false, typename From>
-  static inline EIGEN_DEVICE_FUNC Derived ConvertFrom(const From& from);
+  static inline EIGEN_DEVICE_FUNC Derived ConvertFrom(From from);
 
   template <typename To, bool kSaturate = false, bool kTruncate = false>
-  static inline EIGEN_DEVICE_FUNC To ConvertTo(const Derived& from);
+  static inline EIGEN_DEVICE_FUNC To ConvertTo(Derived from);
 
   // Operators via float32.
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Derived
@@ -488,7 +488,7 @@ struct numeric_limits_float8_e4m3fn : public numeric_limits_float8_base {
   static inline constexpr const int min_exponent10 =
       MinExponent10FromMinExponent(min_exponent);
   static inline constexpr const int max_exponent =
-      (0b1111 - 7) + 1;  // Extended format.
+      (0b1111 - kExponentBias) + 1;  // Extended format.
   static inline constexpr const int max_exponent10 =
       MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
   static inline constexpr const bool is_iec559 = false;
@@ -634,7 +634,8 @@ struct numeric_limits_float8_e4m3fnuz : public numeric_limits_float8_base {
   }
   static constexpr float8_e4m3fnuz infinity() {
     return float8_e4m3fnuz::FromRep(0x80);
-  }  // NaN.
+  }
+  // NaN.
   static constexpr float8_e4m3fnuz quiet_NaN() {
     return float8_e4m3fnuz::FromRep(0x80);
   }
@@ -834,16 +835,19 @@ constexpr inline float8_e5m2fnuz abs(const float8_e5m2fnuz& a) {
                                : float8_e5m2fnuz::FromRep(a.rep() & 0x7F);
 }
 
-constexpr inline bool isnan(const float8_e5m2fnuz& a) {
+constexpr inline bool (isnan)(const float8_e5m2fnuz& a) {
   return a.rep() == 0x80;
 }
 
 template <typename Float8>
 constexpr inline bool(isinf)(const float8_base<Float8>& a) {
-  return std::numeric_limits<Float8>::has_infinity
-             ? abs(a.derived()).rep() ==
-                   std::numeric_limits<Float8>::infinity().rep()
-             : false;  // No inf representation.
+  if constexpr (std::numeric_limits<Float8>::has_infinity) {
+    return abs(a.derived()).rep() ==
+           std::numeric_limits<Float8>::infinity().rep();
+  } else {
+    // No inf representation.
+    return false;
+  }
 }
 
 template <typename Float8>
@@ -875,9 +879,7 @@ struct ConvertImpl;
 // of template parameters to avoid ambiguities.
 template <typename Scalar>
 struct IdentityConversion {
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& from) {
-    return from;
-  }
+  static EIGEN_DEVICE_FUNC inline Scalar run(Scalar from) { return from; }
 };
 
 template <typename Scalar>
@@ -1031,7 +1033,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static constexpr int kExponentOffset = kToExponentBias - kFromExponentBias;
   static constexpr int kDigitShift = kToMantissaBits - kFromMantissaBits;
 
-  static EIGEN_DEVICE_FUNC inline To run(const From& from) {
+  static EIGEN_DEVICE_FUNC inline To run(From from) {
     // Shift bits to destination type, without sign bit.
     const bool from_sign_bit =
         Eigen::numext::bit_cast<FromBits>(from) >> (kFromBits - 1);
@@ -1180,14 +1182,14 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
 // Saturation has no impact when casting e4m3 to e5m2.
 template <bool kTruncate>
 struct ConvertImpl<float8_e4m3fn, float8_e5m2, true, kTruncate> {
-  static EIGEN_DEVICE_FUNC inline float8_e5m2 run(const float8_e4m3fn& from) {
+  static EIGEN_DEVICE_FUNC inline float8_e5m2 run(float8_e4m3fn from) {
     return ConvertImpl<float8_e4m3fn, float8_e5m2, false, kTruncate>::run(from);
   }
 };
 
 template <bool kSaturate, bool kTruncate>
 struct ConvertImpl<Eigen::half, float8_e5m2, kSaturate, kTruncate> {
-  static EIGEN_DEVICE_FUNC inline float8_e5m2 run(const Eigen::half& from) {
+  static EIGEN_DEVICE_FUNC inline float8_e5m2 run(Eigen::half from) {
     uint16_t from_bits = Eigen::numext::bit_cast<uint16_t>(from);
 
     // Special values (Inf or NaN).
@@ -1222,7 +1224,7 @@ struct ConvertImpl<Eigen::half, float8_e5m2, kSaturate, kTruncate> {
 template <>
 struct ConvertImpl<float8_e5m2, Eigen::half, /*kSaturate=*/false,
                    /*kTruncate=*/false> {
-  static EIGEN_DEVICE_FUNC inline Eigen::half run(const float8_e5m2& from) {
+  static EIGEN_DEVICE_FUNC inline Eigen::half run(float8_e5m2 from) {
     return Eigen::numext::bit_cast<Eigen::half>(
         static_cast<uint16_t>(static_cast<uint16_t>(from.rep()) << 8));
   }
@@ -1231,7 +1233,7 @@ struct ConvertImpl<float8_e5m2, Eigen::half, /*kSaturate=*/false,
 // Direct casts of e5m2 to Eigen::half simply shifts bits over.
 template <bool kSaturate, bool kTruncate>
 struct ConvertImpl<float8_e5m2, Eigen::half, kSaturate, kTruncate> {
-  static EIGEN_DEVICE_FUNC inline Eigen::half run(const float8_e5m2& from) {
+  static EIGEN_DEVICE_FUNC inline Eigen::half run(float8_e5m2 from) {
     return Eigen::numext::bit_cast<Eigen::half>(
         static_cast<uint16_t>(static_cast<uint16_t>(from.rep()) << 8));
   }
@@ -1239,13 +1241,50 @@ struct ConvertImpl<float8_e5m2, Eigen::half, kSaturate, kTruncate> {
 
 template <typename Derived>
 template <bool kSaturate, bool kTruncate, typename From>
-EIGEN_DEVICE_FUNC Derived float8_base<Derived>::ConvertFrom(const From& from) {
-  return ConvertImpl<From, Derived, kSaturate, kTruncate>::run(from);
+EIGEN_DEVICE_FUNC Derived float8_base<Derived>::ConvertFrom(const From from) {
+  // We are rounding long double -> float -> float8. This can induce
+  // double-rounding which may alter the results. We can correct for this using
+  // a trick explained in: Boldo, Sylvie, and Guillaume Melquiond. "When double
+  // rounding is odd." 17th IMACS World Congress. 2005.
+  if constexpr (std::is_floating_point_v<From> &&
+                sizeof(From) > sizeof(double)) {
+    // binary64, float80, binary128, etc. end up here.
+    static_assert(std::numeric_limits<From>::digits >=
+                  std::numeric_limits<float>::digits + 2);
+    static_assert(std::numeric_limits<float>::min_exponent >=
+                  std::numeric_limits<From>::min_exponent + 2);
+    static_assert(std::numeric_limits<float>::is_iec559);
+    static_assert(std::numeric_limits<float>::radix == 2);
+    const bool is_negative = std::signbit(from);
+    const From abs_wide = std::fabs(from);
+    float abs_narrow = static_cast<float>(abs_wide);
+    const From abs_narrow_as_wide = static_cast<From>(abs_narrow);
+
+    uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
+    // We can keep the narrow value as-is if narrowing was exact (no rounding
+    // error), the wide value was NaN (the narrow value is also NaN and should
+    // be preserved) or if we rounded to the odd value.
+    const bool keep_narrow = (abs_wide == abs_narrow_as_wide) ||
+                             std::isnan(abs_narrow) || (narrow_bits & 1);
+    // We morally performed a round-down if `abs_narrow` is smaller than
+    // `abs_wide`.
+    const bool narrow_is_rd = abs_wide > abs_narrow_as_wide;
+    // If the narrow value is odd or exact, pick it.
+    // Otherwise, narrow is even and corresponds to either the rounded-up or
+    // rounded-down value. If narrow is the rounded-down value, we want the
+    // rounded-up value as it will be odd.
+    narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
+    abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
+    return ConvertImpl<float, Derived, kSaturate, kTruncate>::run(
+        is_negative ? -abs_narrow : abs_narrow);
+  } else {
+    return ConvertImpl<From, Derived, kSaturate, kTruncate>::run(from);
+  }
 }
 
 template <typename Derived>
 template <typename To, bool kSaturate, bool kTruncate>
-EIGEN_DEVICE_FUNC To float8_base<Derived>::ConvertTo(const Derived& from) {
+EIGEN_DEVICE_FUNC To float8_base<Derived>::ConvertTo(Derived from) {
   return ConvertImpl<Derived, To, kSaturate, kTruncate>::run(from);
 }
 

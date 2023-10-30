@@ -85,6 +85,7 @@ TEST(Float8E4m3Test, NumericLimits) {
   EXPECT_EQ(std::numeric_limits<float8_e4m3fn>::max_exponent10, 2);
   EXPECT_EQ(std::numeric_limits<float8_e4m3fn>::is_iec559, false);
   EXPECT_EQ(std::numeric_limits<float8_e4m3fn>::has_infinity, false);
+  EXPECT_EQ(std::numeric_limits<float8_e4m3fn>::has_quiet_NaN, true);
   EXPECT_EQ(std::numeric_limits<float8_e4m3fn>::has_signaling_NaN, false);
 }
 
@@ -121,6 +122,7 @@ TEST(Float8E4m3b11fnuzTest, NumericLimits) {
   EXPECT_EQ(std::numeric_limits<float8_e4m3b11fnuz>::max_exponent10, 1);
   EXPECT_EQ(std::numeric_limits<float8_e4m3b11fnuz>::is_iec559, false);
   EXPECT_EQ(std::numeric_limits<float8_e4m3b11fnuz>::has_infinity, false);
+  EXPECT_EQ(std::numeric_limits<float8_e4m3b11fnuz>::has_quiet_NaN, true);
   EXPECT_EQ(std::numeric_limits<float8_e4m3b11fnuz>::has_signaling_NaN, false);
 }
 
@@ -155,6 +157,7 @@ TEST(Float8E4m3fnuzTest, NumericLimits) {
   EXPECT_EQ(std::numeric_limits<float8_e4m3fnuz>::max_exponent10, 2);
   EXPECT_EQ(std::numeric_limits<float8_e4m3fnuz>::is_iec559, false);
   EXPECT_EQ(std::numeric_limits<float8_e4m3fnuz>::has_infinity, false);
+  EXPECT_EQ(std::numeric_limits<float8_e4m3fnuz>::has_quiet_NaN, true);
   EXPECT_EQ(std::numeric_limits<float8_e4m3fnuz>::has_signaling_NaN, false);
 }
 
@@ -185,6 +188,7 @@ TEST(Float8E5m2Test, NumericLimits) {
   EXPECT_EQ(std::numeric_limits<float8_e5m2>::max_exponent10, 4);
   EXPECT_EQ(std::numeric_limits<float8_e5m2>::is_iec559, true);
   EXPECT_EQ(std::numeric_limits<float8_e5m2>::has_infinity, true);
+  EXPECT_EQ(std::numeric_limits<float8_e5m2>::has_quiet_NaN, true);
   EXPECT_EQ(std::numeric_limits<float8_e5m2>::has_signaling_NaN, true);
 }
 
@@ -219,6 +223,7 @@ TEST(Float8E5m2fnuzTest, NumericLimits) {
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::max_exponent10, 4);
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::is_iec559, false);
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::has_infinity, false);
+  EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::has_quiet_NaN, true);
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::has_signaling_NaN, false);
 }
 
@@ -405,6 +410,46 @@ TYPED_TEST(Float8Test, ConvertTo) {
                                                  /*kTruncate=*/true>(f8)));
     }
   }
+}
+
+template <typename SrcType, typename IntermediateType, typename Float8>
+static SrcType DoubleRoundHelper() {
+  // If we have a number of the form 1.0..010..010.., two rounds of RTNE can
+  // cause the last-set bit to get rounded down due to RTNE which in turn will
+  // cause the other bit to get rounded down due to RTNE. RTNE's tie breaking
+  // semantics *should* not apply here as there is no tie but double-rounding
+  // may confuse us.
+  SrcType x{1.0};
+  x += std::ldexp(SrcType{1.0}, -std::numeric_limits<Float8>::digits);
+  x += std::ldexp(SrcType{1.0}, -std::numeric_limits<IntermediateType>::digits);
+  auto rounded_x = static_cast<Float8>(x);
+  return static_cast<SrcType>(rounded_x);
+}
+
+// This test tries to capture mistakes in `float8_base::ConvertFrom` where it is
+// implemented by a series of conversions. e.g. converting a double to a float
+// to a float8 introduces double-rounding which makes the final rounding step
+// unfaithful. Craft a variety of numbers which try to detect if this happens.
+TYPED_TEST(Float8Test, DoubleRound) {
+  using Float8 = TypeParam;
+
+  // We expect that our number results in rounding up to the number after 1.
+  // Incorrect rounding will result in 1.
+  const double expected =
+      1.0 + static_cast<double>(std::numeric_limits<Float8>::epsilon());
+
+  EXPECT_EQ((DoubleRoundHelper<double, float, Float8>()), expected);
+
+  // Don't use long double on targets which don't support it.
+#if !defined(EIGEN_USE_GPU) && !defined(EIGEN_GPU_COMPILE_PHASE)
+  EXPECT_EQ((DoubleRoundHelper<long double, double, Float8>()), expected);
+  EXPECT_EQ((DoubleRoundHelper<long double, float, Float8>()), expected);
+
+  Float8 max = std::numeric_limits<Float8>::max();
+  Float8 saturated = Float8::template ConvertFrom</*kSaturate=*/true>(
+      std::numeric_limits<long double>::max());
+  EXPECT_EQ(max, saturated);
+#endif
 }
 
 TEST(Float8Test, Float8E5m2_To_Float8E4m3) {
@@ -677,7 +722,7 @@ TYPED_TEST(Float8Test, CallTheConstOperator) {
   }
 }
 
-TEST(Float855m2Test, SmallCastToDenormal) {
+TEST(Float8E5m2Test, SmallCastToDenormal) {
   // Special edge-case where rounding to a normalized value would
   // normally round down, but rounding to a subnormal rounds up.
   float x = std::ldexp(1.3125, -15);
