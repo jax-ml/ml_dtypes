@@ -882,18 +882,10 @@ struct IdentityConversion {
   static EIGEN_DEVICE_FUNC inline Scalar run(Scalar from) { return from; }
 };
 
-template <typename Scalar>
-struct ConvertImpl<Scalar, Scalar, /*kSaturate=*/false, /*kTruncate=*/false,
-                   /*EnableIf=*/void> : public IdentityConversion<Scalar> {};
-template <typename Scalar>
-struct ConvertImpl<Scalar, Scalar, /*kSaturate=*/false, /*kTruncate=*/true,
-                   /*EnableIf=*/void> : public IdentityConversion<Scalar> {};
-template <typename Scalar>
-struct ConvertImpl<Scalar, Scalar, /*kSaturate=*/true, /*kTruncate=*/false,
-                   /*EnableIf=*/void> : public IdentityConversion<Scalar> {};
-template <typename Scalar>
-struct ConvertImpl<Scalar, Scalar, /*kSaturate=*/true, /*kTruncate=*/true,
-                   /*EnableIf=*/void> : public IdentityConversion<Scalar> {};
+template <typename Scalar, bool kSaturate, bool kTruncate>
+struct ConvertImpl<Scalar, Scalar, /*kSaturate=*/kSaturate,
+                   /*kTruncate=*/kTruncate>
+    : public IdentityConversion<Scalar> {};
 
 template <typename Float>
 struct TraitsBase {
@@ -1218,15 +1210,6 @@ struct ConvertImpl<Eigen::half, float8_e5m2, kSaturate, kTruncate> {
       }
     }
     return float8_e5m2::FromRep(from_bits >> 8);
-  }
-};
-
-template <>
-struct ConvertImpl<float8_e5m2, Eigen::half, /*kSaturate=*/false,
-                   /*kTruncate=*/false> {
-  static EIGEN_DEVICE_FUNC inline Eigen::half run(float8_e5m2 from) {
-    return Eigen::numext::bit_cast<Eigen::half>(
-        static_cast<uint16_t>(static_cast<uint16_t>(from.rep()) << 8));
   }
 };
 
