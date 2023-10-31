@@ -61,7 +61,10 @@ class ScalarTest(parameterized.TestCase):
     self.assertEqual(x_out.dtype, x.dtype)
     np.testing.assert_array_equal(x_out.astype(int), x.astype(int))
 
-  @parameterized.product(scalar_type=INT4_TYPES, python_scalar=[int, float])
+  @parameterized.product(
+      scalar_type=INT4_TYPES,
+      python_scalar=[int, float, np.float16, np.longdouble],
+  )
   def testRoundTripToPythonScalar(self, scalar_type, python_scalar):
     for v in VALUES[scalar_type]:
       self.assertEqual(v, scalar_type(v))
@@ -241,12 +244,16 @@ class ArrayTest(parameterized.TestCase):
 
   @parameterized.product(
       scalar_type=INT4_TYPES,
-      ufunc=[np.nonzero, np.logical_not],
+      ufunc=[np.nonzero, np.logical_not, np.argmax, np.argmin],
   )
   def testUnaryPredicateUfunc(self, scalar_type, ufunc):
     x = np.array(VALUES[scalar_type])
     y = np.array(VALUES[scalar_type], dtype=scalar_type)
-    np.testing.assert_array_equal(ufunc(x), ufunc(y))
+    # Compute `ufunc(y)` first so we don't get lucky by reusing memory
+    # initialized by `ufunc(x)`.
+    y_result = ufunc(y)
+    x_result = ufunc(x)
+    np.testing.assert_array_equal(x_result, y_result)
 
   @parameterized.product(
       scalar_type=INT4_TYPES,

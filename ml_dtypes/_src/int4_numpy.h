@@ -16,6 +16,7 @@ limitations under the License.
 #ifndef ML_DTYPES_INT4_NUMPY_H_
 #define ML_DTYPES_INT4_NUMPY_H_
 
+#include <limits>
 #include <type_traits>
 
 // Must be included first
@@ -55,7 +56,7 @@ int Int4TypeDescriptor<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* Int4TypeDescriptor<T>::type_ptr = nullptr;
 
-// Representation of a Python custom float object.
+// Representation of a Python custom integer object.
 template <typename T>
 struct PyInt4 {
   PyObject_HEAD;  // Python object header
@@ -96,7 +97,7 @@ Safe_PyObjectPtr PyInt4_FromValue(T x) {
   return ref;
 }
 
-// Converts a Python object to a reduced float value. Returns true on success,
+// Converts a Python object to a reduced integer value. Returns true on success,
 // returns false and reports a Python error on failure.
 template <typename T>
 bool CastToInt4(PyObject* arg, T* output) {
@@ -143,8 +144,8 @@ bool CastToInt4(PyObject* arg, T* output) {
     *output = T(v);
     return true;
   }
-  if (PyArray_IsScalar(arg, Float)) {
-    float f;
+  auto floating_conversion = [&](auto type) -> bool {
+    decltype(type) f;
     PyArray_ScalarAsCtype(arg, &f);
     if (!(std::numeric_limits<T>::min() <= f &&
           f <= std::numeric_limits<T>::max())) {
@@ -153,17 +154,18 @@ bool CastToInt4(PyObject* arg, T* output) {
     }
     *output = T(static_cast<::int8_t>(f));
     return true;
+  };
+  if (PyArray_IsScalar(arg, Half)) {
+    return floating_conversion(Eigen::half{});
+  }
+  if (PyArray_IsScalar(arg, Float)) {
+    return floating_conversion(float{});
   }
   if (PyArray_IsScalar(arg, Double)) {
-    double d;
-    PyArray_ScalarAsCtype(arg, &d);
-    if (!(std::numeric_limits<T>::min() <= d &&
-          d <= std::numeric_limits<T>::max())) {
-      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
-      return false;
-    }
-    *output = T(static_cast<::int8_t>(d));
-    return true;
+    return floating_conversion(double{});
+  }
+  if (PyArray_IsScalar(arg, LongDouble)) {
+    return floating_conversion((long double){});
   }
   return false;
 }
@@ -216,14 +218,13 @@ PyObject* PyInt4_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
 template <typename T>
 PyObject* PyInt4_nb_float(PyObject* self) {
   T x = PyInt4_Value_Unchecked<T>(self);
-  return PyFloat_FromDouble(static_cast<double>(static_cast<float>(x)));
+  return PyFloat_FromDouble(static_cast<double>(x));
 }
 
 template <typename T>
 PyObject* PyInt4_nb_int(PyObject* self) {
   T x = PyInt4_Value_Unchecked<T>(self);
-  long y = static_cast<long>(static_cast<float>(x));  // NOLINT
-  return PyLong_FromLong(y);
+  return PyLong_FromLong(static_cast<long>(x));  // NOLINT
 }
 
 template <typename T>
@@ -538,12 +539,11 @@ int NPyInt4_CompareFunc(const void* v1, const void* v2, void* arr) {
 template <typename T>
 int NPyInt4_ArgMaxFunc(void* data, npy_intp n, npy_intp* max_ind, void* arr) {
   const T* bdata = reinterpret_cast<const T*>(data);
-  // Start with a max_val of NaN, this results in the first iteration preferring
-  // bdata[0].
-  int max_val = std::numeric_limits<int>::max();
+  // Start with a max_val of INT_MIN, this results in the first iteration
+  // preferring bdata[0].
+  int max_val = std::numeric_limits<int>::lowest();
   for (npy_intp i = 0; i < n; ++i) {
-    // This condition is chosen so that NaNs are always considered "max".
-    if (!(static_cast<int>(bdata[i]) <= max_val)) {
+    if (static_cast<int>(bdata[i]) > max_val) {
       max_val = static_cast<int>(bdata[i]);
       *max_ind = i;
     }
@@ -554,12 +554,11 @@ int NPyInt4_ArgMaxFunc(void* data, npy_intp n, npy_intp* max_ind, void* arr) {
 template <typename T>
 int NPyInt4_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind, void* arr) {
   const T* bdata = reinterpret_cast<const T*>(data);
-  int min_val = std::numeric_limits<int>::lowest();
-  // Start with a min_val of NaN, this results in the first iteration preferring
-  // bdata[0].
+  int min_val = std::numeric_limits<int>::max();
+  // Start with a min_val of INT_MAX, this results in the first iteration
+  // preferring bdata[0].
   for (npy_intp i = 0; i < n; ++i) {
-    // This condition is chosen so that NaNs are always considered "min".
-    if (!(static_cast<int>(bdata[i]) >= min_val)) {
+    if (static_cast<int>(bdata[i]) < min_val) {
       min_val = static_cast<int>(bdata[i]);
       *min_ind = i;
     }
@@ -567,30 +566,21 @@ int NPyInt4_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind, void* arr) {
   return 0;
 }
 
-template <typename T, std::enable_if_t<(std::is_floating_point<T>::value ||
-                                        std::is_same<T, Eigen::half>::value),
-                                       bool> = true>
-int CastToInt(T value) {
-  if (std::isnan(value) || std::isinf(value) ||
-      value < std::numeric_limits<int>::lowest() ||
-      value > std::numeric_limits<int>::max()) {
-    return 0;
-  }
-  return static_cast<int>(value);
-}
-
-template <typename T, std::enable_if_t<std::is_integral<T>::value, bool> = true>
-int CastToInt(T value) {
-  return static_cast<int>(value);
-}
-
-int CastToInt(int4 value) { return static_cast<int>(value); }
-
-int CastToInt(uint4 value) { return static_cast<int>(value); }
-
 template <typename T>
-int CastToInt(std::complex<T> value) {
-  return CastToInt(value.real());
+int CastToInt(T value) {
+  if constexpr (is_complex_v<T>) {
+    return CastToInt(value.real());
+  } else {
+    static_assert(std::numeric_limits<T>::is_specialized);
+    if constexpr (!std::numeric_limits<T>::is_integer) {
+      if (std::isnan(value) || std::isinf(value) ||
+          value < std::numeric_limits<int>::lowest() ||
+          value > std::numeric_limits<int>::max()) {
+        return 0;
+      }
+    }
+    return static_cast<int>(value);
+  }
 }
 
 // Performs a NumPy array cast from type 'From' to 'To'.

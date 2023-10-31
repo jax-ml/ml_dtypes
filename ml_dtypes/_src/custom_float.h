@@ -599,12 +599,11 @@ int NPyCustomFloat_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind,
 
 template <typename T>
 float CastToFloat(T value) {
-  return static_cast<float>(value);
-}
-
-template <typename T>
-float CastToFloat(std::complex<T> value) {
-  return CastToFloat(value.real());
+  if constexpr (is_complex_v<T>) {
+    return CastToFloat(value.real());
+  } else {
+    return static_cast<float>(value);
+  }
 }
 
 // Performs a NumPy array cast from type 'From' to 'To'.
