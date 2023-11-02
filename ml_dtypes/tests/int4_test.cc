@@ -19,6 +19,7 @@ limitations under the License.
 #include <optional>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include <gtest/gtest.h>
@@ -93,6 +94,13 @@ TYPED_TEST(Int4Test, NumericLimitsBase) {
   EXPECT_EQ(static_cast<int>(std::numeric_limits<Int4>::quiet_NaN()), 0);
   EXPECT_EQ(static_cast<int>(std::numeric_limits<Int4>::signaling_NaN()), 0);
   EXPECT_EQ(static_cast<int>(std::numeric_limits<Int4>::denorm_min()), 0);
+}
+
+TYPED_TEST(Int4Test, TypeTraits) {
+  using Int4 = TypeParam;
+  EXPECT_TRUE(std::is_trivially_copyable_v<Int4>);
+  EXPECT_TRUE(std::is_default_constructible_v<Int4>);
+  EXPECT_TRUE(std::is_nothrow_constructible_v<Int4>);
 }
 
 TYPED_TEST(Int4Test, CreateAndAssign) {
@@ -171,6 +179,12 @@ TYPED_TEST(Int4Test, Constexpr) {
   TEST_CONSTEXPR(int4(1) <<= 1);
 }
 
+template<typename Int4>
+Int4 CreateInt4WithRandomHighBits(int val) {
+  return Eigen::numext::bit_cast<Int4>(
+        static_cast<uint8_t>(val | (Eigen::internal::random<uint8_t>() << 4)));
+}
+
 TYPED_TEST(Int4Test, Casts) {
   using Int4 = TypeParam;
 
@@ -189,7 +203,7 @@ TYPED_TEST(Int4Test, Casts) {
   for (int i = static_cast<int>(std::numeric_limits<Int4>::min());
        i <= static_cast<int>(std::numeric_limits<Int4>::max()); ++i) {
     // Round-trip.
-    EXPECT_EQ(static_cast<int>(Int4(i)), i);
+    EXPECT_EQ(static_cast<int>(CreateInt4WithRandomHighBits<Int4>(i)), i);
 
     // Float truncation.
     for (int j = 1; j < 10; ++j) {
@@ -204,7 +218,7 @@ TYPED_TEST(Int4Test, Operators) {
   using Int4 = TypeParam;
   for (int i = static_cast<int>(std::numeric_limits<Int4>::min());
        i <= static_cast<int>(std::numeric_limits<Int4>::max()); ++i) {
-    Int4 x = Int4(i);
+    Int4 x = CreateInt4WithRandomHighBits<Int4>(i);
 
     EXPECT_EQ(-x, Int4(-i));
     EXPECT_EQ(~x, Int4(~i));
@@ -220,7 +234,7 @@ TYPED_TEST(Int4Test, Operators) {
 
     for (int j = static_cast<int>(std::numeric_limits<Int4>::min());
          j <= static_cast<int>(std::numeric_limits<Int4>::max()); ++j) {
-      Int4 y = Int4(j);
+      Int4 y = CreateInt4WithRandomHighBits<Int4>(j);
 
       EXPECT_EQ(x + y, Int4(i + j));
       EXPECT_EQ(x - y, Int4(i - j));
@@ -279,7 +293,7 @@ TYPED_TEST(Int4Test, ToString) {
   using Int4 = TypeParam;
   for (int i = static_cast<int>(std::numeric_limits<Int4>::min());
        i <= static_cast<int>(std::numeric_limits<Int4>::max()); ++i) {
-    Int4 x = Int4(i);
+    Int4 x = CreateInt4WithRandomHighBits<Int4>(i);
     std::stringstream ss;
     ss << x;
     EXPECT_EQ(ss.str(), std::to_string(i));
@@ -332,7 +346,7 @@ TYPED_TEST(Int4CastTest, CastThroughInt) {
   using DestType = typename TypeParam::second_type;
 
   for (int i = 0x00; i <= 0x0F; ++i) {
-    Int4 x = Int4(i);
+    Int4 x = CreateInt4WithRandomHighBits<Int4>(i);
     DestType dest = static_cast<DestType>(x);
     DestType expected = static_cast<DestType>(static_cast<int>(x));
     EXPECT_EQ(dest, expected);
@@ -365,7 +379,7 @@ TYPED_TEST(Int4CastTest, DeviceCast) {
   Eigen::TensorMap<Eigen::Tensor<DestType, 1>, Eigen::Aligned> dst_device(
       dst_device_buffer, kNumElems);
 
-  // Allocate host buffers and initially src memory.
+  // Allocate host buffers and initialize src memory.
   Eigen::Tensor<Int4, 1> src_cpu(kNumElems);
   Eigen::Tensor<DestType, 1> dst_cpu(kNumElems);
   for (int i = 0; i < kNumElems; ++i) {
