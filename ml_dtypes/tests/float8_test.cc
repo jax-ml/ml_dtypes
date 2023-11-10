@@ -22,7 +22,7 @@ limitations under the License.
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "third_party/absl/strings/str_cat.h"
+#include "absl/strings/str_cat.h"
 #include "unsupported/Eigen/CXX11/Tensor"
 
 namespace ml_dtypes {
@@ -45,6 +45,12 @@ struct Float8TestParamNames {
       return "float8_e4m3fnuz";
     } else if constexpr (std::is_same_v<TypeParam, float8_e5m2fnuz>) {
       return "float8_e5m2fnuz";
+    } else if constexpr (std::is_same_v<TypeParam, float8_p3109_p<3>>) {
+      return "float8_p3109_p<3>";
+    } else if constexpr (std::is_same_v<TypeParam, float8_p3109_p<4>>) {
+      return "float8_p3109_p<4>";
+    } else if constexpr (std::is_same_v<TypeParam, float8_p3109_p<5>>) {
+      return "float8_p3109_p<5>";
     }
     return absl::StrCat(idx);
   }
@@ -52,7 +58,8 @@ struct Float8TestParamNames {
 
 using Float8Types =
     ::testing::Types<float8_e4m3fn, float8_e5m2, float8_e4m3b11fnuz,
-                     float8_e4m3fnuz, float8_e5m2fnuz>;
+                     float8_e4m3fnuz, float8_e5m2fnuz,
+                     float8_p3109_p<3>, float8_p3109_p<4>, float8_p3109_p<5>>;
 TYPED_TEST_SUITE(Float8Test, Float8Types, Float8TestParamNames);
 
 TEST(Float8E4m3Test, NumericLimits) {
@@ -225,6 +232,106 @@ TEST(Float8E5m2fnuzTest, NumericLimits) {
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::has_infinity, false);
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::has_quiet_NaN, true);
   EXPECT_EQ(std::numeric_limits<float8_e5m2fnuz>::has_signaling_NaN, false);
+}
+
+// TODO: Float8E replacements
+TEST(Float8IEEEP3Test, NumericLimits) {
+  EXPECT_TRUE(
+      Eigen::numext::isnan(std::numeric_limits<float8_p3109_p<3>>::quiet_NaN()));
+  EXPECT_TRUE(Eigen::numext::isnan(
+      std::numeric_limits<float8_p3109_p<3>>::signaling_NaN()));
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<3>>::min()),
+            std::exp2(-15));
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<3>>::max()),
+            49152);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<3>>::lowest()),
+            -49152);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<3>>::epsilon()),
+            0.25);
+  EXPECT_EQ(
+      static_cast<float>(std::numeric_limits<float8_p3109_p<3>>::round_error()),
+      0.5);
+  EXPECT_TRUE(
+      Eigen::numext::isinf(std::numeric_limits<float8_p3109_p<3>>::infinity()));
+  EXPECT_EQ(
+      static_cast<float>(std::numeric_limits<float8_p3109_p<3>>::denorm_min()),
+      std::exp2(-17));
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::digits, 3);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::digits10, 0);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::max_digits10, 2);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::min_exponent, -14);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::min_exponent10, -4);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::max_exponent, 15);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::max_exponent10, 4);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::is_iec559, false);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::has_infinity, true);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<3>>::has_signaling_NaN, false);
+}
+
+TEST(Float8IEEEP4Test, NumericLimits) {
+  EXPECT_TRUE(
+      Eigen::numext::isnan(std::numeric_limits<float8_p3109_p<4>>::quiet_NaN()));
+  EXPECT_TRUE(Eigen::numext::isnan(
+      std::numeric_limits<float8_p3109_p<4>>::signaling_NaN()));
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<4>>::min()),
+            std::exp2(-7));
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<4>>::max()),
+            224);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<4>>::lowest()),
+            -224);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<4>>::epsilon()),
+            0.125);
+  EXPECT_EQ(
+      static_cast<float>(std::numeric_limits<float8_p3109_p<4>>::round_error()),
+      0.5);
+  EXPECT_TRUE(
+      Eigen::numext::isinf(std::numeric_limits<float8_p3109_p<4>>::infinity()));
+  EXPECT_EQ(
+      static_cast<float>(std::numeric_limits<float8_p3109_p<4>>::denorm_min()),
+      std::exp2(-10));
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::digits, 4);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::digits10, 0);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::max_digits10, 3);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::min_exponent, -6);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::min_exponent10, -2);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::max_exponent, 7);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::max_exponent10, 2);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::is_iec559, false);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::has_infinity, true);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<4>>::has_signaling_NaN, false);
+}
+
+TEST(Float8IEEEP5Test, NumericLimits) {
+  EXPECT_TRUE(
+      Eigen::numext::isnan(std::numeric_limits<float8_p3109_p<5>>::quiet_NaN()));
+  EXPECT_TRUE(Eigen::numext::isnan(
+      std::numeric_limits<float8_p3109_p<5>>::signaling_NaN()));
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<5>>::min()),
+            std::exp2(-3));
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<5>>::max()),
+            15);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<5>>::lowest()),
+            -15);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_p3109_p<5>>::epsilon()),
+            0.0625);
+  EXPECT_EQ(
+      static_cast<float>(std::numeric_limits<float8_p3109_p<5>>::round_error()),
+      0.5);
+  EXPECT_TRUE(
+      Eigen::numext::isinf(std::numeric_limits<float8_p3109_p<5>>::infinity()));
+  EXPECT_EQ(
+      static_cast<float>(std::numeric_limits<float8_p3109_p<5>>::denorm_min()),
+      std::exp2(-7));
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::digits, 5);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::digits10, 1);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::max_digits10, 3);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::min_exponent, -2);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::min_exponent10, 0);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::max_exponent, 3);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::max_exponent10, 0);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::is_iec559, false);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::has_infinity, true);
+  EXPECT_EQ(std::numeric_limits<float8_p3109_p<5>>::has_signaling_NaN, false);
 }
 
 TYPED_TEST(Float8Test, FromRep) {
@@ -756,12 +863,18 @@ struct Float8CastTestParamNames {
       std::pair<Type, Eigen::bfloat16>, std::pair<Type, Eigen::half>,      \
       std::pair<Type, float8_e4m3fn>, std::pair<Type, float8_e4m3b11fnuz>, \
       std::pair<Type, float8_e4m3fnuz>, std::pair<Type, float8_e5m2fnuz>,  \
+      std::pair<Type, float8_p3109_p<3>>, \
+      std::pair<Type, float8_p3109_p<4>>, \
+      std::pair<Type, float8_p3109_p<5>>,  \
       std::pair<Type, float8_e5m2>, std::pair<Type, bool>,                 \
       std::pair<Type, int32_t>, std::pair<Type, int64_t>
 
 #define GEN_TYPE_PAIRS()                                             \
   GEN_DEST_TYPES(float8_e4m3fn), GEN_DEST_TYPES(float8_e4m3b11fnuz), \
       GEN_DEST_TYPES(float8_e5m2), GEN_DEST_TYPES(float8_e4m3fnuz),  \
+      GEN_DEST_TYPES(float8_p3109_p<3>), \
+      GEN_DEST_TYPES(float8_p3109_p<4>), \
+      GEN_DEST_TYPES(float8_p3109_p<5>), \
       GEN_DEST_TYPES(float8_e5m2fnuz)
 
 using Float8CastTypePairs = ::testing::Types<GEN_TYPE_PAIRS()>;

@@ -316,7 +316,7 @@ using BitsType = typename GetUnsignedInteger<sizeof(T)>::type;
 
 template <typename T>
 std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
-  // For types that represent NaN by -0, (i.e. *fnuz), abs(x) remains -0 without
+  // For types that represent NaN by -0, (i.e. *fnuz, *p3109), abs(x) remains -0 without
   // flipping the sign. Therefore, we need to explicitly check the
   // most-significant bit.
   constexpr BitsType<T> kSignMask = BitsType<T>(1)
@@ -682,7 +682,7 @@ struct NextAfter {
             : static_cast<BitsType<T>>(1);
     BitsType<T> out_int = from_rep + magnitude_adjustment;
     T out = Eigen::numext::bit_cast<T>(out_int);
-    // Some non-IEEE compatible formats may have a representation for NaN
+    // Some non-IEEE-754 compatible formats may have a representation for NaN
     // instead of -0, ensure we return a zero in such cases.
     if constexpr (!std::numeric_limits<T>::is_iec559) {
       if (Eigen::numext::isnan(out)) {

@@ -148,6 +148,51 @@ struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
 };
 
 template <>
+struct TypeDescriptor<float8_p3109_p<3>> : CustomFloatType<float8_p3109_p<3>> {
+  typedef float8_p3109_p<3> T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "float8_p3109_p3";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_p3109_p4";
+  static constexpr const char* kTpDoc = "float8_p3109_p3 floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'P';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<float8_p3109_p<4>> : CustomFloatType<float8_p3109_p<4>> {
+  typedef float8_p3109_p<4> T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "float8_p3109_p4";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_p3109_p4";
+  static constexpr const char* kTpDoc = "float8_p3109_p4 floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'Q';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<float8_p3109_p<5>> : CustomFloatType<float8_p3109_p<5>> {
+  typedef float8_p3109_p<5> T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "float8_p3109_p5";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_p3109_p5";
+  static constexpr const char* kTpDoc = "float8_p3109_p5 floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'R';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
 struct TypeDescriptor<int4> : Int4TypeDescriptor<int4> {
   typedef int4 T;
   static constexpr bool is_floating = false;
@@ -251,6 +296,21 @@ bool Initialize() {
           numpy.get(), &float8_e5m2fnuz_already_registered)) {
     return false;
   }
+  bool float8_p3109_p3_already_registered;
+  if (!ml_dtypes::RegisterFloatDtype<float8_p3109_p<3>>(
+          numpy.get(), &float8_p3109_p3_already_registered)) {
+    return false;
+  }
+  bool float8_p3109_p4_already_registered;
+  if (!ml_dtypes::RegisterFloatDtype<float8_p3109_p<4>>(
+          numpy.get(), &float8_p3109_p4_already_registered)) {
+    return false;
+  }
+  bool float8_p3109_p5_already_registered;
+  if (!ml_dtypes::RegisterFloatDtype<float8_p3109_p<5>>(
+          numpy.get(), &float8_p3109_p5_already_registered)) {
+    return false;
+  }
 
   if (!ml_dtypes::RegisterInt4Dtype<int4>(numpy.get())) {
     return false;
@@ -285,6 +345,7 @@ bool Initialize() {
   success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e5m2>();
+
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, bfloat16>();
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, bfloat16>();
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3b11fnuz>();
@@ -293,6 +354,31 @@ bool Initialize() {
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e5m2>();
+
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<3>, bfloat16>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<3>, float8_e4m3b11fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<3>, float8_e4m3fn>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<3>, float8_e4m3fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<3>, float8_e5m2>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<3>, float8_e5m2fnuz>();
+
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, bfloat16>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, float8_e4m3b11fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, float8_e4m3fn>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, float8_e4m3fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, float8_e5m2>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, float8_e5m2fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<4>, float8_p3109_p<3>>();
+
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, bfloat16>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_e4m3b11fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_e4m3fn>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_e4m3fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_e5m2>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_e5m2fnuz>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_p3109_p<3>>();
+  success &= RegisterTwoWayCustomCast<float8_p3109_p<5>, float8_p3109_p<4>>();
+
   return success;
 }
 
@@ -301,6 +387,10 @@ static PyModuleDef module_def = {
     "_ml_dtypes_ext",
 };
 
+typedef float8_p3109_p<3> float8_p3109_p3;
+typedef float8_p3109_p<4> float8_p3109_p4;
+typedef float8_p3109_p<5> float8_p3109_p5;
+
 // TODO(phawkins): PyMODINIT_FUNC handles visibility correctly in Python 3.9+.
 // Just use PyMODINIT_FUNC after dropping Python 3.8 support.
 #if defined(WIN32) || defined(_WIN32)
@@ -308,6 +398,12 @@ static PyModuleDef module_def = {
 #else
 #define EXPORT_SYMBOL __attribute__((visibility("default")))
 #endif
+
+template <class Type> bool py_set(Safe_PyObjectPtr &m, char const *str) {
+  PyObject *type_ptr =
+      reinterpret_cast<PyObject *>(TypeDescriptor<Type>::type_ptr);
+  return PyObject_SetAttrString(m.get(), str, type_ptr) >= 0;
+}
 
 extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
   Safe_PyObjectPtr m = make_safe(PyModule_Create(&module_def));
@@ -321,50 +417,20 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
     return nullptr;
   }
 
-  if (PyObject_SetAttrString(
-          m.get(), "float8_e4m3b11fnuz",
-          reinterpret_cast<PyObject*>(
-              TypeDescriptor<float8_e4m3b11fnuz>::type_ptr)) < 0) {
+  bool ok = (py_set<float8_e4m3b11fnuz>(m, "float8_e4m3b11fnuz") &&
+             py_set<float8_e4m3fn>(m, "float8_e4m3fn") &&
+             py_set<float8_e4m3fnuz>(m, "float8_e4m3fnuz") &&
+             py_set<float8_e5m2>(m, "float8_e5m2") &&
+             py_set<float8_e5m2fnuz>(m, "float8_e5m2fnuz") &&
+             py_set<float8_p3109_p3>(m, "float8_p3109_p3") &&
+             py_set<float8_p3109_p4>(m, "float8_p3109_p4") &&
+             py_set<float8_p3109_p5>(m, "float8_p3109_p5") &&
+             py_set<bfloat16>(m, "bfloat16") &&
+             py_set<int4>(m, "int4") &&
+             py_set<uint4>(m, "uint4"));
+  if (!ok)
     return nullptr;
-  }
-  if (PyObject_SetAttrString(m.get(), "float8_e4m3fn",
-                             reinterpret_cast<PyObject*>(
-                                 TypeDescriptor<float8_e4m3fn>::type_ptr)) <
-      0) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(m.get(), "float8_e4m3fnuz",
-                             reinterpret_cast<PyObject*>(
-                                 TypeDescriptor<float8_e4m3fnuz>::type_ptr)) <
-      0) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(m.get(), "float8_e5m2",
-                             reinterpret_cast<PyObject*>(
-                                 TypeDescriptor<float8_e5m2>::type_ptr)) < 0) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(m.get(), "float8_e5m2fnuz",
-                             reinterpret_cast<PyObject*>(
-                                 TypeDescriptor<float8_e5m2fnuz>::type_ptr)) <
-      0) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(m.get(), "bfloat16",
-                             reinterpret_cast<PyObject*>(
-                                 TypeDescriptor<bfloat16>::type_ptr)) < 0) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(
-          m.get(), "int4",
-          reinterpret_cast<PyObject*>(TypeDescriptor<int4>::type_ptr)) < 0) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(
-          m.get(), "uint4",
-          reinterpret_cast<PyObject*>(TypeDescriptor<uint4>::type_ptr)) < 0) {
-    return nullptr;
-  }
+
   return m.release();
 }
 }  // namespace ml_dtypes
