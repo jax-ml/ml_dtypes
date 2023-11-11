@@ -38,21 +38,6 @@ _float8_p3109_p3_dtype = np.dtype(float8_p3109_p3)
 _float8_p3109_p4_dtype = np.dtype(float8_p3109_p4)
 _float8_p3109_p5_dtype = np.dtype(float8_p3109_p5)
 
-_name_to_dtype = {
-    dtype.name: dtype
-    for dtype in (
-        _bfloat16_dtype,
-        _float8_e4m3b11fnuz_dtype,
-        _float8_e4m3fn_dtype,
-        _float8_e4m3fnuz_dtype,
-        _float8_e5m2_dtype,
-        _float8_e5m2fnuz_dtype,
-        _float8_p3109_p3_dtype,
-        _float8_p3109_p4_dtype,
-        _float8_p3109_p5_dtype,
-    )
-}
-
 
 class _Bfloat16MachArLike:
 
