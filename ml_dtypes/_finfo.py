@@ -38,6 +38,21 @@ _float8_p3109_p3_dtype = np.dtype(float8_p3109_p3)
 _float8_p3109_p4_dtype = np.dtype(float8_p3109_p4)
 _float8_p3109_p5_dtype = np.dtype(float8_p3109_p5)
 
+_name_to_dtype = {
+    dtype.name: dtype
+    for dtype in (
+        _bfloat16_dtype,
+        _float8_e4m3b11fnuz_dtype,
+        _float8_e4m3fn_dtype,
+        _float8_e4m3fnuz_dtype,
+        _float8_e5m2_dtype,
+        _float8_e5m2fnuz_dtype,
+        _float8_p3109_p3_dtype,
+        _float8_p3109_p4_dtype,
+        _float8_p3109_p5_dtype,
+    )
+}
+
 
 class _Bfloat16MachArLike:
 
@@ -487,36 +502,20 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     return obj
 
   def __new__(cls, dtype):
-    for type_str, test_dtype, constructor in (
-        ("bfloat16", _bfloat16_dtype, cls._bfloat16_finfo),
-        (
-            "float8_e4m3b11fnuz",
-            _float8_e4m3b11fnuz_dtype,
-            cls._float8_e4m3b11fnuz_finfo,
-        ),
-        ("float8_e4m3fn", _float8_e4m3fn_dtype, cls._float8_e4m3fn_finfo),
-        ("float8_e4m3fnuz", _float8_e4m3fnuz_dtype, cls._float8_e4m3fnuz_finfo),
-        ("float8_e5m2", _float8_e5m2_dtype, cls._float8_e5m2_finfo),
-        ("float8_e5m2fnuz", _float8_e5m2fnuz_dtype, cls._float8_e5m2fnuz_finfo),
-        (
-            "float8_p3109_p3",
-            _float8_p3109_p3_dtype,
-            lambda: cls._float8_p3109_p_finfo(3),
-        ),
-        (
-            "float8_p3109_p4",
-            _float8_p3109_p4_dtype,
-            lambda: cls._float8_p3109_p_finfo(4),
-        ),
-        (
-            "float8_p3109_p5",
-            _float8_p3109_p5_dtype,
-            lambda: cls._float8_p3109_p_finfo(5),
-        ),
+    for ty, constructor in (
+        (_bfloat16_dtype, cls._bfloat16_finfo),
+        (_float8_e4m3b11fnuz_dtype, cls._float8_e4m3b11fnuz_finfo),
+        (_float8_e4m3fn_dtype, cls._float8_e4m3fn_finfo),
+        (_float8_e4m3fnuz_dtype, cls._float8_e4m3fnuz_finfo),
+        (_float8_e5m2_dtype, cls._float8_e5m2_finfo),
+        (_float8_e5m2fnuz_dtype, cls._float8_e5m2fnuz_finfo),
+        (_float8_p3109_p3_dtype, lambda: cls._float8_p3109_p_finfo(3)),
+        (_float8_p3109_p4_dtype, lambda: cls._float8_p3109_p_finfo(4)),
+        (_float8_p3109_p5_dtype, lambda: cls._float8_p3109_p_finfo(5)),
     ):
-      if isinstance(dtype, str) and dtype == type_str or dtype == test_dtype:
-        if test_dtype not in cls._finfo_cache:
-          cls._finfo_cache[test_dtype] = constructor()
-        return cls._finfo_cache[test_dtype]
+      if isinstance(dtype, str) and dtype == ty.name or dtype == ty:
+        if ty not in cls._finfo_cache:
+          cls._finfo_cache[ty] = constructor()
+        return cls._finfo_cache[ty]
 
     return super().__new__(cls, dtype)
