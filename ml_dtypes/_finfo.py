@@ -22,6 +22,10 @@ from ml_dtypes._ml_dtypes_ext import float8_e4m3fn
 from ml_dtypes._ml_dtypes_ext import float8_e4m3fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e5m2
 from ml_dtypes._ml_dtypes_ext import float8_e5m2fnuz
+from ml_dtypes._ml_dtypes_ext import float8_p3109_p3
+from ml_dtypes._ml_dtypes_ext import float8_p3109_p4
+from ml_dtypes._ml_dtypes_ext import float8_p3109_p5
+
 import numpy as np
 
 _bfloat16_dtype = np.dtype(bfloat16)
@@ -30,6 +34,9 @@ _float8_e4m3fn_dtype = np.dtype(float8_e4m3fn)
 _float8_e4m3fnuz_dtype = np.dtype(float8_e4m3fnuz)
 _float8_e5m2_dtype = np.dtype(float8_e5m2)
 _float8_e5m2fnuz_dtype = np.dtype(float8_e5m2fnuz)
+_float8_p3109_p3_dtype = np.dtype(float8_p3109_p3)
+_float8_p3109_p4_dtype = np.dtype(float8_p3109_p4)
+_float8_p3109_p5_dtype = np.dtype(float8_p3109_p5)
 
 
 class _Bfloat16MachArLike:
@@ -84,6 +91,29 @@ class _Float8E5m2fnuzMachArLike:
     self.smallest_normal = float8_e5m2fnuz(smallest_normal)
     smallest_subnormal = float.fromhex("0x1p-17")
     self.smallest_subnormal = float8_e5m2fnuz(smallest_subnormal)
+
+
+class _Float8IEEEMachArLike:
+
+  def __init__(self, p):
+    # These are hard-coded in order to independently test against the computed values in the C++ implementation
+    if p == 3:
+      smallest_normal = float.fromhex("0x1p-15")
+      self.smallest_normal = float8_p3109_p3(smallest_normal)
+      smallest_subnormal = float.fromhex("0x1p-17")
+      self.smallest_subnormal = float8_p3109_p3(smallest_subnormal)
+
+    if p == 4:
+      smallest_normal = float.fromhex("0x1p-7")
+      self.smallest_normal = float8_p3109_p4(smallest_normal)
+      smallest_subnormal = float.fromhex("0x1p-10")
+      self.smallest_subnormal = float8_p3109_p4(smallest_subnormal)
+
+    if p == 5:
+      smallest_normal = float.fromhex("0x1p-3")
+      self.smallest_normal = float8_p3109_p5(smallest_normal)
+      smallest_subnormal = float.fromhex("0x1p-7")
+      self.smallest_subnormal = float8_p3109_p5(smallest_subnormal)
 
 
 class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
@@ -360,55 +390,117 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     # pylint: enable=protected-access
     return obj
 
+  @staticmethod
+  def _float8_p3109_p_finfo(p):
+    def float_to_str(f):
+      return "%6.2e" % float(f)
+
+    # pylint: disable=protected-access
+    obj = object.__new__(np.finfo)
+
+    if p == 3:
+      dtype = float8_p3109_p3
+      obj.dtype = _float8_p3109_p3_dtype
+    elif p == 4:
+      dtype = float8_p3109_p4
+      obj.dtype = _float8_p3109_p4_dtype
+    elif p == 5:
+      dtype = float8_p3109_p5
+      obj.dtype = _float8_p3109_p5_dtype
+    else:
+      raise NotImplementedError()
+
+    obj._machar = _Float8IEEEMachArLike(p)
+
+    bias = 2 ** (7 - p)
+    tiny = obj._machar.smallest_normal
+    machep = 1 - p
+    eps = 2.0**machep
+    negep = -p
+    epsneg = 2.0**negep
+    max_ = (1 - 2 ** (1 - p)) * 2**bias  #      1'0000 - 0'0010 = 0'1110
+
+    if p == 3:
+      assert tiny == float.fromhex("0x1p-15")
+      assert eps == float.fromhex("0x1p-2")
+      assert epsneg == float.fromhex("0x1p-3")
+      assert max_ == float.fromhex("0x1.8p15")
+    elif p == 4:
+      assert tiny == float.fromhex("0x1p-7")
+      assert eps == float.fromhex("0x1p-3")
+      assert epsneg == float.fromhex("0x1p-4")
+      assert max_ == float.fromhex("0x1.Cp7")
+    elif p == 5:
+      assert tiny == float.fromhex("0x1p-3")
+      assert eps == float.fromhex("0x1p-4")
+      assert epsneg == float.fromhex("0x1p-5")
+      assert max_ == float.fromhex("0x1.Ep3")
+    else:
+      raise NotImplementedError()
+
+    obj.bits = 8
+
+    # nextafter(1.0, Inf) - 1.0
+    obj.eps = dtype(eps)
+
+    # The exponent that yields eps.
+    obj.machep = machep
+
+    # 1.0 = nextafter(1.0, -Inf)
+    obj.epsneg = dtype(epsneg)
+
+    # The exponent that yields epsneg.
+    obj.negep = negep
+
+    # The largest representable number.
+    obj.max = dtype(max_)
+
+    # The smallest representable number, typically -max.
+    obj.min = dtype(-max_)
+
+    obj.nexp = 8 - p
+    obj.nmant = p - 1
+    obj.iexp = obj.nexp
+    obj.maxexp = bias
+    obj.minexp = 1 - bias
+
+    # The approximate number of decimal digits to which this kind of float is precise.
+    obj.precision = 1 if p < 4 else 2
+
+    # The approximate decimal resolution of this type, i.e., 10**-precision.
+    obj.resolution = dtype(10**-obj.precision)
+
+    if not hasattr(obj, "tiny"):
+      obj.tiny = dtype(tiny)
+    if not hasattr(obj, "smallest_normal"):
+      obj.smallest_normal = obj._machar.smallest_normal
+    obj.smallest_subnormal = obj._machar.smallest_subnormal
+
+    obj._str_tiny = float_to_str(tiny)
+    obj._str_smallest_normal = float_to_str(tiny)
+    obj._str_smallest_subnormal = float_to_str(obj.smallest_subnormal)
+    obj._str_max = float_to_str(max_)
+    obj._str_epsneg = float_to_str(epsneg)
+    obj._str_eps = float_to_str(eps)
+    obj._str_resolution = float_to_str(obj.resolution)
+    # pylint: enable=protected-access
+    return obj
+
   def __new__(cls, dtype):
-    if (
-        isinstance(dtype, str)
-        and dtype == "bfloat16"
-        or dtype == _bfloat16_dtype
+    for ty, constructor in (
+        (_bfloat16_dtype, cls._bfloat16_finfo),
+        (_float8_e4m3b11fnuz_dtype, cls._float8_e4m3b11fnuz_finfo),
+        (_float8_e4m3fn_dtype, cls._float8_e4m3fn_finfo),
+        (_float8_e4m3fnuz_dtype, cls._float8_e4m3fnuz_finfo),
+        (_float8_e5m2_dtype, cls._float8_e5m2_finfo),
+        (_float8_e5m2fnuz_dtype, cls._float8_e5m2fnuz_finfo),
+        (_float8_p3109_p3_dtype, lambda: cls._float8_p3109_p_finfo(3)),
+        (_float8_p3109_p4_dtype, lambda: cls._float8_p3109_p_finfo(4)),
+        (_float8_p3109_p5_dtype, lambda: cls._float8_p3109_p_finfo(5)),
     ):
-      if _bfloat16_dtype not in cls._finfo_cache:
-        cls._finfo_cache[_bfloat16_dtype] = cls._bfloat16_finfo()
-      return cls._finfo_cache[_bfloat16_dtype]
-    if (
-        isinstance(dtype, str)
-        and dtype == "float8_e4m3b11fnuz"
-        or dtype == _float8_e4m3b11fnuz_dtype
-    ):
-      if _float8_e4m3b11fnuz_dtype not in cls._finfo_cache:
-        cls._finfo_cache[_float8_e4m3b11fnuz_dtype] = (
-            cls._float8_e4m3b11fnuz_finfo()
-        )
-      return cls._finfo_cache[_float8_e4m3b11fnuz_dtype]
-    if (
-        isinstance(dtype, str)
-        and dtype == "float8_e4m3fn"
-        or dtype == _float8_e4m3fn_dtype
-    ):
-      if _float8_e4m3fn_dtype not in cls._finfo_cache:
-        cls._finfo_cache[_float8_e4m3fn_dtype] = cls._float8_e4m3fn_finfo()
-      return cls._finfo_cache[_float8_e4m3fn_dtype]
-    if (
-        isinstance(dtype, str)
-        and dtype == "float8_e4m3fnuz"
-        or dtype == _float8_e4m3fnuz_dtype
-    ):
-      if _float8_e4m3fnuz_dtype not in cls._finfo_cache:
-        cls._finfo_cache[_float8_e4m3fnuz_dtype] = cls._float8_e4m3fnuz_finfo()
-      return cls._finfo_cache[_float8_e4m3fnuz_dtype]
-    if (
-        isinstance(dtype, str)
-        and dtype == "float8_e5m2"
-        or dtype == _float8_e5m2_dtype
-    ):
-      if _float8_e5m2_dtype not in cls._finfo_cache:
-        cls._finfo_cache[_float8_e5m2_dtype] = cls._float8_e5m2_finfo()
-      return cls._finfo_cache[_float8_e5m2_dtype]
-    if (
-        isinstance(dtype, str)
-        and dtype == "float8_e5m2fnuz"
-        or dtype == _float8_e5m2fnuz_dtype
-    ):
-      if _float8_e5m2fnuz_dtype not in cls._finfo_cache:
-        cls._finfo_cache[_float8_e5m2fnuz_dtype] = cls._float8_e5m2fnuz_finfo()
-      return cls._finfo_cache[_float8_e5m2fnuz_dtype]
+      if isinstance(dtype, str) and dtype == ty.name or dtype == ty:
+        if ty not in cls._finfo_cache:
+          cls._finfo_cache[ty] = constructor()
+        return cls._finfo_cache[ty]
+
     return super().__new__(cls, dtype)

@@ -15,6 +15,7 @@
   * `float8_e4m3fnuz`
   * `float8_e5m2`
   * `float8_e5m2fnuz`
+  * `float8_p3109_p<p>`
 - `int4` and `uint4`: low precision integer types.
 
 See below for specifications of these number formats.
@@ -107,6 +108,20 @@ This type has the following characteristics:
  * infinities: Not supported
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
+
+### float8_p3109_p<p>
+
+These types represent the types under discussion in IEEE working group P3109,
+"Arithmetic Formats for Machine Learning ", parameterized by precision $p$.
+
+These type has the following characteristics:
+ * Precision $p$: $2 < p < 6$
+ * Exponent bits, E: $8-p$
+ * Exponent bias: 2 ^ (E-1)
+ * Infinities: +Inf, -Inf
+ * No negative zero
+ * Single NaN in the -0 position: `0b10000000` == `0x80`
+ * Denormals when exponent is 0
 
 ## `int4` and `uint4`
 

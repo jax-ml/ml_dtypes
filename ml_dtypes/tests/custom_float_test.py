@@ -35,6 +35,9 @@ float8_e4m3fn = ml_dtypes.float8_e4m3fn
 float8_e4m3fnuz = ml_dtypes.float8_e4m3fnuz
 float8_e5m2 = ml_dtypes.float8_e5m2
 float8_e5m2fnuz = ml_dtypes.float8_e5m2fnuz
+float8_p3109_p3 = ml_dtypes.float8_p3109_p3
+float8_p3109_p4 = ml_dtypes.float8_p3109_p4
+float8_p3109_p5 = ml_dtypes.float8_p3109_p5
 
 
 @contextlib.contextmanager
@@ -105,6 +108,9 @@ FLOAT_DTYPES = [
     float8_e4m3fnuz,
     float8_e5m2,
     float8_e5m2fnuz,
+    float8_p3109_p3,
+    float8_p3109_p4,
+    float8_p3109_p5,
 ]
 
 # Values that should round trip exactly to float and back.
@@ -118,7 +124,7 @@ FLOAT_VALUES = {
         -0.5,
         float(ml_dtypes.finfo(dtype).eps),
         1.0 + float(ml_dtypes.finfo(dtype).eps),
-        1.0 - float(ml_dtypes.finfo(dtype).eps),
+        1.0 - float(ml_dtypes.finfo(dtype).eps),  # TODO: should be epsneg?
         -1.0 - float(ml_dtypes.finfo(dtype).eps),
         -1.0 + float(ml_dtypes.finfo(dtype).eps),
         3.5,
@@ -159,6 +165,21 @@ INT_VALUES = {
             range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
         )
     ),
+    float8_p3109_p3: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
+        )
+    )[:-1],
+    float8_p3109_p4: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(8)
+        )
+    )[:-1],
+    float8_p3109_p5: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 4)) for n in range(4)
+        )
+    )[:-1],
 }
 
 BITS_TYPE = {
@@ -168,6 +189,9 @@ BITS_TYPE = {
     float8_e4m3fnuz: np.uint8,
     float8_e5m2: np.uint8,
     float8_e5m2fnuz: np.uint8,
+    float8_p3109_p3: np.uint8,
+    float8_p3109_p4: np.uint8,
+    float8_p3109_p5: np.uint8,
 }
 
 
@@ -224,19 +248,15 @@ class CustomFloatTest(parameterized.TestCase):
         np.longdouble,
     ]:
       with self.subTest(dtype.__name__):
-        for v in FLOAT_VALUES[float_type]:
-          np.testing.assert_equal(dtype(v), dtype(float_type(dtype(v))))
+        vals = FLOAT_VALUES[float_type]
+        for v in vals:
           np.testing.assert_equal(dtype(v), dtype(float_type(dtype(v))))
           np.testing.assert_equal(
               dtype(v), dtype(float_type(np.array(v, dtype)))
           )
         if dtype != float_type:
-          np.testing.assert_equal(
-              np.array(FLOAT_VALUES[float_type], dtype),
-              float_type(np.array(FLOAT_VALUES[float_type], dtype)).astype(
-                  dtype
-              ),
-          )
+          npvals = np.array(vals, dtype)
+          np.testing.assert_equal(npvals, float_type(npvals).astype(dtype))
 
   def testCastBetweenCustomTypes(self, float_type):
     for dtype in FLOAT_DTYPES:
@@ -610,9 +630,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     self.assertTrue((x == x).all())
 
   def testComparisons(self, float_type):
-    x = np.array([30, 7, -30], dtype=np.float32)
+    x = np.array([15, 7, -15], dtype=np.float32)
     bx = x.astype(float_type)
-    y = np.array([17, 7, 0], dtype=np.float32)
+    y = np.array([13, 7, 0], dtype=np.float32)
     by = y.astype(float_type)
     np.testing.assert_equal(x == y, bx == by)
     np.testing.assert_equal(x != y, bx != by)
@@ -729,8 +749,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.arange(-0.0, -2.0, -0.25, dtype=float_type),
     )
     np.testing.assert_equal(
-        np.arange(-16.0, 16.0, 2.0, dtype=np.float32).astype(float_type),
-        np.arange(-16.0, 16.0, 2.0, dtype=float_type),
+        np.arange(-14.0, 14.0, 2.0, dtype=np.float32).astype(float_type),
+        np.arange(-14.0, 14.0, 2.0, dtype=float_type),
     )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")

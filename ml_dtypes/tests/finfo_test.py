@@ -24,6 +24,9 @@ ALL_DTYPES = [
     ml_dtypes.float8_e4m3fnuz,
     ml_dtypes.float8_e5m2,
     ml_dtypes.float8_e5m2fnuz,
+    ml_dtypes.float8_p3109_p3,
+    ml_dtypes.float8_p3109_p4,
+    ml_dtypes.float8_p3109_p5,
 ]
 
 DTYPES_WITH_NO_INFINITY = [

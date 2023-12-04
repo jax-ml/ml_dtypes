@@ -48,6 +48,7 @@ class float8_e4m3fnuz;
 class float8_e4m3b11fnuz;
 class float8_e5m2;
 class float8_e5m2fnuz;
+template <int p> class float8_p3109_p;
 
 template <typename Derived>
 class float8_base {
@@ -367,13 +368,8 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e5m2& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3b11fnuz& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fn& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fnuz& f8)
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(T f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
 
   constexpr float8_e5m2fnuz operator-() const {
@@ -389,6 +385,49 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
 
   explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
 };
+
+template <int p>
+class float8_p3109_p : public float8_base<float8_p3109_p<p>> {
+  // IEEE P3109 WG 8-bit floating point with p bits of precision.
+  //
+  // An 8-bit floating point type with 1 sign bit,
+  // 8-p bits exponent, and p-1 bits mantissa.
+  //
+  // This type has the following characteristics:
+  // * bit encoding: S1E<8-p>M<p-1>
+  // * exponent bias: 2^(7-p)
+  // * infinities: +Inf at 0x7f, -Inf at 0xff
+  // * NaNs: Single NaN at `0b10000000`
+  // * denormals when exponent is 0
+
+ private:
+  typedef float8_p3109_p<p> this_t;
+  using Base = float8_base<this_t>;
+  friend class float8_base<this_t>;
+  using Base::Base;
+
+ public:
+
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_p3109_p(T f8)
+      : float8_p3109_p(this->ConvertFrom(f8)) {}
+
+  constexpr float8_p3109_p<p> operator-() const {
+    // TODO: use isnan()
+    if ((this->rep() & 0x7f) == 0x00) {
+      return *this;
+    }
+    return Base::operator-();
+  }
+
+  float8_p3109_p<p> operator-(const float8_p3109_p<p>& other) const {
+    return Base::operator-(other);
+  }
+
+  explicit EIGEN_DEVICE_FUNC operator bool() const { return this->rep() != 0; }
+};
+
+// -----------------------------------------
 
 constexpr double ConstexprAbs(double x) { return x < 0.0 ? -x : x; }
 
@@ -427,6 +466,7 @@ constexpr int MaxDigits10FromDigits(int digits) {
 // C17 5.2.4.2.2p11:
 // "minimum negative integer such that 10 raised to that power is in the range
 // of normalized floating-point numbers"
+// TODO: https://en.cppreference.com/w/cpp/types/numeric_limits/max_exponent10 says "representable"
 // ceil(log10(2**(emin - 1))) == ceil((emin - 1) * log10(2));
 constexpr int MinExponent10FromMinExponent(int min_exponent) {
   return static_cast<int>(ConstexprCeil((min_exponent - 1) * kLog10Of2));
@@ -446,6 +486,8 @@ constexpr int MaxExponent10FromMaxExponentAndDigits(int max_exponent,
       -0.057991946977686754,
       // log10(1 - 2**-4)
       -0.028028723600243537,
+      // log10(1 - 2**-5)
+      -0.013788284485633295
   };
   return static_cast<int>(ConstexprFloor(kLog10OfOnePredecessor[digits - 3] +
                                          max_exponent * kLog10Of2));
@@ -764,6 +806,64 @@ struct numeric_limits_float8_e5m2fnuz : public numeric_limits_float8_base {
   }
 };
 
+template <int p>
+struct numeric_limits_float8_p3109_p : public numeric_limits_float8_base {
+ private:
+  static inline constexpr const int kExponentBias = 1 << (7-p);
+  static inline constexpr const int kMantissaBits = p - 1;
+
+ public:
+  // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const int digits = p;
+  static inline constexpr const int digits10 = Digits10FromDigits(digits);
+  static inline constexpr const int max_digits10 =
+      MaxDigits10FromDigits(digits);
+  static inline constexpr const int min_exponent = (1 - kExponentBias) + 1;
+  static inline constexpr const int min_exponent10 =
+      MinExponent10FromMinExponent(min_exponent);
+  static inline constexpr const int max_exponent = kExponentBias - 1;
+  static inline constexpr const int max_exponent10 =
+      MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
+  static inline constexpr const bool is_iec559 = false; // TODO
+  static inline constexpr const bool has_infinity = true;
+  static inline constexpr const bool has_signaling_NaN = false;
+  // NOLINTEND
+
+  static constexpr float8_p3109_p<p> min() {
+    return float8_p3109_p<p>::FromRep(1<<(p-1));
+  }
+  static constexpr float8_p3109_p<p> lowest() {
+    return float8_p3109_p<p>::FromRep(0xfe);
+  }
+  static constexpr float8_p3109_p<p> max() {
+    return float8_p3109_p<p>::FromRep(0x7e);
+  }
+  static constexpr float8_p3109_p<p> epsilon() {
+    if constexpr (p < 5) {
+      constexpr int expeps = (-kMantissaBits + kExponentBias) << kMantissaBits;
+      return float8_p3109_p<p>::FromRep(expeps);
+    }
+    // p >= 5: eps is subnormal
+    return float8_p3109_p<p>::FromRep(uint8_t(1 << (kExponentBias - 1)));
+  }
+  static constexpr float8_p3109_p<p> round_error() {
+    // Return 0.5
+    return float8_p3109_p<p>::FromRep((-1 + kExponentBias) << kMantissaBits);
+  }
+  static constexpr float8_p3109_p<p> infinity() {
+    return float8_p3109_p<p>::FromRep(0x7f);
+  }
+  static constexpr float8_p3109_p<p> quiet_NaN() {
+    return float8_p3109_p<p>::FromRep(0x80);
+  }
+  static constexpr float8_p3109_p<p> signaling_NaN() {
+    return float8_p3109_p<p>::FromRep(0x80);
+  }
+  static constexpr float8_p3109_p<p> denorm_min() {
+    return float8_p3109_p<p>::FromRep(0x01);
+  }
+};
+
 }  // namespace float8_internal
 }  // namespace ml_dtypes
 
@@ -788,6 +888,11 @@ struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2>
 template <>
 struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2fnuz>
     : public ml_dtypes::float8_internal::numeric_limits_float8_e5m2fnuz {};
+
+template <int p>
+struct numeric_limits<ml_dtypes::float8_internal::float8_p3109_p<p>>
+    : public ml_dtypes::float8_internal::numeric_limits_float8_p3109_p<p> {};
+
 }  // namespace std
 
 namespace ml_dtypes {
@@ -837,6 +942,16 @@ constexpr inline float8_e5m2fnuz abs(const float8_e5m2fnuz& a) {
 
 constexpr inline bool (isnan)(const float8_e5m2fnuz& a) {
   return a.rep() == 0x80;
+}
+
+template<int p>
+constexpr inline bool(isnan)(const float8_p3109_p<p>& a) {
+  return a.rep() == 0x80;
+}
+
+template<int p>
+constexpr inline float8_p3109_p<p> abs(const float8_p3109_p<p>& a) {
+  return isnan(a) ? a : float8_p3109_p<p>::FromRep(a.rep() & 0x7F);
 }
 
 template <typename Float8>
@@ -917,6 +1032,12 @@ template <>
 struct Traits<float8_e5m2fnuz> : public TraitsBase<float8_e5m2fnuz> {
   using Base = TraitsBase<float8_e5m2fnuz>;
   static constexpr int kExponentBias = Base::kExponentBias + 1;
+};
+
+template <int p>
+struct Traits<float8_p3109_p<p>> : public TraitsBase<float8_p3109_p<p>> {
+  using Base = TraitsBase<float8_p3109_p<p>>;
+  static constexpr int kExponentBias = 1 << (Base::kExponentBits - 1);
 };
 
 template <typename Bits>
@@ -1279,6 +1400,8 @@ using float8_e4m3fnuz = float8_internal::float8_e4m3fnuz;
 using float8_e4m3b11fnuz = float8_internal::float8_e4m3b11fnuz;
 using float8_e5m2 = float8_internal::float8_e5m2;
 using float8_e5m2fnuz = float8_internal::float8_e5m2fnuz;
+template <int p>
+using float8_p3109_p = float8_internal::float8_p3109_p<p>;
 
 }  // namespace ml_dtypes
 
@@ -1345,6 +1468,12 @@ EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m2fnuz>(
   return ml_dtypes::float8_internal::isinf(x);
 }
 
+template <int p>
+EIGEN_DEVICE_FUNC inline bool isinf_impl(const ml_dtypes::float8_p3109_p<p>& x) {
+  return ml_dtypes::float8_internal::isinf(x);
+}
+
+
 template <>
 EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3fn>(
     const ml_dtypes::float8_e4m3fn& x) {
@@ -1375,6 +1504,12 @@ EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e5m2fnuz>(
   return ml_dtypes::float8_internal::isnan(x);
 }
 
+template <int p>
+EIGEN_DEVICE_FUNC inline bool isnan_impl(const ml_dtypes::float8_p3109_p<p>& x) {
+  return ml_dtypes::float8_internal::isnan(x);
+}
+
+
 template <>
 EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3fn>(
     const ml_dtypes::float8_e4m3fn& x) {
@@ -1402,6 +1537,11 @@ EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m2>(
 template <>
 EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m2fnuz>(
     const ml_dtypes::float8_e5m2fnuz& x) {
+  return ml_dtypes::float8_internal::isfinite(x);
+}
+
+template <int p>
+EIGEN_DEVICE_FUNC inline bool isfinite_impl(const ml_dtypes::float8_p3109_p<p>& x) {
   return ml_dtypes::float8_internal::isfinite(x);
 }
 
