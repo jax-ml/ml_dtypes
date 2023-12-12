@@ -165,7 +165,8 @@ bool CastToInt4(PyObject* arg, T* output) {
     return floating_conversion(double{});
   }
   if (PyArray_IsScalar(arg, LongDouble)) {
-    return floating_conversion((long double){});
+    using ld = long double;
+    return floating_conversion(ld{});
   }
   return false;
 }
