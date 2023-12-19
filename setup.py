@@ -17,7 +17,7 @@
 import fnmatch
 import platform
 import numpy as np
-from pybind11.setup_helpers import Pybind11Extension
+from setuptools import Extension
 from setuptools import setup
 from setuptools.command.build_py import build_py as build_py_orig
 
@@ -25,11 +25,14 @@ if platform.system() == "Windows":
   COMPILE_ARGS = [
       "/std:c++17",
       "/DEIGEN_MPL2_ONLY",
+      "/EHsc",
+      "/bigobj",
   ]
 else:
   COMPILE_ARGS = [
       "-std=c++17",
       "-DEIGEN_MPL2_ONLY",
+      "-fvisibility=hidden",
       # -ftrapping-math is necessary because NumPy looks at floating point
       # exception state to determine whether to emit, e.g., invalid value
       # warnings. Without this setting, on Mac ARM we see spurious "invalid
@@ -56,7 +59,7 @@ class build_py(build_py_orig):  # pylint: disable=invalid-name
 
 setup(
     ext_modules=[
-        Pybind11Extension(
+        Extension(
             "ml_dtypes._ml_dtypes_ext",
             [
                 "ml_dtypes/_src/dtypes.cc",

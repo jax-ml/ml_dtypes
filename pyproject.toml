@@ -52,7 +52,6 @@ requires = [
     "numpy~=1.21.2; python_version<'3.11'",
     "numpy~=1.23.3; python_version>='3.11' and python_version<'3.12'",
     "numpy~=1.26.0; python_version>='3.12'",
-    "pybind11~=2.11.1",
     "setuptools~=68.1.0",
 ]
 build-backend = "setuptools.build_meta"
