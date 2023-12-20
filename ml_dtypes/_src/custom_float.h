@@ -861,22 +861,9 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
   return ok;
 }
 
-// TODO(jakevdp): simplify the following. The already_registered check is no
-// longer necessary, and heap allocation is probably not important any longer.
-//
-// Returns true if the numpy type for T is successfully registered, including if
-// it was already registered (e.g. by a different library). If
-// `already_registered` is non-null, it's set to true if the type was already
-// registered and false otherwise.
 template <typename T>
-bool RegisterFloatDtype(PyObject* numpy, bool* already_registered = nullptr) {
-  if (already_registered != nullptr) {
-    *already_registered = false;
-  }
-  // It's important that we heap-allocate our type. This is because tp_name
-  // is not a fully-qualified name for a heap-allocated type.
-  // Existing implementations in JAX and TensorFlow look for "bfloat16",
-  // not "ml_dtypes.bfloat16" when searching for an implementation.
+bool RegisterFloatDtype(PyObject* numpy) {
+  // TODO(jakevdp): simplify this; we no longer need heap allocation.
   Safe_PyObjectPtr name =
       make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
   Safe_PyObjectPtr qualname =
