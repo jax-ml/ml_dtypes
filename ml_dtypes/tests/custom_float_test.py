@@ -37,6 +37,14 @@ float8_e5m2 = ml_dtypes.float8_e5m2
 float8_e5m2fnuz = ml_dtypes.float8_e5m2fnuz
 
 
+try:
+  # numpy >= 2.0
+  ComplexWarning = np.exceptions.ComplexWarning
+except AttributeError:
+  # numpy < 2.0
+  ComplexWarning = np.ComplexWarning
+
+
 @contextlib.contextmanager
 def ignore_warning(**kw):
   with warnings.catch_warnings():
@@ -703,7 +711,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       self.assertTrue(np.all(x == z))
       self.assertEqual(dtype, z.dtype)
 
-  @ignore_warning(category=np.ComplexWarning)
+  @ignore_warning(category=ComplexWarning)
   def testConformNumpyComplex(self, float_type):
     for dtype in [np.complex64, np.complex128, np.clongdouble]:
       x = np.array([1.5, 2.5 + 2.0j, 3.5], dtype=dtype)
