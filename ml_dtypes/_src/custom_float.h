@@ -861,6 +861,9 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// TODO(jakevdp): simplify the following. The already_registered check is no
+// longer necessary, and heap allocation is probably not important any longer.
+//
 // Returns true if the numpy type for T is successfully registered, including if
 // it was already registered (e.g. by a different library). If
 // `already_registered` is non-null, it's set to true if the type was already
@@ -870,35 +873,9 @@ bool RegisterFloatDtype(PyObject* numpy, bool* already_registered = nullptr) {
   if (already_registered != nullptr) {
     *already_registered = false;
   }
-  // If another module (presumably either TF or JAX) has registered a bfloat16
-  // type, use it. We don't want two bfloat16 types if we can avoid it since it
-  // leads to confusion if we have two different types with the same name. This
-  // assumes that the other module has a sufficiently complete bfloat16
-  // implementation. The only known NumPy bfloat16 extension at the time of
-  // writing is this one (distributed in TF and JAX).
-  // TODO(phawkins): distribute the bfloat16 extension as its own pip package,
-  // so we can unambiguously refer to a single canonical definition of bfloat16.
-  int typenum =
-      PyArray_TypeNumFromName(const_cast<char*>(TypeDescriptor<T>::kTypeName));
-  if (typenum != NPY_NOTYPE) {
-    PyArray_Descr* descr = PyArray_DescrFromType(typenum);
-    // The test for an argmax function here is to verify that the
-    // bfloat16 implementation is sufficiently new, and, say, not from
-    // an older version of TF or JAX.
-    if (descr && descr->f && descr->f->argmax) {
-      TypeDescriptor<T>::npy_type = typenum;
-      TypeDescriptor<T>::type_ptr = reinterpret_cast<PyObject*>(descr->typeobj);
-      if (already_registered != nullptr) {
-        *already_registered = true;
-      }
-      return true;
-    }
-  }
-
   // It's important that we heap-allocate our type. This is because tp_name
-  // is not a fully-qualified name for a heap-allocated type, and
-  // PyArray_TypeNumFromName() (above) looks at the tp_name field to find
-  // types. Existing implementations in JAX and TensorFlow look for "bfloat16",
+  // is not a fully-qualified name for a heap-allocated type.
+  // Existing implementations in JAX and TensorFlow look for "bfloat16",
   // not "ml_dtypes.bfloat16" when searching for an implementation.
   Safe_PyObjectPtr name =
       make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
