@@ -226,61 +226,34 @@ bool Initialize() {
   if (!RegisterFloatDtype<bfloat16>(numpy.get())) {
     return false;
   }
-  bool float8_e4m3b11fnuz_already_registered;
-  if (!RegisterFloatDtype<float8_e4m3b11fnuz>(
-          numpy.get(), &float8_e4m3b11fnuz_already_registered)) {
+  if (!RegisterFloatDtype<float8_e4m3b11fnuz>(numpy.get())) {
     return false;
   }
-  bool float8_e4m3fn_already_registered;
-  if (!ml_dtypes::RegisterFloatDtype<float8_e4m3fn>(
-          numpy.get(), &float8_e4m3fn_already_registered)) {
+  if (!RegisterFloatDtype<float8_e4m3fn>(numpy.get())) {
     return false;
   }
-  bool float8_e4m3fnuz_already_registered;
-  if (!ml_dtypes::RegisterFloatDtype<float8_e4m3fnuz>(
-          numpy.get(), &float8_e4m3fnuz_already_registered)) {
+  if (!RegisterFloatDtype<float8_e4m3fnuz>(numpy.get())) {
     return false;
   }
-  bool float8_e5m2_already_registered;
-  if (!ml_dtypes::RegisterFloatDtype<float8_e5m2>(
-          numpy.get(), &float8_e5m2_already_registered)) {
+  if (!RegisterFloatDtype<float8_e5m2>(numpy.get())) {
     return false;
   }
-  bool float8_e5m2fnuz_already_registered;
-  if (!ml_dtypes::RegisterFloatDtype<float8_e5m2fnuz>(
-          numpy.get(), &float8_e5m2fnuz_already_registered)) {
+  if (!RegisterFloatDtype<float8_e5m2fnuz>(numpy.get())) {
     return false;
   }
 
-  if (!ml_dtypes::RegisterInt4Dtype<int4>(numpy.get())) {
+  if (!RegisterInt4Dtype<int4>(numpy.get())) {
+    return false;
+  }
+  if (!RegisterInt4Dtype<uint4>(numpy.get())) {
     return false;
   }
 
-  if (!ml_dtypes::RegisterInt4Dtype<uint4>(numpy.get())) {
-    return false;
-  }
-
-  // Casts between bfloat16 and float8_e4m3b11fnuz. Only perform the cast if
-  // float8_e4m3b11fnuz hasn't been previously registered, presumably by a
-  // different library. In this case, we assume the cast has also already been
-  // registered, and registering it again can cause segfaults due to accessing
-  // an uninitialized type descriptor in this library.
-  if (!float8_e4m3b11fnuz_already_registered &&
-      !RegisterCustomFloatCast<float8_e4m3b11fnuz, bfloat16>()) {
-    return false;
-  }
-  if (!float8_e4m3fnuz_already_registered &&
-      !float8_e5m2fnuz_already_registered &&
-      !RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2fnuz>()) {
-    return false;
-  }
-  if (!float8_e4m3fn_already_registered && !float8_e5m2_already_registered &&
-      !RegisterCustomFloatCast<float8_e4m3fn, float8_e5m2>()) {
-    return false;
-  }
+  // Register casts between pairs of custom float dtypes.
   bool success = true;
-  // Continue trying to register casts, just in case some types are not
-  // registered (i.e. float8_e4m3b11fnuz)
+  success &= RegisterCustomFloatCast<float8_e4m3b11fnuz, bfloat16>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2fnuz>();
+  success &= RegisterCustomFloatCast<float8_e4m3fn, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e4m3fn>();
   success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e5m2>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e4m3fn>();
