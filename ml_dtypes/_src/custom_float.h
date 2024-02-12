@@ -42,6 +42,10 @@ limitations under the License.
                  // Possible this has to do with numpy.h being included before
                  // system headers and in bfloat16.{cc,h}?
 
+#if NPY_ABI_VERSION < 0x02000000
+#define PyArray_DescrProto PyArray_Descr
+#endif
+
 namespace ml_dtypes {
 
 template <typename T>
@@ -66,6 +70,8 @@ template <typename T>
 int CustomFloatType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomFloatType<T>::type_ptr = nullptr;
+template<typename T>
+PyArray_Descr CustomFloatType<T>::npy_descr;
 
 // Representation of a Python custom float object.
 template <typename T>
@@ -397,24 +403,26 @@ template <typename T>
 PyArray_ArrFuncs CustomFloatType<T>::arr_funcs;
 
 template <typename T>
-PyArray_Descr CustomFloatType<T>::npy_descr = {
-    PyObject_HEAD_INIT(nullptr)
-    /*typeobj=*/nullptr,  // Filled in later
-    /*kind=*/TypeDescriptor<T>::kNpyDescrKind,
-    /*type=*/TypeDescriptor<T>::kNpyDescrType,
-    /*byteorder=*/TypeDescriptor<T>::kNpyDescrByteorder,
-    /*flags=*/NPY_NEEDS_PYAPI | NPY_USE_SETITEM,
-    /*type_num=*/0,
-    /*elsize=*/sizeof(T),
-    /*alignment=*/alignof(T),
-    /*subarray=*/nullptr,
-    /*fields=*/nullptr,
-    /*names=*/nullptr,
-    /*f=*/&CustomFloatType<T>::arr_funcs,
-    /*metadata=*/nullptr,
-    /*c_metadata=*/nullptr,
-    /*hash=*/-1,  // -1 means "not computed yet".
-};
+PyArray_DescrProto GetCustomFloatDescrProto() {
+  return {
+      PyObject_HEAD_INIT(nullptr)
+      /*typeobj=*/nullptr,  // Filled in later
+      /*kind=*/TypeDescriptor<T>::kNpyDescrKind,
+      /*type=*/TypeDescriptor<T>::kNpyDescrType,
+      /*byteorder=*/TypeDescriptor<T>::kNpyDescrByteorder,
+      /*flags=*/NPY_NEEDS_PYAPI | NPY_USE_SETITEM,
+      /*type_num=*/0,
+      /*elsize=*/sizeof(T),
+      /*alignment=*/alignof(T),
+      /*subarray=*/nullptr,
+      /*fields=*/nullptr,
+      /*names=*/nullptr,
+      /*f=*/&CustomFloatType<T>::arr_funcs,
+      /*metadata=*/nullptr,
+      /*c_metadata=*/nullptr,
+      /*hash=*/-1,  // -1 means "not computed yet".
+  };
+}
 
 // Implementations of NumPy array methods.
 
@@ -921,15 +929,33 @@ bool RegisterFloatDtype(PyObject* numpy) {
   arr_funcs.argmax = NPyCustomFloat_ArgMaxFunc<T>;
   arr_funcs.argmin = NPyCustomFloat_ArgMinFunc<T>;
 
-#if PY_VERSION_HEX < 0x030900A4 && !defined(Py_SET_TYPE)
-  Py_TYPE(&CustomFloatType<T>::npy_descr) = &PyArrayDescr_Type;
+  // This is messy, but that's because the NumPy 2.0 API transition is messy.
+  // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
+  // RegisterDataType alive, because it stores its pointer.
+  // After 2.0, the proto and descriptor types diverge, and NumPy allocates
+  // and manages the lifetime of the descriptor itself.
+#if NPY_ABI_VERSION < 0x02000000
+  PyArray_DescrProto* descr_proto = &CustomFloatType<T>::npy_descr;
 #else
-  Py_SET_TYPE(&CustomFloatType<T>::npy_descr, &PyArrayDescr_Type);
+  PyArray_DescrProto descr_proto_storage;
+  PyArray_DescrProto* descr_proto = &descr_proto_storage;
 #endif
-  TypeDescriptor<T>::npy_descr.typeobj = type;
+  *descr_proto = GetCustomFloatDescrProto<T>();
+#if PY_VERSION_HEX < 0x030900A4 && !defined(Py_SET_TYPE)
+  Py_TYPE(descr_proto) = &PyArrayDescr_Type;
+#else
+  Py_SET_TYPE(descr_proto, &PyArrayDescr_Type);
+#endif
+  descr_proto->typeobj = type;
 
-  TypeDescriptor<T>::npy_type =
-      PyArray_RegisterDataType(&CustomFloatType<T>::npy_descr);
+  TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(descr_proto);
+  if (TypeDescriptor<T>::npy_type < 0) {
+    return false;
+  }
+#if NPY_ABI_VERSION >= 0x02000000
+  CustomFloatType<T>::npy_descr =
+      *PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
+#endif
   if (TypeDescriptor<T>::Dtype() < 0) {
     return false;
   }
@@ -956,5 +982,9 @@ bool RegisterFloatDtype(PyObject* numpy) {
 }
 
 }  // namespace ml_dtypes
+
+#if NPY_ABI_VERSION < 0x02000000
+#undef PyArray_DescrProto
+#endif
 
 #endif  // ML_DTYPES_CUSTOM_FLOAT_H_
