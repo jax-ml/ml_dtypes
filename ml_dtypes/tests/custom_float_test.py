@@ -600,6 +600,11 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testDtype(self, float_type):
     self.assertEqual(float_type, np.dtype(float_type))
 
+  def testHash(self, float_type):
+    h = hash(np.dtype(float_type))
+    self.assertEqual(h, hash(np.dtype(float_type.dtype)))
+    self.assertEqual(h, hash(np.dtype(float_type.__name__)))
+
   def testDeepCopyDoesNotAlterHash(self, float_type):
     # For context, see https://github.com/google/jax/issues/4651. If the hash
     # value of the type descriptor is not initialized correctly, a deep copy

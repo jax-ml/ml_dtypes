@@ -52,7 +52,8 @@ struct Int4TypeDescriptor {
 
   static PyNumberMethods number_methods;
   static PyArray_ArrFuncs arr_funcs;
-  static PyArray_Descr npy_descr;
+  static PyArray_DescrProto npy_descr_proto;
+  static PyArray_Descr* npy_descr;
 };
 
 template <typename T>
@@ -60,7 +61,9 @@ int Int4TypeDescriptor<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* Int4TypeDescriptor<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_Descr Int4TypeDescriptor<T>::npy_descr;
+PyArray_DescrProto Int4TypeDescriptor<T>::npy_descr_proto;
+template <typename T>
+PyArray_Descr* Int4TypeDescriptor<T>::npy_descr = nullptr;
 
 // Representation of a Python custom integer object.
 template <typename T>
@@ -614,7 +617,7 @@ bool RegisterCustomIntCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
                                IntegerCast<OtherT, T>) < 0) {
     return false;
   }
-  if (PyArray_RegisterCastFunc(&Int4TypeDescriptor<T>::npy_descr, numpy_type,
+  if (PyArray_RegisterCastFunc(Int4TypeDescriptor<T>::npy_descr, numpy_type,
                                IntegerCast<T, OtherT>) < 0) {
     return false;
   }
@@ -682,66 +685,66 @@ bool RegisterInt4Casts() {
   }
 
   // Safe casts from T to other types
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT8,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT8,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT16,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT16,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT32,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT32,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_INT64,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT64,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
 
   if (std::is_same_v<uint4, T>) {
-    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT8,
+    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT8,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
-    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT16,
+    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT16,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
-    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT32,
+    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT32,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
-    if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_UINT64,
+    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT64,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_HALF,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_HALF,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_FLOAT,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_FLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_DOUBLE,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_DOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_LONGDOUBLE,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_LONGDOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_CFLOAT,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CFLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_CDOUBLE,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CDOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(&TypeDescriptor<T>::npy_descr, NPY_CLONGDOUBLE,
+  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CLONGDOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
@@ -834,31 +837,19 @@ bool RegisterInt4Dtype(PyObject* numpy) {
   // RegisterDataType alive, because it stores its pointer.
   // After 2.0, the proto and descriptor types diverge, and NumPy allocates
   // and manages the lifetime of the descriptor itself.
-#if NPY_ABI_VERSION < 0x02000000
-  PyArray_DescrProto* descr_proto = &Int4TypeDescriptor<T>::npy_descr;
-#else
-  PyArray_DescrProto descr_proto_storage;
-  PyArray_DescrProto* descr_proto = &descr_proto_storage;
-#endif
-  *descr_proto = GetInt4DescrProto<T>();
-#if PY_VERSION_HEX < 0x030900A4 && !defined(Py_SET_TYPE)
-  Py_TYPE(descr_proto) = &PyArrayDescr_Type;
-#else
-  Py_SET_TYPE(descr_proto, &PyArrayDescr_Type);
-#endif
-  descr_proto->typeobj = type;
+  PyArray_DescrProto& descr_proto = Int4TypeDescriptor<T>::npy_descr_proto;
+  descr_proto = GetInt4DescrProto<T>();
+  Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
+  descr_proto.typeobj = type;
 
-  TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(descr_proto);
+  TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
   if (TypeDescriptor<T>::npy_type < 0) {
     return false;
   }
-#if NPY_ABI_VERSION >= 0x02000000
+  // TODO(phawkins): We intentionally leak the pointer to the descriptor.
+  // Implement a better module destructor to handle this.
   Int4TypeDescriptor<T>::npy_descr =
-      *PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
-#endif
-  if (TypeDescriptor<T>::Dtype() < 0) {
-    return false;
-  }
+      PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
 
   Safe_PyObjectPtr typeDict_obj =
       make_safe(PyObject_GetAttrString(numpy, "sctypeDict"));
@@ -873,7 +864,7 @@ bool RegisterInt4Dtype(PyObject* numpy) {
   // Support dtype(type_name)
   if (PyObject_SetAttrString(
           TypeDescriptor<T>::type_ptr, "dtype",
-          reinterpret_cast<PyObject*>(&Int4TypeDescriptor<T>::npy_descr)) < 0) {
+          reinterpret_cast<PyObject*>(Int4TypeDescriptor<T>::npy_descr)) < 0) {
     return false;
   }
 

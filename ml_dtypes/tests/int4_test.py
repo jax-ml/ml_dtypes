@@ -225,6 +225,12 @@ class ArrayTest(parameterized.TestCase):
     self.assertEqual(scalar_type, np.dtype(scalar_type))
 
   @parameterized.product(scalar_type=INT4_TYPES)
+  def testHash(self, scalar_type):
+    h = hash(np.dtype(scalar_type))
+    self.assertEqual(h, hash(np.dtype(scalar_type.dtype)))
+    self.assertEqual(h, hash(np.dtype(scalar_type.__name__)))
+
+  @parameterized.product(scalar_type=INT4_TYPES)
   def testDeepCopyDoesNotAlterHash(self, scalar_type):
     # For context, see https://github.com/google/jax/issues/4651. If the hash
     # value of the type descriptor is not initialized correctly, a deep copy
