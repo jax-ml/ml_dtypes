@@ -23,6 +23,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.4.0b1] - 2024-03-12
+
+* Updates `ml_dtypes` for compatibility with future NumPy 2.0 release.
+* Wheels for the release candidate are built against NumPy 2.0.0b1.
+
 ## [0.3.2] - 2024-01-03
 
 * Fixed spurious invalid value warnings when casting between floating point
@@ -57,6 +62,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 * Initial release
 
 [Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.2...HEAD
+[0.4.0b1]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.2...v0.4.0b1
 [0.3.2]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/jax-ml/ml_dtypes/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.2.0...v0.3.0
