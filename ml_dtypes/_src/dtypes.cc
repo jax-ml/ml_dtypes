@@ -33,7 +33,7 @@ limitations under the License.
 #include "_src/custom_float.h"
 #include "_src/int4_numpy.h"
 #include "include/float8.h"
-#include "include/int4.h"
+#include "include/intn.h"
 
 namespace ml_dtypes {
 

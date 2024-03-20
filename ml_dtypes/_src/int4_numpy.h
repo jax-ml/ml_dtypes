@@ -27,7 +27,7 @@ limitations under the License.
 #include "Eigen/Core"
 #include "_src/common.h"  // NOLINT
 #include "_src/ufuncs.h"  // NOLINT
-#include "include/int4.h"
+#include "include/intn.h"
 
 #if NPY_ABI_VERSION < 0x02000000
 #define PyArray_DescrProto PyArray_Descr
