@@ -9,10 +9,13 @@ def ml_multiply(a, b):
 
 def main():
     a = float8_e5m2(30.5)
-    b = float8_e5m2(20.5)
+    b = float8_e5m2(30.5)
     print("Addition of two numbers using ml_add function: ", ml_add(a, b))
     print("Multiplication of two numbers using ml_multiply function: ", ml_multiply(a, b))
     return
 
 if __name__ == "__main__":
     main()
+
+# Compilation and Execution Steps:
+# python3 main.py
