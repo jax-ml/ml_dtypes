@@ -3,7 +3,8 @@
     "files.trimFinalNewlines": true,
     "files.trimTrailingWhitespace": true,
     "files.associations": {
-        ".pylintrc": "ini"
+        ".pylintrc": "ini",
+        "type_traits": "cpp"
     },
     "python.testing.unittestEnabled": false,
     "python.testing.nosetestsEnabled": false,
