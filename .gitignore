@@ -27,3 +27,7 @@ poetry.lock
 
 # pipenv
 Pipfile
+
+# ignoring test file output(main.cc)
+.vscode/
+output_file
