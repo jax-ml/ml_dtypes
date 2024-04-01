@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = '0.4.0b1'  # Keep in sync with pyproject.toml:version
+__version__ = "0.4.0"  # Keep in sync with pyproject.toml:version
 __all__ = [
-    '__version__',
-    'bfloat16',
-    'finfo',
-    'float8_e4m3b11fnuz',
-    'float8_e4m3fn',
-    'float8_e4m3fnuz',
-    'float8_e5m2',
-    'float8_e5m2fnuz',
-    'iinfo',
-    'int4',
-    'uint4',
+    "__version__",
+    "bfloat16",
+    "finfo",
+    "float8_e4m3b11fnuz",
+    "float8_e4m3fn",
+    "float8_e4m3fnuz",
+    "float8_e5m2",
+    "float8_e5m2fnuz",
+    "iinfo",
+    "int4",
+    "uint4",
 ]
 
 from typing import Type
