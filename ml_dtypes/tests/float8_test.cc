@@ -18,6 +18,7 @@ limitations under the License.
 #include <cmath>
 #include <limits>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include <gmock/gmock.h>
@@ -783,7 +784,16 @@ TYPED_TEST(Float8CastTest, CastThroughFloat) {
         continue;
       }
     }
-    DestType dest = static_cast<DestType>(f8);
+    DestType dest;
+    // Eigen floats define a template constructor that turns the static_cast
+    // into a cast from f8 to float to DestType, which is exactly what we have
+    // in `expected`, so we special case float types here.
+    if constexpr (!std::is_integral_v<DestType> &&
+                  !std::is_same_v<DestType, long double>) {
+      dest = Float8::template ConvertTo<DestType>(f8);
+    } else {
+      dest = static_cast<DestType>(f8);
+    }
     DestType expected = static_cast<DestType>(static_cast<float>(f8));
     EXPECT_THAT(dest, EqOrIsNan(expected));
   }

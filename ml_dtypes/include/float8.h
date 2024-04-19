@@ -28,9 +28,9 @@ limitations under the License.
 #include <utility>
 
 #ifdef __has_include
-# if __has_include(<version>)
-#   include <version>
-# endif
+#if __has_include(<version>)
+#include <version>
+#endif
 #endif
 
 #if (defined(__cpp_lib_bitops) && __cpp_lib_bitops >= 201907L)
@@ -835,7 +835,7 @@ constexpr inline float8_e5m2fnuz abs(const float8_e5m2fnuz& a) {
                                : float8_e5m2fnuz::FromRep(a.rep() & 0x7F);
 }
 
-constexpr inline bool (isnan)(const float8_e5m2fnuz& a) {
+constexpr inline bool(isnan)(const float8_e5m2fnuz& a) {
   return a.rep() == 0x80;
 }
 
@@ -1105,18 +1105,22 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
             (from_bits & FromTraits::kMantissaMask) |
             (from_has_leading_one << kFromMantissaBits);
         ToBits bits = 0;
-        // To avoid UB, limit rounding and shifting to the full mantissa plus
-        // leading 1.
-        if (exponent_shift <= kFromMantissaBits + 1) {
-          if constexpr (!kTruncate) {
-            // NOTE: we need to round again from the original from_bits,
-            // otherwise the lower precision bits may already be lost.  There is
-            // an edge-case where rounding to a normalized value would normally
-            // round down, but for a subnormal, we need to round up.
-            rounded_from_bits =
-                RoundBitsToNearestEven(rounded_from_bits, exponent_shift);
+        if (exponent_shift > 0) {
+          // To avoid UB, limit rounding and shifting to the full mantissa plus
+          // leading 1.
+          if (exponent_shift <= kFromMantissaBits + 1) {
+            if constexpr (!kTruncate) {
+              // NOTE: we need to round again from the original from_bits,
+              // otherwise the lower precision bits may already be lost.  There
+              // is an edge-case where rounding to a normalized value would
+              // normally round down, but for a subnormal, we need to round up.
+              rounded_from_bits =
+                  RoundBitsToNearestEven(rounded_from_bits, exponent_shift);
+            }
+            bits = rounded_from_bits >> exponent_shift;
           }
-          bits = (rounded_from_bits >> exponent_shift);
+        } else {
+          bits = rounded_from_bits << -exponent_shift;
         }
         // Insert sign and return.
         To to = Eigen::numext::bit_cast<To>(bits);
