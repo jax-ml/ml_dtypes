@@ -178,16 +178,37 @@ struct TypeDescriptor<uint4> : Int4TypeDescriptor<uint4> {
 };
 
 namespace {
-
-// Performs a NumPy array cast from type 'From' to 'To' via float.
-template <typename From, typename To>
-void FloatPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-                 void* toarr) {
-  const auto* from = static_cast<From*>(from_void);
-  auto* to = static_cast<To*>(to_void);
-  for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(static_cast<float>(from[i]));
+template <typename From, typename To, bool IsTable>
+struct FloatPyCaster {
+  static void Cast(void* from_void, void* to_void, npy_intp n) {
+    const auto* from = static_cast<From*>(from_void);
+    auto* to = static_cast<To*>(to_void);
+    for (npy_intp i = 0; i < n; ++i) {
+      to[i] = static_cast<To>(static_cast<float>(from[i]));
+    }
   }
+};
+
+template <typename From, typename To>
+struct FloatPyCaster<From, To, true> {
+  static void Cast(void* from_void, void* to_void, npy_intp n) {
+    const auto* from = static_cast<From*>(from_void);
+    auto* to = static_cast<To*>(to_void);
+    To table[256];
+    // Use int for loop index to avoid overflow.
+    for (int i = 0; i < 256; ++i) {
+      table[i] = static_cast<To>(static_cast<float>(__builtin_bit_cast(From, uint8_t(i))));
+    }
+    for (npy_intp i = 0; i < n; ++i) {
+      to[i] = table[__builtin_bit_cast(uint8_t, from[i])];
+    }
+  }
+};
+
+template <typename From, typename To>
+void FloatPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr, void* toarr) {
+  constexpr bool is_table = (sizeof(From) == 1);
+  FloatPyCaster<From, To, is_table>::Cast(from_void, to_void, n);
 }
 
 template <typename Type1, typename Type2>
