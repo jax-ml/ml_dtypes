@@ -20,6 +20,28 @@ import numpy as np
 
 class IinfoTest(parameterized.TestCase):
 
+  def testIinfoInt2(self):
+    info = ml_dtypes.iinfo(ml_dtypes.int2)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo("int2").dtype)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo(np.dtype("int2")).dtype)
+    self.assertEqual(info.min, -2)
+    self.assertEqual(info.max, 1)
+    self.assertEqual(info.dtype, np.dtype(ml_dtypes.int2))
+    self.assertEqual(info.bits, 2)
+    self.assertEqual(info.kind, "i")
+    self.assertEqual(str(info), "iinfo(min=-2, max=1, dtype=int2)")
+
+  def testIInfoUint2(self):
+    info = ml_dtypes.iinfo(ml_dtypes.uint2)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo("uint2").dtype)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo(np.dtype("uint2")).dtype)
+    self.assertEqual(info.min, 0)
+    self.assertEqual(info.max, 3)
+    self.assertEqual(info.dtype, np.dtype(ml_dtypes.uint2))
+    self.assertEqual(info.bits, 2)
+    self.assertEqual(info.kind, "u")
+    self.assertEqual(str(info), "iinfo(min=0, max=3, dtype=uint2)")
+
   def testIinfoInt4(self):
     info = ml_dtypes.iinfo(ml_dtypes.int4)
     self.assertEqual(info.dtype, ml_dtypes.iinfo("int4").dtype)

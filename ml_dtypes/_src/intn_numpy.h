@@ -38,7 +38,7 @@ namespace ml_dtypes {
 constexpr char kOutOfRange[] = "out of range value cannot be converted to int4";
 
 template <typename T>
-struct Int4TypeDescriptor {
+struct IntNTypeDescriptor {
   static int Dtype() { return npy_type; }
 
   // Registered numpy type ID. Global variable populated by the registration
@@ -57,49 +57,49 @@ struct Int4TypeDescriptor {
 };
 
 template <typename T>
-int Int4TypeDescriptor<T>::npy_type = NPY_NOTYPE;
+int IntNTypeDescriptor<T>::npy_type = NPY_NOTYPE;
 template <typename T>
-PyObject* Int4TypeDescriptor<T>::type_ptr = nullptr;
+PyObject* IntNTypeDescriptor<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_DescrProto Int4TypeDescriptor<T>::npy_descr_proto;
+PyArray_DescrProto IntNTypeDescriptor<T>::npy_descr_proto;
 template <typename T>
-PyArray_Descr* Int4TypeDescriptor<T>::npy_descr = nullptr;
+PyArray_Descr* IntNTypeDescriptor<T>::npy_descr = nullptr;
 
 // Representation of a Python custom integer object.
 template <typename T>
-struct PyInt4 {
+struct PyIntN {
   PyObject_HEAD;  // Python object header
   T value;
 };
 
-// Returns true if 'object' is a PyInt4.
+// Returns true if 'object' is a PyIntN.
 template <typename T>
-bool PyInt4_Check(PyObject* object) {
+bool PyIntN_Check(PyObject* object) {
   return PyObject_IsInstance(object, TypeDescriptor<T>::type_ptr);
 }
 
-// Extracts the value of a PyInt4 object.
+// Extracts the value of a PyIntN object.
 template <typename T>
-T PyInt4_Value_Unchecked(PyObject* object) {
-  return reinterpret_cast<PyInt4<T>*>(object)->value;
+T PyIntN_Value_Unchecked(PyObject* object) {
+  return reinterpret_cast<PyIntN<T>*>(object)->value;
 }
 
 template <typename T>
-bool PyInt4_Value(PyObject* arg, T* output) {
-  if (PyInt4_Check<T>(arg)) {
-    *output = PyInt4_Value_Unchecked<T>(arg);
+bool PyIntN_Value(PyObject* arg, T* output) {
+  if (PyIntN_Check<T>(arg)) {
+    *output = PyIntN_Value_Unchecked<T>(arg);
     return true;
   }
   return false;
 }
 
-// Constructs a PyInt4 object from PyInt4<T>::T.
+// Constructs a PyIntN object from PyIntN<T>::T.
 template <typename T>
-Safe_PyObjectPtr PyInt4_FromValue(T x) {
+Safe_PyObjectPtr PyIntN_FromValue(T x) {
   PyTypeObject* type =
       reinterpret_cast<PyTypeObject*>(TypeDescriptor<T>::type_ptr);
   Safe_PyObjectPtr ref = make_safe(type->tp_alloc(type, 0));
-  PyInt4<T>* p = reinterpret_cast<PyInt4<T>*>(ref.get());
+  PyIntN<T>* p = reinterpret_cast<PyIntN<T>*>(ref.get());
   if (p) {
     p->value = x;
   }
@@ -109,9 +109,9 @@ Safe_PyObjectPtr PyInt4_FromValue(T x) {
 // Converts a Python object to a reduced integer value. Returns true on success,
 // returns false and reports a Python error on failure.
 template <typename T>
-bool CastToInt4(PyObject* arg, T* output) {
-  if (PyInt4_Check<T>(arg)) {
-    *output = PyInt4_Value_Unchecked<T>(arg);
+bool CastToIntN(PyObject* arg, T* output) {
+  if (PyIntN_Check<T>(arg)) {
+    *output = PyIntN_Value_Unchecked<T>(arg);
     return true;
   }
   if (PyFloat_Check(arg)) {
@@ -180,9 +180,9 @@ bool CastToInt4(PyObject* arg, T* output) {
   return false;
 }
 
-// Constructs a new PyInt4.
+// Constructs a new PyIntN.
 template <typename T>
-PyObject* PyInt4_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
+PyObject* PyIntN_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   if (kwds && PyDict_Size(kwds)) {
     PyErr_SetString(PyExc_TypeError, "constructor takes no keyword arguments");
     return nullptr;
@@ -197,11 +197,11 @@ PyObject* PyInt4_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   PyObject* arg = PyTuple_GetItem(args, 0);
 
   T value;
-  if (PyInt4_Check<T>(arg)) {
+  if (PyIntN_Check<T>(arg)) {
     Py_INCREF(arg);
     return arg;
-  } else if (CastToInt4<T>(arg, &value)) {
-    return PyInt4_FromValue<T>(value).release();
+  } else if (CastToIntN<T>(arg, &value)) {
+    return PyIntN_FromValue<T>(value).release();
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != TypeDescriptor<T>::Dtype()) {
@@ -216,8 +216,8 @@ PyObject* PyInt4_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     if (PyErr_Occurred()) {
       return nullptr;
     }
-    if (CastToInt4<T>(f, &value)) {
-      return PyInt4_FromValue<T>(value).release();
+    if (CastToIntN<T>(f, &value)) {
+      return PyIntN_FromValue<T>(value).release();
     }
   }
   PyErr_Format(PyExc_TypeError, "expected number, got %s",
@@ -226,60 +226,60 @@ PyObject* PyInt4_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
 }
 
 template <typename T>
-PyObject* PyInt4_nb_float(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
+PyObject* PyIntN_nb_float(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
   return PyFloat_FromDouble(static_cast<double>(x));
 }
 
 template <typename T>
-PyObject* PyInt4_nb_int(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
+PyObject* PyIntN_nb_int(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
   return PyLong_FromLong(static_cast<long>(x));  // NOLINT
 }
 
 template <typename T>
-PyObject* PyInt4_nb_negative(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
-  return PyInt4_FromValue<T>(-x).release();
+PyObject* PyIntN_nb_negative(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
+  return PyIntN_FromValue<T>(-x).release();
 }
 
 template <typename T>
-PyObject* PyInt4_nb_positive(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
-  return PyInt4_FromValue<T>(x).release();
+PyObject* PyIntN_nb_positive(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
+  return PyIntN_FromValue<T>(x).release();
 }
 
 template <typename T>
-PyObject* PyInt4_nb_add(PyObject* a, PyObject* b) {
+PyObject* PyIntN_nb_add(PyObject* a, PyObject* b) {
   T x, y;
-  if (PyInt4_Value<T>(a, &x) && PyInt4_Value<T>(b, &y)) {
-    return PyInt4_FromValue<T>(x + y).release();
+  if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
+    return PyIntN_FromValue<T>(x + y).release();
   }
   return PyArray_Type.tp_as_number->nb_add(a, b);
 }
 
 template <typename T>
-PyObject* PyInt4_nb_subtract(PyObject* a, PyObject* b) {
+PyObject* PyIntN_nb_subtract(PyObject* a, PyObject* b) {
   T x, y;
-  if (PyInt4_Value<T>(a, &x) && PyInt4_Value<T>(b, &y)) {
-    return PyInt4_FromValue<T>(x - y).release();
+  if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
+    return PyIntN_FromValue<T>(x - y).release();
   }
   return PyArray_Type.tp_as_number->nb_subtract(a, b);
 }
 
 template <typename T>
-PyObject* PyInt4_nb_multiply(PyObject* a, PyObject* b) {
+PyObject* PyIntN_nb_multiply(PyObject* a, PyObject* b) {
   T x, y;
-  if (PyInt4_Value<T>(a, &x) && PyInt4_Value<T>(b, &y)) {
-    return PyInt4_FromValue<T>(x * y).release();
+  if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
+    return PyIntN_FromValue<T>(x * y).release();
   }
   return PyArray_Type.tp_as_number->nb_multiply(a, b);
 }
 
 template <typename T>
-PyObject* PyInt4_nb_remainder(PyObject* a, PyObject* b) {
+PyObject* PyIntN_nb_remainder(PyObject* a, PyObject* b) {
   T x, y;
-  if (PyInt4_Value<T>(a, &x) && PyInt4_Value<T>(b, &y)) {
+  if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
     if (y == 0) {
       PyErr_SetString(PyExc_ZeroDivisionError, "division by zero");
       return nullptr;
@@ -288,15 +288,15 @@ PyObject* PyInt4_nb_remainder(PyObject* a, PyObject* b) {
     if (v != 0 && ((v < 0) != (y < 0))) {
       v = v + y;
     }
-    return PyInt4_FromValue<T>(v).release();
+    return PyIntN_FromValue<T>(v).release();
   }
   return PyArray_Type.tp_as_number->nb_remainder(a, b);
 }
 
 template <typename T>
-PyObject* PyInt4_nb_floor_divide(PyObject* a, PyObject* b) {
+PyObject* PyIntN_nb_floor_divide(PyObject* a, PyObject* b) {
   T x, y;
-  if (PyInt4_Value<T>(a, &x) && PyInt4_Value<T>(b, &y)) {
+  if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
     if (y == 0) {
       PyErr_SetString(PyExc_ZeroDivisionError, "division by zero");
       return nullptr;
@@ -305,22 +305,22 @@ PyObject* PyInt4_nb_floor_divide(PyObject* a, PyObject* b) {
     if (((x > 0) != (y > 0)) && x % y != 0) {
       v = v - T(1);
     }
-    return PyInt4_FromValue<T>(v).release();
+    return PyIntN_FromValue<T>(v).release();
   }
   return PyArray_Type.tp_as_number->nb_floor_divide(a, b);
 }
 
-// Python number methods for PyInt4 objects.
+// Python number methods for PyIntN objects.
 template <typename T>
-PyNumberMethods Int4TypeDescriptor<T>::number_methods = {
-    PyInt4_nb_add<T>,        // nb_add
-    PyInt4_nb_subtract<T>,   // nb_subtract
-    PyInt4_nb_multiply<T>,   // nb_multiply
-    PyInt4_nb_remainder<T>,  // nb_remainder
+PyNumberMethods IntNTypeDescriptor<T>::number_methods = {
+    PyIntN_nb_add<T>,        // nb_add
+    PyIntN_nb_subtract<T>,   // nb_subtract
+    PyIntN_nb_multiply<T>,   // nb_multiply
+    PyIntN_nb_remainder<T>,  // nb_remainder
     nullptr,                 // nb_divmod
     nullptr,                 // nb_power
-    PyInt4_nb_negative<T>,   // nb_negative
-    PyInt4_nb_positive<T>,   // nb_positive
+    PyIntN_nb_negative<T>,   // nb_negative
+    PyIntN_nb_positive<T>,   // nb_positive
     nullptr,                 // nb_absolute
     nullptr,                 // nb_nonzero
     nullptr,                 // nb_invert
@@ -329,9 +329,9 @@ PyNumberMethods Int4TypeDescriptor<T>::number_methods = {
     nullptr,                 // nb_and
     nullptr,                 // nb_xor
     nullptr,                 // nb_or
-    PyInt4_nb_int<T>,        // nb_int
+    PyIntN_nb_int<T>,        // nb_int
     nullptr,                 // reserved
-    PyInt4_nb_float<T>,      // nb_float
+    PyIntN_nb_float<T>,      // nb_float
 
     nullptr,  // nb_inplace_add
     nullptr,  // nb_inplace_subtract
@@ -344,43 +344,43 @@ PyNumberMethods Int4TypeDescriptor<T>::number_methods = {
     nullptr,  // nb_inplace_xor
     nullptr,  // nb_inplace_or
 
-    PyInt4_nb_floor_divide<T>,  // nb_floor_divide
+    PyIntN_nb_floor_divide<T>,  // nb_floor_divide
     nullptr,                    // nb_true_divide
     nullptr,                    // nb_inplace_floor_divide
     nullptr,                    // nb_inplace_true_divide
     nullptr,                    // nb_index
 };
 
-// Implementation of repr() for PyInt4.
+// Implementation of repr() for PyIntN.
 template <typename T>
-PyObject* PyInt4_Repr(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
+PyObject* PyIntN_Repr(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
   std::string s = x.ToString();
   return PyUnicode_FromString(s.c_str());
 }
 
-// Implementation of str() for PyInt4.
+// Implementation of str() for PyIntN.
 template <typename T>
-PyObject* PyInt4_Str(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
+PyObject* PyIntN_Str(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
   std::string s = x.ToString();
   return PyUnicode_FromString(s.c_str());
 }
 
-// Hash function for PyInt4.
+// Hash function for PyIntN.
 template <typename T>
-Py_hash_t PyInt4_Hash(PyObject* self) {
-  T x = PyInt4_Value_Unchecked<T>(self);
+Py_hash_t PyIntN_Hash(PyObject* self) {
+  T x = PyIntN_Value_Unchecked<T>(self);
   // Hash functions must not return -1.
   return static_cast<int>(x) == -1 ? static_cast<Py_hash_t>(-2)
                                    : static_cast<Py_hash_t>(x);
 }
 
-// Comparisons on PyInt4s.
+// Comparisons on PyIntNs.
 template <typename T>
-PyObject* PyInt4_RichCompare(PyObject* a, PyObject* b, int op) {
+PyObject* PyIntN_RichCompare(PyObject* a, PyObject* b, int op) {
   T x, y;
-  if (!PyInt4_Value<T>(a, &x) || !PyInt4_Value<T>(b, &y)) {
+  if (!PyIntN_Value<T>(a, &x) || !PyIntN_Value<T>(b, &y)) {
     return PyGenericArrType_Type.tp_richcompare(a, b, op);
   }
   bool result;
@@ -412,10 +412,10 @@ PyObject* PyInt4_RichCompare(PyObject* a, PyObject* b, int op) {
 
 // Numpy support
 template <typename T>
-PyArray_ArrFuncs Int4TypeDescriptor<T>::arr_funcs;
+PyArray_ArrFuncs IntNTypeDescriptor<T>::arr_funcs;
 
 template <typename T>
-PyArray_DescrProto GetInt4DescrProto() {
+PyArray_DescrProto GetIntNDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
@@ -429,7 +429,7 @@ PyArray_DescrProto GetInt4DescrProto() {
       /*subarray=*/nullptr,
       /*fields=*/nullptr,
       /*names=*/nullptr,
-      /*f=*/&Int4TypeDescriptor<T>::arr_funcs,
+      /*f=*/&IntNTypeDescriptor<T>::arr_funcs,
       /*metadata=*/nullptr,
       /*c_metadata=*/nullptr,
       /*hash=*/-1,  // -1 means "not computed yet".
@@ -439,16 +439,16 @@ PyArray_DescrProto GetInt4DescrProto() {
 // Implementations of NumPy array methods.
 
 template <typename T>
-PyObject* NPyInt4_GetItem(void* data, void* arr) {
+PyObject* NPyIntN_GetItem(void* data, void* arr) {
   T x;
   memcpy(&x, data, sizeof(T));
   return PyLong_FromLong(static_cast<int>(x));
 }
 
 template <typename T>
-int NPyInt4_SetItem(PyObject* item, void* data, void* arr) {
+int NPyIntN_SetItem(PyObject* item, void* data, void* arr) {
   T x;
-  if (!CastToInt4<T>(item, &x)) {
+  if (!CastToIntN<T>(item, &x)) {
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;
@@ -458,7 +458,7 @@ int NPyInt4_SetItem(PyObject* item, void* data, void* arr) {
 }
 
 template <typename T>
-int NPyInt4_Compare(const void* a, const void* b, void* arr) {
+int NPyIntN_Compare(const void* a, const void* b, void* arr) {
   T x;
   memcpy(&x, a, sizeof(T));
 
@@ -476,7 +476,7 @@ int NPyInt4_Compare(const void* a, const void* b, void* arr) {
 }
 
 template <typename T>
-void NPyInt4_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
+void NPyIntN_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
                        npy_intp sstride, npy_intp n, int swap, void* arr) {
   char* dst = reinterpret_cast<char*>(dstv);
   char* src = reinterpret_cast<char*>(srcv);
@@ -493,7 +493,7 @@ void NPyInt4_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
 }
 
 template <typename T>
-void NPyInt4_CopySwap(void* dst, void* src, int swap, void* arr) {
+void NPyIntN_CopySwap(void* dst, void* src, int swap, void* arr) {
   if (!src) {
     return;
   }
@@ -501,14 +501,14 @@ void NPyInt4_CopySwap(void* dst, void* src, int swap, void* arr) {
 }
 
 template <typename T>
-npy_bool NPyInt4_NonZero(void* data, void* arr) {
+npy_bool NPyIntN_NonZero(void* data, void* arr) {
   T x;
   memcpy(&x, data, sizeof(x));
   return x != static_cast<T>(0);
 }
 
 template <typename T>
-int NPyInt4_Fill(void* buffer_raw, npy_intp length, void* ignored) {
+int NPyIntN_Fill(void* buffer_raw, npy_intp length, void* ignored) {
   T* const buffer = reinterpret_cast<T*>(buffer_raw);
   const int start(buffer[0]);
   const int delta = static_cast<int>(buffer[1]) - start;
@@ -519,7 +519,7 @@ int NPyInt4_Fill(void* buffer_raw, npy_intp length, void* ignored) {
 }
 
 template <typename T>
-void NPyInt4_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2, void* op,
+void NPyIntN_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2, void* op,
                      npy_intp n, void* arr) {
   char* c1 = reinterpret_cast<char*>(ip1);
   char* c2 = reinterpret_cast<char*>(ip2);
@@ -536,7 +536,7 @@ void NPyInt4_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2, void* op,
 }
 
 template <typename T>
-int NPyInt4_CompareFunc(const void* v1, const void* v2, void* arr) {
+int NPyIntN_CompareFunc(const void* v1, const void* v2, void* arr) {
   T b1 = *reinterpret_cast<const T*>(v1);
   T b2 = *reinterpret_cast<const T*>(v2);
   if (b1 < b2) {
@@ -549,7 +549,7 @@ int NPyInt4_CompareFunc(const void* v1, const void* v2, void* arr) {
 }
 
 template <typename T>
-int NPyInt4_ArgMaxFunc(void* data, npy_intp n, npy_intp* max_ind, void* arr) {
+int NPyIntN_ArgMaxFunc(void* data, npy_intp n, npy_intp* max_ind, void* arr) {
   const T* bdata = reinterpret_cast<const T*>(data);
   // Start with a max_val of INT_MIN, this results in the first iteration
   // preferring bdata[0].
@@ -564,7 +564,7 @@ int NPyInt4_ArgMaxFunc(void* data, npy_intp n, npy_intp* max_ind, void* arr) {
 }
 
 template <typename T>
-int NPyInt4_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind, void* arr) {
+int NPyIntN_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind, void* arr) {
   const T* bdata = reinterpret_cast<const T*>(data);
   int min_val = std::numeric_limits<int>::max();
   // Start with a min_val of INT_MAX, this results in the first iteration
@@ -617,7 +617,7 @@ bool RegisterCustomIntCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
                                IntegerCast<OtherT, T>) < 0) {
     return false;
   }
-  if (PyArray_RegisterCastFunc(Int4TypeDescriptor<T>::npy_descr, numpy_type,
+  if (PyArray_RegisterCastFunc(IntNTypeDescriptor<T>::npy_descr, numpy_type,
                                IntegerCast<T, OtherT>) < 0) {
     return false;
   }
@@ -625,7 +625,7 @@ bool RegisterCustomIntCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
 }
 
 template <typename T>
-bool RegisterInt4Casts() {
+bool RegisterIntNCasts() {
   if (!RegisterCustomIntCast<T, Eigen::half>(NPY_HALF)) {
     return false;
   }
@@ -702,7 +702,7 @@ bool RegisterInt4Casts() {
     return false;
   }
 
-  if (std::is_same_v<uint4, T>) {
+  if (!std::numeric_limits<T>::is_signed) {
     if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT8,
                                 NPY_NOSCALAR) < 0) {
       return false;
@@ -759,7 +759,7 @@ bool RegisterInt4Casts() {
 }
 
 template <typename T>
-bool RegisterInt4UFuncs(PyObject* numpy) {
+bool RegisterIntNUFuncs(PyObject* numpy) {
   bool ok = RegisterUFunc<BinaryUFunc<T, T, ufuncs::Add<T>>, T>(numpy, "add") &&
             RegisterUFunc<BinaryUFunc<T, T, ufuncs::Subtract<T>>, T>(
                 numpy, "subtract") &&
@@ -774,7 +774,7 @@ bool RegisterInt4UFuncs(PyObject* numpy) {
 }
 
 template <typename T>
-bool RegisterInt4Dtype(PyObject* numpy) {
+bool RegisterIntNDtype(PyObject* numpy) {
   Safe_PyObjectPtr name =
       make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
   Safe_PyObjectPtr qualname =
@@ -792,17 +792,17 @@ bool RegisterInt4Dtype(PyObject* numpy) {
   heap_type->ht_qualname = qualname.release();
   PyTypeObject* type = &heap_type->ht_type;
   type->tp_name = TypeDescriptor<T>::kTypeName;
-  type->tp_basicsize = sizeof(PyInt4<T>);
+  type->tp_basicsize = sizeof(PyIntN<T>);
   type->tp_flags =
       Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HEAPTYPE;
   type->tp_base = &PyGenericArrType_Type;
-  type->tp_new = PyInt4_tp_new<T>;
-  type->tp_repr = PyInt4_Repr<T>;
-  type->tp_hash = PyInt4_Hash<T>;
-  type->tp_str = PyInt4_Str<T>;
+  type->tp_new = PyIntN_tp_new<T>;
+  type->tp_repr = PyIntN_Repr<T>;
+  type->tp_hash = PyIntN_Hash<T>;
+  type->tp_str = PyIntN_Str<T>;
   type->tp_doc = const_cast<char*>(TypeDescriptor<T>::kTpDoc);
-  type->tp_richcompare = PyInt4_RichCompare<T>;
-  type->tp_as_number = &Int4TypeDescriptor<T>::number_methods;
+  type->tp_richcompare = PyIntN_RichCompare<T>;
+  type->tp_as_number = &IntNTypeDescriptor<T>::number_methods;
   if (PyType_Ready(type) < 0) {
     return false;
   }
@@ -818,27 +818,27 @@ bool RegisterInt4Dtype(PyObject* numpy) {
   }
 
   // Initializes the NumPy descriptor.
-  PyArray_ArrFuncs& arr_funcs = Int4TypeDescriptor<T>::arr_funcs;
+  PyArray_ArrFuncs& arr_funcs = IntNTypeDescriptor<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
-  arr_funcs.getitem = NPyInt4_GetItem<T>;
-  arr_funcs.setitem = NPyInt4_SetItem<T>;
-  arr_funcs.compare = NPyInt4_Compare<T>;
-  arr_funcs.copyswapn = NPyInt4_CopySwapN<T>;
-  arr_funcs.copyswap = NPyInt4_CopySwap<T>;
-  arr_funcs.nonzero = NPyInt4_NonZero<T>;
-  arr_funcs.fill = NPyInt4_Fill<T>;
-  arr_funcs.dotfunc = NPyInt4_DotFunc<T>;
-  arr_funcs.compare = NPyInt4_CompareFunc<T>;
-  arr_funcs.argmax = NPyInt4_ArgMaxFunc<T>;
-  arr_funcs.argmin = NPyInt4_ArgMinFunc<T>;
+  arr_funcs.getitem = NPyIntN_GetItem<T>;
+  arr_funcs.setitem = NPyIntN_SetItem<T>;
+  arr_funcs.compare = NPyIntN_Compare<T>;
+  arr_funcs.copyswapn = NPyIntN_CopySwapN<T>;
+  arr_funcs.copyswap = NPyIntN_CopySwap<T>;
+  arr_funcs.nonzero = NPyIntN_NonZero<T>;
+  arr_funcs.fill = NPyIntN_Fill<T>;
+  arr_funcs.dotfunc = NPyIntN_DotFunc<T>;
+  arr_funcs.compare = NPyIntN_CompareFunc<T>;
+  arr_funcs.argmax = NPyIntN_ArgMaxFunc<T>;
+  arr_funcs.argmin = NPyIntN_ArgMinFunc<T>;
 
   // This is messy, but that's because the NumPy 2.0 API transition is messy.
   // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
   // RegisterDataType alive, because it stores its pointer.
   // After 2.0, the proto and descriptor types diverge, and NumPy allocates
   // and manages the lifetime of the descriptor itself.
-  PyArray_DescrProto& descr_proto = Int4TypeDescriptor<T>::npy_descr_proto;
-  descr_proto = GetInt4DescrProto<T>();
+  PyArray_DescrProto& descr_proto = IntNTypeDescriptor<T>::npy_descr_proto;
+  descr_proto = GetIntNDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = type;
 
@@ -848,7 +848,7 @@ bool RegisterInt4Dtype(PyObject* numpy) {
   }
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.
-  Int4TypeDescriptor<T>::npy_descr =
+  IntNTypeDescriptor<T>::npy_descr =
       PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
 
   Safe_PyObjectPtr typeDict_obj =
@@ -864,11 +864,11 @@ bool RegisterInt4Dtype(PyObject* numpy) {
   // Support dtype(type_name)
   if (PyObject_SetAttrString(
           TypeDescriptor<T>::type_ptr, "dtype",
-          reinterpret_cast<PyObject*>(Int4TypeDescriptor<T>::npy_descr)) < 0) {
+          reinterpret_cast<PyObject*>(IntNTypeDescriptor<T>::npy_descr)) < 0) {
     return false;
   }
 
-  return RegisterInt4Casts<T>() && RegisterInt4UFuncs<T>(numpy);
+  return RegisterIntNCasts<T>() && RegisterIntNUFuncs<T>(numpy);
 }
 
 }  // namespace ml_dtypes

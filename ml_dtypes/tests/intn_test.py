@@ -22,18 +22,20 @@ import warnings
 
 from absl.testing import absltest
 from absl.testing import parameterized
-
 import ml_dtypes
-
 import numpy as np
 
+int2 = ml_dtypes.int2
 int4 = ml_dtypes.int4
+uint2 = ml_dtypes.uint2
 uint4 = ml_dtypes.uint4
 
-INT4_TYPES = [int4, uint4]
+INTN_TYPES = [int2, int4, uint2, uint4]
 
 VALUES = {
+    int2: list(range(-2, 2)),
     int4: list(range(-8, 8)),
+    uint2: list(range(0, 4)),
     uint4: list(range(0, 16)),
 }
 
@@ -48,11 +50,11 @@ def ignore_warning(**kw):
 # Tests for the Python scalar type
 class ScalarTest(parameterized.TestCase):
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testModuleName(self, scalar_type):
     self.assertEqual(scalar_type.__module__, "ml_dtypes")
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testPickleable(self, scalar_type):
     # https://github.com/google/jax/discussions/8505
     x = np.arange(10, dtype=scalar_type)
@@ -62,7 +64,7 @@ class ScalarTest(parameterized.TestCase):
     np.testing.assert_array_equal(x_out.astype(int), x.astype(int))
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       python_scalar=[int, float, np.float16, np.longdouble],
   )
   def testRoundTripToPythonScalar(self, scalar_type, python_scalar):
@@ -73,7 +75,7 @@ class ScalarTest(parameterized.TestCase):
           scalar_type(v), scalar_type(python_scalar(scalar_type(v)))
       )
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testRoundTripNumpyTypes(self, scalar_type):
     for dtype in [np.int8, np.int32]:
       for f in VALUES[scalar_type]:
@@ -86,28 +88,28 @@ class ScalarTest(parameterized.TestCase):
           np.array(VALUES[scalar_type], dtype),
       )
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testStr(self, scalar_type):
     for value in VALUES[scalar_type]:
       self.assertEqual(str(value), str(scalar_type(value)))
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testRepr(self, scalar_type):
     for value in VALUES[scalar_type]:
       self.assertEqual(str(value), str(scalar_type(value)))
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testItem(self, scalar_type):
-    self.assertIsInstance(scalar_type(3).item(), int)
-    self.assertEqual(scalar_type(3).item(), 3)
+    self.assertIsInstance(scalar_type(1).item(), int)
+    self.assertEqual(scalar_type(1).item(), 1)
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testHash(self, scalar_type):
     for v in VALUES[scalar_type]:
       self.assertEqual(hash(v), hash(scalar_type(v)), msg=v)
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       op=[
           operator.le,
           operator.lt,
@@ -125,7 +127,7 @@ class ScalarTest(parameterized.TestCase):
         self.assertIsInstance(result, np.bool_)
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       op=[
           operator.neg,
           operator.pos,
@@ -138,7 +140,7 @@ class ScalarTest(parameterized.TestCase):
       self.assertEqual(scalar_type(op(v)), out, msg=v)
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       op=[
           operator.add,
           operator.sub,
@@ -158,32 +160,44 @@ class ScalarTest(parameterized.TestCase):
           self.assertIsInstance(out, scalar_type)
           self.assertEqual(scalar_type(op(v, w)), out, msg=(v, w))
 
-  @parameterized.product(
-      scalar_type=INT4_TYPES,
-      dtype=[
-          np.float16,
-          np.float32,
-          np.float64,
-          np.int8,
-          np.int16,
-          np.int32,
-          np.int64,
-          np.complex64,
-          np.complex128,
-          np.uint8,
-          np.uint16,
-          np.uint32,
-          np.uint64,
-          np.intc,
-          np.int_,
-          np.longlong,
-          np.uintc,
-          np.ulonglong,
-      ],
-  )
-  def testCanCast(self, scalar_type, dtype):
+  CAST_DTYPES = [
+      np.float16,
+      np.float32,
+      np.float64,
+      np.int8,
+      np.int16,
+      np.int32,
+      np.int64,
+      np.complex64,
+      np.complex128,
+      np.uint8,
+      np.uint16,
+      np.uint32,
+      np.uint64,
+      np.intc,
+      np.int_,
+      np.longlong,
+      np.uintc,
+      np.ulonglong,
+  ] + INTN_TYPES
+
+  @parameterized.product(a=INTN_TYPES, b=CAST_DTYPES)
+  def testCanCast(self, a, b):
     allowed_casts = [
+        (np.bool_, int2),
         (np.bool_, int4),
+        (int2, int2),
+        (int2, np.int8),
+        (int2, np.int16),
+        (int2, np.int32),
+        (int2, np.int64),
+        (int2, np.float16),
+        (int2, np.float32),
+        (int2, np.float64),
+        (int2, np.complex64),
+        (int2, np.complex128),
+        (int2, int4),
+        (int4, int4),
         (int4, np.int8),
         (int4, np.int16),
         (int4, np.int32),
@@ -193,7 +207,24 @@ class ScalarTest(parameterized.TestCase):
         (int4, np.float64),
         (int4, np.complex64),
         (int4, np.complex128),
+        (np.bool_, uint2),
         (np.bool_, uint4),
+        (uint2, uint2),
+        (uint2, np.int8),
+        (uint2, np.int16),
+        (uint2, np.int32),
+        (uint2, np.int64),
+        (uint2, np.uint8),
+        (uint2, np.uint16),
+        (uint2, np.uint32),
+        (uint2, np.uint64),
+        (uint2, np.float16),
+        (uint2, np.float32),
+        (uint2, np.float64),
+        (uint2, np.complex64),
+        (uint2, np.complex128),
+        (uint2, uint4),
+        (uint4, uint4),
         (uint4, np.int8),
         (uint4, np.int16),
         (uint4, np.int32),
@@ -208,29 +239,25 @@ class ScalarTest(parameterized.TestCase):
         (uint4, np.complex64),
         (uint4, np.complex128),
     ]
-
-    assert ((scalar_type, dtype) in allowed_casts) == np.can_cast(
-        scalar_type, dtype
-    )
-    assert ((dtype, scalar_type) in allowed_casts) == np.can_cast(
-        dtype, scalar_type
+    self.assertEqual(
+        ((a, b) in allowed_casts), np.can_cast(a, b, casting="safe")
     )
 
 
 # Tests for the Python scalar type
 class ArrayTest(parameterized.TestCase):
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testDtype(self, scalar_type):
     self.assertEqual(scalar_type, np.dtype(scalar_type))
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testHash(self, scalar_type):
     h = hash(np.dtype(scalar_type))
     self.assertEqual(h, hash(np.dtype(scalar_type.dtype)))
     self.assertEqual(h, hash(np.dtype(scalar_type.__name__)))
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testDeepCopyDoesNotAlterHash(self, scalar_type):
     # For context, see https://github.com/google/jax/issues/4651. If the hash
     # value of the type descriptor is not initialized correctly, a deep copy
@@ -240,16 +267,20 @@ class ArrayTest(parameterized.TestCase):
     _ = copy.deepcopy(dtype)
     self.assertEqual(h, hash(dtype))
 
-  @parameterized.product(scalar_type=INT4_TYPES)
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testArray(self, scalar_type):
-    x = np.array([[1, 2, 3]], dtype=scalar_type)
+    if scalar_type == int2:
+      x = np.array([[-2, 1, 0, 1]], dtype=scalar_type)
+      self.assertEqual("[[-2 1 0 1]]", str(x))
+    else:
+      x = np.array([[1, 2, 3]], dtype=scalar_type)
+      self.assertEqual("[[1 2 3]]", str(x))
     self.assertEqual(scalar_type, x.dtype)
-    self.assertEqual("[[1 2 3]]", str(x))
     np.testing.assert_array_equal(x, x)
     self.assertTrue((x == x).all())  # pylint: disable=comparison-with-itself
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       ufunc=[np.nonzero, np.logical_not, np.argmax, np.argmin],
   )
   def testUnaryPredicateUfunc(self, scalar_type, ufunc):
@@ -262,7 +293,7 @@ class ArrayTest(parameterized.TestCase):
     np.testing.assert_array_equal(x_result, y_result)
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       ufunc=[
           np.less,
           np.less_equal,
@@ -284,7 +315,7 @@ class ArrayTest(parameterized.TestCase):
     )
 
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       dtype=[
           np.float16,
           np.float32,
@@ -319,8 +350,18 @@ class ArrayTest(parameterized.TestCase):
     self.assertTrue(np.all(x == z))
     self.assertEqual(dtype, z.dtype)
 
+  # TODO(phawkins): ideally we would also allow unsafe casts between custom
+  # types, but I'm unable to figure out how to convince NumPy to treat custom
+  # casts as unsafe.
+  @parameterized.product(types=[(int2, int4), (uint2, uint4)])
+  def testCastBetweenCustomTypes(self, types):
+    a, b = types
+    x = np.array(VALUES[a], dtype=a)
+    y = x.astype(b)
+    np.testing.assert_array_equal(x.astype(np.int32), y.astype(np.int32))
+
   @parameterized.product(
-      scalar_type=INT4_TYPES,
+      scalar_type=INTN_TYPES,
       ufunc=[
           np.add,
           np.subtract,

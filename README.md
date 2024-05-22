@@ -15,7 +15,7 @@
   * `float8_e4m3fnuz`
   * `float8_e5m2`
   * `float8_e5m2fnuz`
-- `int4` and `uint4`: low precision integer types.
+- `int2`, `int4`, `uint2` and `uint4`: low precision integer types.
 
 See below for specifications of these number formats.
 
@@ -108,15 +108,15 @@ This type has the following characteristics:
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
 
-## `int4` and `uint4`
+## `int2`, `int4`, `uint2` and `uint4`
 
-4-bit integer types, where each element is represented unpacked (i.e., padded up
-to a byte in memory).
+2 and 4-bit integer types, where each element is represented unpacked (i.e.,
+padded up to a byte in memory).
 
 NumPy does not support types smaller than a single byte. For example, the
 distance between adjacent elements in an array (`.strides`) is expressed in
 bytes. Relaxing this restriction would be a considerable engineering project.
-The `int4` and `uint4` types therefore use an unpacked representation, where
+These types therefore use an unpacked representation, where
 each element of the array is padded up to a byte in memory. The lower four bits
 of each byte contain the representation of the number, whereas the upper four
 bits are ignored.

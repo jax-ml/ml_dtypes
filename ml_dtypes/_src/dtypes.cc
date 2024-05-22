@@ -21,17 +21,18 @@ limitations under the License.
 #include "_src/numpy.h" //NOLINT
 // clang-format on
 
-#include <array>   // NOLINT
-#include <cmath>   // NOLINT
-#include <limits>  // NOLINT
-#include <locale>  // NOLINT
+#include <array>    // NOLINT
+#include <cmath>    // NOLINT
+#include <cstdint>  // NOLINT
+#include <limits>   // NOLINT
+#include <locale>   // NOLINT
 
 // Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
 #include "Eigen/Core"
 #include "_src/custom_float.h"
-#include "_src/int4_numpy.h"
+#include "_src/intn_numpy.h"
 #include "include/float8.h"
 #include "include/intn.h"
 
@@ -148,7 +149,37 @@ struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
 };
 
 template <>
-struct TypeDescriptor<int4> : Int4TypeDescriptor<int4> {
+struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
+  typedef int2 T;
+  static constexpr bool is_floating = false;
+  static constexpr bool is_integral = true;
+  static constexpr const char* kTypeName = "int2";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.int2";
+  static constexpr const char* kTpDoc = "int2 integer values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'c';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<uint2> : IntNTypeDescriptor<uint2> {
+  typedef uint2 T;
+  static constexpr bool is_floating = false;
+  static constexpr bool is_integral = true;
+  static constexpr const char* kTypeName = "uint2";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint2";
+  static constexpr const char* kTpDoc = "uint2 integer values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'C';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<int4> : IntNTypeDescriptor<int4> {
   typedef int4 T;
   static constexpr bool is_floating = false;
   static constexpr bool is_integral = true;
@@ -163,7 +194,7 @@ struct TypeDescriptor<int4> : Int4TypeDescriptor<int4> {
 };
 
 template <>
-struct TypeDescriptor<uint4> : Int4TypeDescriptor<uint4> {
+struct TypeDescriptor<uint4> : IntNTypeDescriptor<uint4> {
   typedef uint4 T;
   static constexpr bool is_floating = false;
   static constexpr bool is_integral = true;
@@ -179,28 +210,40 @@ struct TypeDescriptor<uint4> : Int4TypeDescriptor<uint4> {
 
 namespace {
 
-// Performs a NumPy array cast from type 'From' to 'To' via float.
-template <typename From, typename To>
-void FloatPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-                 void* toarr) {
+// Performs a NumPy array cast from type 'From' to 'To' via `Via`.
+template <typename From, typename To, typename Via>
+void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
+            void* toarr) {
   const auto* from = static_cast<From*>(from_void);
   auto* to = static_cast<To*>(to_void);
   for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(static_cast<float>(from[i]));
+    to[i] = static_cast<To>(static_cast<Via>(from[i]));
   }
 }
 
-template <typename Type1, typename Type2>
+template <typename Type1, typename Type2, typename Via>
 bool RegisterTwoWayCustomCast() {
   int nptype1 = TypeDescriptor<Type1>::npy_type;
   int nptype2 = TypeDescriptor<Type2>::npy_type;
   PyArray_Descr* descr1 = PyArray_DescrFromType(nptype1);
-  if (PyArray_RegisterCastFunc(descr1, nptype2, FloatPyCast<Type1, Type2>) <
+  if (PyArray_RegisterCastFunc(descr1, nptype2, PyCast<Type1, Type2, Via>) <
       0) {
     return false;
   }
   PyArray_Descr* descr2 = PyArray_DescrFromType(nptype2);
-  if (PyArray_RegisterCastFunc(descr2, nptype1, FloatPyCast<Type2, Type1>) <
+  if (PyArray_RegisterCastFunc(descr2, nptype1, PyCast<Type2, Type1, Via>) <
+      0) {
+    return false;
+  }
+  return true;
+}
+
+template <typename Type1, typename Type2, typename Via>
+bool RegisterOneWayCustomCast() {
+  int nptype1 = TypeDescriptor<Type1>::npy_type;
+  int nptype2 = TypeDescriptor<Type2>::npy_type;
+  PyArray_Descr* descr1 = PyArray_DescrFromType(nptype1);
+  if (PyArray_RegisterCastFunc(descr1, nptype2, PyCast<Type1, Type2, Via>) <
       0) {
     return false;
   }
@@ -242,30 +285,42 @@ bool Initialize() {
     return false;
   }
 
-  if (!RegisterInt4Dtype<int4>(numpy.get())) {
+  if (!RegisterIntNDtype<int2>(numpy.get())) {
     return false;
   }
-  if (!RegisterInt4Dtype<uint4>(numpy.get())) {
+  if (!RegisterIntNDtype<uint2>(numpy.get())) {
+    return false;
+  }
+  if (!RegisterIntNDtype<int4>(numpy.get())) {
+    return false;
+  }
+  if (!RegisterIntNDtype<uint4>(numpy.get())) {
     return false;
   }
 
   // Register casts between pairs of custom float dtypes.
   bool success = true;
   success &= RegisterCustomFloatCast<float8_e4m3b11fnuz, bfloat16>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2fnuz>();
+  success &=
+      RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2fnuz, float>();
   success &= RegisterCustomFloatCast<float8_e4m3fn, float8_e5m2>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e4m3fn>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e5m2>();
-  success &= RegisterTwoWayCustomCast<bfloat16, float8_e4m3fn>();
-  success &= RegisterTwoWayCustomCast<bfloat16, float8_e5m2>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, bfloat16>();
-  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, bfloat16>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3b11fnuz>();
-  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3b11fnuz>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3fn>();
-  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3fn>();
-  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2>();
-  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e5m2>();
+  success &=
+      RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e4m3fn, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3b11fnuz, float8_e5m2, float>();
+  success &= RegisterTwoWayCustomCast<bfloat16, float8_e4m3fn, float>();
+  success &= RegisterTwoWayCustomCast<bfloat16, float8_e5m2, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, bfloat16, float>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, bfloat16, float>();
+  success &=
+      RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3b11fnuz, float>();
+  success &=
+      RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3b11fnuz, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e4m3fn, float>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3fn, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2, float>();
+  success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e5m2, float>();
+  success &= RegisterOneWayCustomCast<int2, int4, int8_t>();
+  success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
   return success;
 }
 
@@ -329,8 +384,18 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
     return nullptr;
   }
   if (PyObject_SetAttrString(
+          m.get(), "int2",
+          reinterpret_cast<PyObject*>(TypeDescriptor<int2>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(
           m.get(), "int4",
           reinterpret_cast<PyObject*>(TypeDescriptor<int4>::type_ptr)) < 0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(
+          m.get(), "uint2",
+          reinterpret_cast<PyObject*>(TypeDescriptor<uint2>::type_ptr)) < 0) {
     return nullptr;
   }
   if (PyObject_SetAttrString(
