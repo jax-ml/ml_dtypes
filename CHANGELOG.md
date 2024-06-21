@@ -23,6 +23,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* The minimum NumPy version is now 1.24.
+
 ## [0.4.0] - 2024-04-1
 
 * Updates `ml_dtypes` for compatibility with future NumPy 2.0 release.
