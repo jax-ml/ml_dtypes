@@ -50,26 +50,6 @@ jobs:
       - name: Run tests
         run: |
           pytest -n auto
-  # TODO(jakevdp): remove this job after NumPy 2.0 release
-  build-numpy-2-pre:
-    name: Python 3.12 with numpy 2.0 pre-release
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.12
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install .[dev]
-        pip install -U --pre numpy
-    - name: Run tests
-      run: |
-        pytest -n auto
   build-nightly:
     name: Python 3.12 with nightly numpy
     runs-on: ubuntu-latest
