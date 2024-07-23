@@ -113,13 +113,13 @@ This type has the following characteristics:
 2 and 4-bit integer types, where each element is represented unpacked (i.e.,
 padded up to a byte in memory).
 
-NumPy does not support types smaller than a single byte. For example, the
-distance between adjacent elements in an array (`.strides`) is expressed in
-bytes. Relaxing this restriction would be a considerable engineering project.
-These types therefore use an unpacked representation, where
-each element of the array is padded up to a byte in memory. The lower four bits
-of each byte contain the representation of the number, whereas the upper four
-bits are ignored.
+NumPy does not support types smaller than a single byte: for example, the
+distance between adjacent elements in an array (`.strides`) is expressed as
+an integer number of bytes. Relaxing this restriction would be a considerable
+engineering project. These types therefore use an unpacked representation, where
+each element of the array is padded up to a byte in memory. The lower two or four
+bits of each byte contain the representation of the number, whereas the remaining
+upper bits are ignored.
 
 ## Quirks of low-precision Arithmetic
 
