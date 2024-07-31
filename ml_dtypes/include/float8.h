@@ -48,6 +48,7 @@ class float8_e4m3fnuz;
 class float8_e4m3b11fnuz;
 class float8_e5m2;
 class float8_e5m2fnuz;
+class float8_e8m0fnu;
 
 template <typename Derived>
 class float8_base {
@@ -389,6 +390,45 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
 
   explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
 };
+
+class float8_e8m0fnu : public float8_base<float8_e8m0fnu> {
+  // 8-bit floating point with 8 bit exponent, no sign and zero mantissa.
+  //
+  // An 8-bit floating point type with no sign bit, 8 bits exponent and 0 bits
+  // mantissa. The suffix "fnuz" is consistent with LLVM/MLIR naming and is
+  // derived from the differences to IEEE floating point conventions. `F` is
+  // for "finite" (no infinities), `N` for with special NaN encoding, `U` for
+  // unsigned.
+  //
+  // This type has the following characteristics:
+  // * bit encoding: S0E8M0 - `0bEEEEEEEE`
+  // * exponent bias: 127
+  // * infinities: Not supported
+  // * NaNs: Supported with exponent bits set to 1s - `0b11111111`
+ private:
+  using Base = float8_base<float8_e8m0fnu>;
+  friend class float8_base<float8_e8m0fnu>;
+  using Base::Base;
+
+ public:
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e8m0fnu(T f8)
+      : float8_e8m0fnu(ConvertFrom(f8)) {}
+
+  // constexpr float8_e4m3fnuz operator-() const {
+  //   if ((rep() & 0x7f) == 0x00) {
+  //     return *this;
+  //   }
+  //   return Base::operator-();
+  // }
+
+  // float8_e4m3fnuz operator-(const float8_e4m3fnuz& other) const {
+  //   return Base::operator-(other);
+  // }
+
+  // explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
+};
+
 
 constexpr double ConstexprAbs(double x) { return x < 0.0 ? -x : x; }
 
@@ -764,6 +804,59 @@ struct numeric_limits_float8_e5m2fnuz : public numeric_limits_float8_base {
   }
 };
 
+struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
+ private:
+  static inline constexpr const int kExponentBias = 16;
+  static inline constexpr const int kMantissaBits = 2;
+
+ public:
+  // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const int digits = kMantissaBits + 1;
+  static inline constexpr const int digits10 = Digits10FromDigits(digits);
+  static inline constexpr const int max_digits10 =
+      MaxDigits10FromDigits(digits);
+  static inline constexpr const int min_exponent = (1 - kExponentBias) + 1;
+  static inline constexpr const int min_exponent10 =
+      MinExponent10FromMinExponent(min_exponent);
+  static inline constexpr const int max_exponent =
+      (0b11111 - kExponentBias) + 1;
+  static inline constexpr const int max_exponent10 =
+      MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
+  static inline constexpr const bool is_iec559 = false;
+  static inline constexpr const bool has_infinity = false;
+  static inline constexpr const bool has_signaling_NaN = false;
+  // NOLINTEND
+
+  static constexpr float8_e8m0fnu min() {
+    return float8_e8m0fnu::FromRep(0x04);
+  }
+  static constexpr float8_e8m0fnu lowest() {
+    return float8_e8m0fnu::FromRep(0xFF);
+  }
+  static constexpr float8_e8m0fnu max() {
+    return float8_e8m0fnu::FromRep(0x7F);
+  }
+  static constexpr float8_e8m0fnu epsilon() {
+    return float8_e8m0fnu::FromRep((-kMantissaBits + kExponentBias)
+                                    << kMantissaBits);
+  }
+  static constexpr float8_e8m0fnu round_error() {
+    return float8_e8m0fnu::FromRep((-1 + kExponentBias) << kMantissaBits);
+  }
+  static constexpr float8_e8m0fnu infinity() {
+    return float8_e8m0fnu::FromRep(0x80);
+  }  // NaN.
+  static constexpr float8_e8m0fnu quiet_NaN() {
+    return float8_e8m0fnu::FromRep(0x80);
+  }
+  static constexpr float8_e8m0fnu signaling_NaN() {
+    return float8_e8m0fnu::FromRep(0x80);
+  }
+  static constexpr float8_e8m0fnu denorm_min() {
+    return float8_e8m0fnu::FromRep(0x01);
+  }
+};
+
 }  // namespace float8_internal
 }  // namespace ml_dtypes
 
@@ -788,6 +881,10 @@ struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2>
 template <>
 struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2fnuz>
     : public ml_dtypes::float8_internal::numeric_limits_float8_e5m2fnuz {};
+
+template <>
+struct numeric_limits<ml_dtypes::float8_internal::float8_e8m0fnu>
+    : public ml_dtypes::float8_internal::numeric_limits_float8_e8m0fnu {};
 }  // namespace std
 
 namespace ml_dtypes {
@@ -837,6 +934,14 @@ constexpr inline float8_e5m2fnuz abs(const float8_e5m2fnuz& a) {
 
 constexpr inline bool(isnan)(const float8_e5m2fnuz& a) {
   return a.rep() == 0x80;
+}
+
+constexpr inline float8_e8m0fnu abs(const float8_e8m0fnu& a) {
+  return a;
+}
+
+constexpr inline bool(isnan)(const float8_e8m0fnu& a) {
+  return a.rep() == 0xff;
 }
 
 template <typename Float8>

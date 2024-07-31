@@ -39,6 +39,7 @@ limitations under the License.
 namespace ml_dtypes {
 
 using bfloat16 = Eigen::bfloat16;
+using float8_e8m0fnu = ml_dtypes::float8_internal::float8_e8m0fnu;
 
 template <>
 struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
@@ -141,6 +142,21 @@ struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
   static constexpr const char* kTypeName = "float8_e5m2fnuz";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2fnuz";
   static constexpr const char* kTpDoc = "float8_e5m2fnuz floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'C';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
+  typedef float8_e8m0fnu T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "float8_e8m0fnu";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e8m0fnu";
+  static constexpr const char* kTpDoc = "float8_e8m0fnu floating-point values";
   static constexpr char kNpyDescrKind = 'V';
   // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
   // character is unique.
@@ -284,6 +300,9 @@ bool Initialize() {
   if (!RegisterFloatDtype<float8_e5m2fnuz>(numpy.get())) {
     return false;
   }
+  if (!RegisterFloatDtype<float8_e8m0fnu>(numpy.get())) {
+    return false;
+  }
 
   if (!RegisterIntNDtype<int2>(numpy.get())) {
     return false;
@@ -375,6 +394,12 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
   if (PyObject_SetAttrString(m.get(), "float8_e5m2fnuz",
                              reinterpret_cast<PyObject*>(
                                  TypeDescriptor<float8_e5m2fnuz>::type_ptr)) <
+      0) {
+    return nullptr;
+  }
+  if (PyObject_SetAttrString(m.get(), "float8_e8m0fnu",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e8m0fnu>::type_ptr)) <
       0) {
     return nullptr;
   }
