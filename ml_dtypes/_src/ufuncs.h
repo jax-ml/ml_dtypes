@@ -322,6 +322,12 @@ using BitsType = typename GetUnsignedInteger<sizeof(T)>::type;
 
 template <typename T>
 std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
+  const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
+  // Unsigned floating point format (e.g. E8M0) => no sign bit (zero by
+  // default).
+  if constexpr (!std::numeric_limits<T>::is_signed) {
+    return {BitsType<T>(0), x_bits};
+  }
   // For types that represent NaN by -0, (i.e. *fnuz), abs(x) remains -0 without
   // flipping the sign. Therefore, we need to explicitly check the
   // most-significant bit.
@@ -332,13 +338,16 @@ std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
   constexpr bool has_nan = std::numeric_limits<T>::has_quiet_NaN;
   const BitsType<T> x_abs_bits =
       Eigen::numext::bit_cast<BitsType<T>>(Eigen::numext::abs(x));
-  const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
   return {has_nan ? x_bits & kSignMask : x_bits ^ x_abs_bits, x_abs_bits};
 }
 
 template <typename T>
 struct CopySign {
   T operator()(T a, T b) {
+    // Unsigned floating point format => no change.
+    if constexpr (!std::numeric_limits<T>::is_signed) {
+      return a;
+    }
     auto [a_sign, a_abs_bits] = SignAndMagnitude(a);
     auto [b_sign, b_abs_bits] = SignAndMagnitude(b);
     BitsType<T> rep = a_abs_bits | b_sign;

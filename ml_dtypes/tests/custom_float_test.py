@@ -41,6 +41,7 @@ float8_e4m3fn = ml_dtypes.float8_e4m3fn
 float8_e4m3fnuz = ml_dtypes.float8_e4m3fnuz
 float8_e5m2 = ml_dtypes.float8_e5m2
 float8_e5m2fnuz = ml_dtypes.float8_e5m2fnuz
+float8_e8m0fnu = ml_dtypes.float8_e8m0fnu
 
 
 try:
@@ -116,6 +117,11 @@ def dtype_has_nan(dtype):
     return False
 
 
+def dtype_is_signed(dtype):
+  """Determines if the floating dtype has a sign bit."""
+  return ml_dtypes.finfo(dtype).min < 0
+
+
 FLOAT_DTYPES = [
     bfloat16,
     float4_e2m1fn,
@@ -128,6 +134,7 @@ FLOAT_DTYPES = [
     float8_e4m3fnuz,
     float8_e5m2,
     float8_e5m2fnuz,
+    float8_e8m0fnu,
 ]
 
 # Values that should round trip exactly to float and back.
@@ -157,6 +164,16 @@ FLOAT_VALUES = {
     ]
     for dtype in FLOAT_DTYPES
 }
+# E8M0 specific values
+FLOAT_VALUES[float8_e8m0fnu] = [
+    0.125,
+    1.0,
+    0.5,
+    1.0 + float(ml_dtypes.finfo(float8_e8m0fnu).eps),
+    4,
+    float(ml_dtypes.finfo(float8_e8m0fnu).max),
+    float("nan"),
+]
 
 # Remove values unsupported by some types.
 FLOAT_VALUES[float4_e2m1fn] = [
@@ -200,6 +217,7 @@ INT_VALUES = {
             range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
         )
     ),
+    float8_e8m0fnu: [1, 2, 256],
 }
 
 
@@ -236,6 +254,9 @@ class CustomFloatTest(parameterized.TestCase):
   def testRoundTripNumpyTypes(self, float_type):
     for dtype in [np.float16, np.float32, np.float64, np.longdouble]:
       for f in FLOAT_VALUES[float_type]:
+        # Ignore values converting to NaN/Inf
+        if np.abs(f) > np.finfo(dtype).max:
+          continue
         np.testing.assert_equal(dtype(f), dtype(float_type(dtype(f))))
         np.testing.assert_equal(float(dtype(f)), float(float_type(dtype(f))))
         np.testing.assert_equal(dtype(f), dtype(float_type(np.array(f, dtype))))
@@ -248,7 +269,8 @@ class CustomFloatTest(parameterized.TestCase):
   def testRoundTripToInt(self, float_type):
     for v in INT_VALUES[float_type]:
       self.assertEqual(v, int(float_type(v)))
-      self.assertEqual(-v, int(float_type(-v)))
+      if dtype_is_signed(float_type):
+        self.assertEqual(-v, int(float_type(-v)))
 
   @ignore_warning(category=RuntimeWarning, message="overflow encountered")
   def testRoundTripToNumpy(self, float_type):
@@ -261,12 +283,18 @@ class CustomFloatTest(parameterized.TestCase):
     ]:
       with self.subTest(dtype.__name__):
         for v in FLOAT_VALUES[float_type]:
+          if np.abs(v) > ml_dtypes.finfo(dtype).max:
+            continue
           np.testing.assert_equal(dtype(v), dtype(float_type(dtype(v))))
           np.testing.assert_equal(dtype(v), dtype(float_type(dtype(v))))
           np.testing.assert_equal(
               dtype(v), dtype(float_type(np.array(v, dtype)))
           )
-        if dtype != float_type:
+
+        if (
+            dtype != float_type
+            and ml_dtypes.finfo(float_type).max <= ml_dtypes.finfo(dtype).max
+        ):
           np.testing.assert_equal(
               np.array(FLOAT_VALUES[float_type], dtype),
               float_type(np.array(FLOAT_VALUES[float_type], dtype)).astype(
@@ -276,6 +304,12 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testCastBetweenCustomTypes(self, float_type):
     for dtype in FLOAT_DTYPES:
+      # float8_e8m0 only registering cast <=> bfloat16
+      if (
+          float_type == float8_e8m0fnu or dtype == float8_e8m0fnu
+      ) and dtype != bfloat16:
+        continue
+
       x = np.array(FLOAT_VALUES[float_type], dtype=dtype)
       y = x.astype(float_type)
       z = x.astype(float).astype(float_type)
@@ -307,6 +341,9 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testHashZero(self, float_type):
     """Tests that negative zero and zero hash to the same value."""
+    if float_type == float8_e8m0fnu:
+      raise self.skipTest("Skip hash zero test for E8M0 datatype.")
+
     self.assertEqual(hash(float_type(-0.0)), hash(float_type(0.0)))
 
   def testHashNumbers(self, float_type):
@@ -663,9 +700,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     self.assertEqual(h, hash(dtype))
 
   def testArray(self, float_type):
-    x = np.array([[1, 2, 3]], dtype=float_type)
+    x = np.array([[1, 2, 4]], dtype=float_type)
     self.assertEqual(float_type, x.dtype)
-    self.assertEqual("[[1 2 3]]", str(x))
+    self.assertEqual("[[1 2 4]]", str(x))
     np.testing.assert_equal(x, x)
     numpy_assert_allclose(x, x, float_type=float_type)
     self.assertTrue((x == x).all())
@@ -673,9 +710,15 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testComparisons(self, float_type):
     x0, x1, y0 = 6, 1, 3
     x = np.array([x0, x1, -x0], dtype=np.float32)
-    bx = x.astype(float_type)
     y = np.array([y0, x1, 0], dtype=np.float32)
+
+    if float_type == float8_e8m0fnu:
+      x = np.array([30, 7, 1], dtype=np.float32)
+      y = np.array([17, 7, 0.125], dtype=np.float32)
+
+    bx = x.astype(float_type)
     by = y.astype(float_type)
+
     np.testing.assert_equal(x == y, bx == by)
     np.testing.assert_equal(x != y, bx != by)
     np.testing.assert_equal(x < y, bx < by)
@@ -757,7 +800,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.uintc,
         np.ulonglong,
     ]:
-      x = np.array([[1, 2, 3]], dtype=dtype)
+      x = np.array([[1, 2, 4]], dtype=dtype)
       y = x.astype(float_type)
       z = y.astype(dtype)
       self.assertTrue(np.all(x == y))
@@ -768,7 +811,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   @ignore_warning(category=ComplexWarning)
   def testConformNumpyComplex(self, float_type):
     for dtype in [np.complex64, np.complex128, np.clongdouble]:
-      x = np.array([0.5, 1.5 + 2.0j, 4.0], dtype=dtype)
+      x = np.array([0.5, 1.0 + 2.0j, 4.0], dtype=dtype)
       y_np = x.astype(np.float32)
       y_tf = x.astype(float_type)
       numpy_assert_allclose(y_np, y_tf, atol=2e-2, float_type=float_type)
@@ -779,9 +822,12 @@ class CustomFloatNumPyTest(parameterized.TestCase):
 
   def testArange(self, float_type):
     np.testing.assert_equal(
-        np.arange(100, dtype=np.float32).astype(float_type),
-        np.arange(100, dtype=float_type),
+        np.arange(1, 100, dtype=np.float32).astype(float_type),
+        np.arange(1, 100, dtype=float_type),
     )
+    if float_type == float8_e8m0fnu:
+      raise self.skipTest("Skip negative ranges for E8M0.")
+
     np.testing.assert_equal(
         np.arange(-6, 6, 2, dtype=np.float32).astype(float_type),
         np.arange(-6, 6, 2, dtype=float_type),
@@ -852,7 +898,11 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
     y = rng.randn(4, 1, 7).astype(float_type)
+
+    x = np.where(np.isfinite(x), x, float_type(1))
+    y = np.where(np.isfinite(y), y, float_type(1))
     y = np.where(y == 0, float_type(1), y)
+
     o1, o2 = np.divmod(x, y)
     e1, e2 = np.divmod(x.astype(np.float32), y.astype(np.float32))
     numpy_assert_allclose(
@@ -944,6 +994,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testFrexp(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
+    x = np.where(np.isfinite(x), x, float_type(1))
     mant1, exp1 = np.frexp(x)
     mant2, exp2 = np.frexp(x.astype(np.float32))
     np.testing.assert_equal(exp1, exp2)
@@ -956,6 +1007,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     numpy_assert_allclose(mant1, mant2, float_type=float_type, **kwargs)
 
   def testCopySign(self, float_type):
+    if not dtype_is_signed(float_type):
+      raise self.skipTest("Skip copy sign test for unsigned floating formats.")
+
     bits_type = np.uint16 if float_type == bfloat16 else np.uint8
     bit_size = ml_dtypes.finfo(float_type).bits
     bit_sign = 1 << (bit_size - 1)
@@ -979,8 +1033,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     )
     np.testing.assert_equal(np.nextafter(one, one), one)
     smallest_denormal = ml_dtypes.finfo(float_type).smallest_subnormal
-    np.testing.assert_equal(np.nextafter(zero, one), smallest_denormal)
-    np.testing.assert_equal(np.nextafter(zero, -one), -smallest_denormal)
+    if dtype_is_signed(float_type):
+      np.testing.assert_equal(np.nextafter(zero, one), smallest_denormal)
+      np.testing.assert_equal(np.nextafter(zero, -one), -smallest_denormal)
 
     if dtype_has_nan(float_type):
       nan = np.array(np.nan, dtype=float_type)
@@ -1017,7 +1072,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         power_of_two = float_type(2.0**i)
         distance = ml_dtypes.finfo(float_type).eps * power_of_two
         np.testing.assert_equal(np.spacing(power_of_two), distance)
-        np.testing.assert_equal(np.spacing(-power_of_two), -distance)
+        if dtype_is_signed(float_type):
+          np.testing.assert_equal(np.spacing(-power_of_two), -distance)
 
     # Check that spacing agrees with arithmetic involving nextafter.
     with self.subTest(name="NextAfter"):
