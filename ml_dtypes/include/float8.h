@@ -43,6 +43,7 @@ namespace ml_dtypes {
 namespace float8_internal {
 
 // Forward-declarations of classes.
+class float8_e4m3;
 class float8_e4m3fn;
 class float8_e4m3fnuz;
 class float8_e4m3b11fnuz;
@@ -243,6 +244,20 @@ template <typename T>
 using RequiresIsDerivedFromFloat8Base =
     std::enable_if_t<std::is_base_of_v<float8_base<T>, T>, int>;
 
+class float8_e4m3 : public float8_base<float8_e4m3> {
+  // Exponent: 4, Mantissa: 3, bias: 7.
+  // IEEE 754.
+ private:
+  using Base = float8_base<float8_e4m3>;
+  friend class float8_base<float8_e4m3>;
+  using Base::Base;
+
+ public:
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e4m3(T f8)
+      : float8_e4m3(ConvertFrom(f8)) {}
+};
+
 class float8_e4m3fn : public float8_base<float8_e4m3fn> {
   // Exponent: 4, Mantissa: 3, bias: 7.
   // Extended range: no inf, NaN represented by 0bS111'1111.
@@ -369,6 +384,8 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
  public:
   explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e5m2& f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3& f8)
+      : float8_e5m2fnuz(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3b11fnuz& f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
   explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fn& f8)
@@ -471,6 +488,70 @@ struct numeric_limits_float8_base {
   static inline constexpr const bool tinyness_before =
       std::numeric_limits<float>::tinyness_before;
   // NOLINTEND
+};
+
+struct numeric_limits_float8_e4m3 : public numeric_limits_float8_base {
+ private:
+  static inline constexpr const int kExponentBias = 7;
+  static inline constexpr const int kMantissaBits = 3;
+
+ public:
+  // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const int digits = kMantissaBits + 1;
+  static inline constexpr const int digits10 = Digits10FromDigits(digits);
+  static inline constexpr const int max_digits10 =
+      MaxDigits10FromDigits(digits);
+  static inline constexpr const int min_exponent = (1 - kExponentBias) + 1;
+  static inline constexpr const int min_exponent10 =
+      MinExponent10FromMinExponent(min_exponent);
+  static inline constexpr const int max_exponent = 0b1111 - kExponentBias;
+  static inline constexpr const int max_exponent10 =
+      MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
+  static inline constexpr const bool is_iec559 = true;
+  static inline constexpr const bool has_infinity = true;
+  static inline constexpr const bool has_signaling_NaN = true;
+  // NOLINTEND
+
+  // 1.0 * 2^(0b0001 - 7) = 1.0 * 2^-6 = 1/64 (min normal)
+  static constexpr float8_e4m3 min() {
+    return float8_e4m3::FromRep(1 << kMantissaBits);
+  }
+  // -(1 + 0b111 * 2^-2) * 2^(0b1110 - 7) = -(1 + 7/8) * 2^7 = -240
+  static constexpr float8_e4m3 lowest() {
+    return float8_e4m3::FromRep(0b1'1110'111);
+  }
+  // (1 + 0b111 * 2^-2) * 2^(0b1110 - 7) = (1 + 7/8) * 2^7 = 240
+  static constexpr float8_e4m3 max() {
+    return float8_e4m3::FromRep(0b0'1110'111);
+  }
+  // 1.0 * 2^-3 = 0.125
+  static constexpr float8_e4m3 epsilon() {
+    return float8_e4m3::FromRep((-kMantissaBits + kExponentBias)
+                                << kMantissaBits);
+  }
+  // 1.0 * 2^-1 = 0.5
+  static constexpr float8_e4m3 round_error() {
+    return float8_e4m3::FromRep((-1 + kExponentBias) << kMantissaBits);
+  }
+  static constexpr float8_e4m3 infinity() {
+    return float8_e4m3::FromRep(0b0'1111'000);
+  }
+  static constexpr float8_e4m3 quiet_NaN() {
+    // IEEE 754-2019 6.2.1: "All binary NaN bit strings have the sign bit S set
+    // to 0 or 1 and all the bits of the biased exponent field E set to 1
+    // (see 3.4). A quiet NaN bit string should be encoded with the first bit
+    // (d1) of the trailing significand field T being 1."
+    return float8_e4m3::FromRep(0b0'1111'100);
+  }
+  static constexpr float8_e4m3 signaling_NaN() {
+    // IEEE 754-2019 6.2.1: "A signaling NaN bit string should be encoded with
+    // the first bit of the trailing significand field being 0."
+    return float8_e4m3::FromRep(0b0'1111'001);
+  }
+  // 2^(-6) * 2^(-3) = 2^-9 = 1/512 (min denormal)
+  static constexpr float8_e4m3 denorm_min() {
+    return float8_e4m3::FromRep(0b0'0000'001);
+  }
 };
 
 struct numeric_limits_float8_e4m3fn : public numeric_limits_float8_base {
@@ -770,6 +851,10 @@ struct numeric_limits_float8_e5m2fnuz : public numeric_limits_float8_base {
 namespace std {
 // Standard-library overrides.  Note that these are picked up by Eigen as well.
 template <>
+struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3>
+    : public ml_dtypes::float8_internal::numeric_limits_float8_e4m3 {};
+
+template <>
 struct numeric_limits<ml_dtypes::float8_internal::float8_e4m3fn>
     : public ml_dtypes::float8_internal::numeric_limits_float8_e4m3fn {};
 
@@ -792,6 +877,14 @@ struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2fnuz>
 
 namespace ml_dtypes {
 namespace float8_internal {
+
+constexpr inline float8_e4m3 abs(const float8_e4m3& a) {
+  return float8_e4m3::FromRep(a.rep() & 0b0'1111'111);
+}
+
+constexpr inline bool(isnan)(const float8_e4m3& a) {
+  return abs(a).rep() > std::numeric_limits<float8_e4m3>::infinity().rep();
+}
 
 // Free-functions for use with ADL and in Eigen.
 constexpr inline float8_e4m3fn abs(const float8_e4m3fn& a) {
@@ -1175,7 +1268,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   }
 };
 
-// Saturation has no impact when casting e4m3 to e5m2.
+// Saturation has no impact when casting e4m3fn to e5m2.
 template <bool kTruncate>
 struct ConvertImpl<float8_e4m3fn, float8_e5m2, true, kTruncate> {
   static EIGEN_DEVICE_FUNC inline float8_e5m2 run(float8_e4m3fn from) {
@@ -1278,6 +1371,7 @@ EIGEN_DEVICE_FUNC To float8_base<Derived>::ConvertTo(Derived from) {
 }  // namespace float8_internal
 
 // Exported types.
+using float8_e4m3 = float8_internal::float8_e4m3;
 using float8_e4m3fn = float8_internal::float8_e4m3fn;
 using float8_e4m3fnuz = float8_internal::float8_e4m3fnuz;
 using float8_e4m3b11fnuz = float8_internal::float8_e4m3b11fnuz;
@@ -1289,6 +1383,18 @@ using float8_e5m2fnuz = float8_internal::float8_e5m2fnuz;
 // Eigen-specific overrides.
 namespace Eigen {
 namespace numext {
+
+template <>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e4m3
+bit_cast<ml_dtypes::float8_e4m3, uint8_t>(const uint8_t &src) {
+  return ml_dtypes::float8_e4m3::FromRep(src);
+}
+
+template <>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
+bit_cast<uint8_t, ml_dtypes::float8_e4m3>(const ml_dtypes::float8_e4m3 &src) {
+  return src.rep();
+}
 
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e4m3fn
@@ -1320,6 +1426,12 @@ bit_cast<uint8_t, ml_dtypes::float8_e5m2>(const ml_dtypes::float8_e5m2& src) {
 // Work-around for isinf/isnan/isfinite issue on aarch64.
 namespace internal {
 template <>
+EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3>(
+    const ml_dtypes::float8_e4m3& x) {
+  return ml_dtypes::float8_internal::isinf(x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e4m3fn>(
     const ml_dtypes::float8_e4m3fn& x) {
   return ml_dtypes::float8_internal::isinf(x);
@@ -1350,6 +1462,12 @@ EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m2fnuz>(
 }
 
 template <>
+EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3>(
+    const ml_dtypes::float8_e4m3& x) {
+  return ml_dtypes::float8_internal::isnan(x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e4m3fn>(
     const ml_dtypes::float8_e4m3fn& x) {
   return ml_dtypes::float8_internal::isnan(x);
@@ -1377,6 +1495,12 @@ template <>
 EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e5m2fnuz>(
     const ml_dtypes::float8_e5m2fnuz& x) {
   return ml_dtypes::float8_internal::isnan(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e4m3>(
+    const ml_dtypes::float8_e4m3& x) {
+  return ml_dtypes::float8_internal::isfinite(x);
 }
 
 template <>
