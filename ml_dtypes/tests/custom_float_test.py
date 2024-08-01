@@ -30,6 +30,7 @@ import ml_dtypes
 import numpy as np
 
 bfloat16 = ml_dtypes.bfloat16
+float8_e4m3 = ml_dtypes.float8_e4m3
 float8_e4m3b11fnuz = ml_dtypes.float8_e4m3b11fnuz
 float8_e4m3fn = ml_dtypes.float8_e4m3fn
 float8_e4m3fnuz = ml_dtypes.float8_e4m3fnuz
@@ -108,6 +109,7 @@ def dtype_has_inf(dtype):
 
 FLOAT_DTYPES = [
     bfloat16,
+    float8_e4m3,
     float8_e4m3b11fnuz,
     float8_e4m3fn,
     float8_e4m3fnuz,
@@ -146,6 +148,11 @@ FLOAT_VALUES = {
 # Values that should round trip exactly to integer and back.
 INT_VALUES = {
     bfloat16: [0, 1, 2, 10, 34, 47, 128, 255, 256, 512],
+    float8_e4m3: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(8)
+        )
+    ),
     float8_e4m3b11fnuz: [*range(16), *range(16, 30, 2)],
     float8_e4m3fn: list(
         itertools.chain.from_iterable(
@@ -171,6 +178,7 @@ INT_VALUES = {
 
 BITS_TYPE = {
     bfloat16: np.uint16,
+    float8_e4m3: np.uint8,
     float8_e4m3b11fnuz: np.uint8,
     float8_e4m3fn: np.uint8,
     float8_e4m3fnuz: np.uint8,
