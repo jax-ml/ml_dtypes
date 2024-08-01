@@ -160,7 +160,7 @@ struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
   static constexpr char kNpyDescrKind = 'V';
   // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
   // character is unique.
-  static constexpr char kNpyDescrType = 'C';
+  static constexpr char kNpyDescrType = 'W';
   static constexpr char kNpyDescrByteorder = '=';
 };
 

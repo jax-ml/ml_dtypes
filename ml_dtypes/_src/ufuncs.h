@@ -311,6 +311,11 @@ struct GetUnsignedInteger<2> {
   using type = uint16_t;
 };
 
+// template <>
+// struct GetUnsignedInteger<4> {
+//   using type = uint32_t;
+// };
+
 template <typename T>
 using BitsType = typename GetUnsignedInteger<sizeof(T)>::type;
 

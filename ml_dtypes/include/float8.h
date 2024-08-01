@@ -482,12 +482,16 @@ constexpr int MaxExponent10FromMaxExponentAndDigits(int max_exponent,
   // We only support digits in {3,4}. This table would grow if we wanted to
   // handle more values.
   constexpr double kLog10OfOnePredecessor[] = {
+      // log10(1 - 2**-1)
+      -0.3010299956639812,
+      // log10(1 - 2**-2)
+      -0.12493873660829993,
       // log10(1 - 2**-3)
       -0.057991946977686754,
       // log10(1 - 2**-4)
       -0.028028723600243537,
   };
-  return static_cast<int>(ConstexprFloor(kLog10OfOnePredecessor[digits - 3] +
+  return static_cast<int>(ConstexprFloor(kLog10OfOnePredecessor[digits - 1] +
                                          max_exponent * kLog10Of2));
 }
 
@@ -806,8 +810,10 @@ struct numeric_limits_float8_e5m2fnuz : public numeric_limits_float8_base {
 
 struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
  private:
+  // static inline constexpr const int kExponentBias = 127;
+  // static inline constexpr const int kMantissaBits = 0;
   static inline constexpr const int kExponentBias = 16;
-  static inline constexpr const int kMantissaBits = 2;
+  static inline constexpr const int kMantissaBits = 0;
 
  public:
   // NOLINTBEGIN: these names must match std::numeric_limits.
@@ -819,7 +825,9 @@ struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
   static inline constexpr const int min_exponent10 =
       MinExponent10FromMinExponent(min_exponent);
   static inline constexpr const int max_exponent =
-      (0b11111 - kExponentBias) + 1;
+      127;
+  // static inline constexpr const int max_exponent =
+  //     (0b11111 - kExponentBias) + 1;
   static inline constexpr const int max_exponent10 =
       MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
   static inline constexpr const bool is_iec559 = false;
@@ -969,6 +977,33 @@ std::ostream& operator<<(std::ostream& os, const float8_base<Float8>& f8) {
 //==============================================================================
 // Inline conversion routines between float8 and other types.
 //==============================================================================
+
+template<typename T>
+bool constexpr IsPowerOfTwo(T x) {
+    return (x != 0) && ((x & (x - 1)) == 0);
+}
+
+// Helper for getting a bytes size which is a power of two.
+template <int Size>
+struct NextPowerOfTwo {
+  static constexpr int value = Size;
+};
+template <>
+struct NextPowerOfTwo<3> {
+  static constexpr int value = 4;
+};
+template <>
+struct NextPowerOfTwo<5> {
+  static constexpr int value = 8;
+};
+template <>
+struct NextPowerOfTwo<6> {
+  static constexpr int value = 8;
+};
+template <>
+struct NextPowerOfTwo<7> {
+  static constexpr int value = 8;
+};
 
 // Helper for getting a bit representation provided a byte size.
 template <int kNumBytes>
@@ -1125,8 +1160,13 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static constexpr int kWideBits =
       (std::max(kToMantissaBits, kFromMantissaBits)) +  // Max significand.
       (std::max(kToExponentBits, kFromExponentBits));   // Max exponent.
-  static constexpr int kWideBytes = (kWideBits + (CHAR_BIT - 1)) / CHAR_BIT;
+  static constexpr int kWideBytesRaw = (kWideBits + (CHAR_BIT - 1)) / CHAR_BIT;
+  // Need a power of two (i.e. not 3 bytes).
+  static constexpr int kWideBytes = NextPowerOfTwo<kWideBytesRaw>::value;
+
   using WideBits = GetUnsignedInteger<kWideBytes>;
+  static_assert(!std::is_void_v<WideBits>, "`WideBits` type can not be void type.");
+
   static constexpr int kExponentOffset = kToExponentBias - kFromExponentBias;
   static constexpr int kDigitShift = kToMantissaBits - kFromMantissaBits;
 
