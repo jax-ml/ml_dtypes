@@ -819,6 +819,9 @@ struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
 
  public:
   // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const bool is_signed = false;
+  // static inline constexpr const bool is_exact = true;???
+
   static inline constexpr const int digits = kMantissaBits + 1;
   static inline constexpr const int digits10 = Digits10FromDigits(digits);
   static inline constexpr const int max_digits10 =
@@ -1034,9 +1037,11 @@ struct ConvertImpl<Scalar, Scalar, /*kSaturate=*/kSaturate,
 template <typename Float>
 struct TraitsBase {
   using BitsType = GetUnsignedInteger<sizeof(Float)>;
+  static constexpr bool kIsSigned = std::numeric_limits<Float>::is_signed;
   static constexpr int kBits = sizeof(Float) * CHAR_BIT;
   static constexpr int kMantissaBits = Eigen::NumTraits<Float>::digits() - 1;
-  static constexpr int kExponentBits = kBits - kMantissaBits - 1;
+  // Extra bit used in exponent for unsigned float.
+  static constexpr int kExponentBits = kBits - kMantissaBits - int(kIsSigned);
   static constexpr BitsType kExponentMask = ((BitsType{1} << kExponentBits) - 1)
                                             << kMantissaBits;
   static constexpr BitsType kMantissaMask = (BitsType{1} << kMantissaBits) - 1;
@@ -1061,6 +1066,18 @@ template <>
 struct Traits<float8_e5m2fnuz> : public TraitsBase<float8_e5m2fnuz> {
   using Base = TraitsBase<float8_e5m2fnuz>;
   static constexpr int kExponentBias = Base::kExponentBias + 1;
+};
+
+template <>
+struct Traits<float8_e8m0fnu> : public TraitsBase<float8_e8m0fnu> {
+  using Base = TraitsBase<float8_e8m0fnu>;
+  static constexpr int kExponentBias = 127;
+
+  // TODO: remove these checks!
+  static_assert(kMantissaBits == 0);
+  static_assert(kExponentBits == 8);
+  static_assert(kMantissaMask == uint8_t(0));
+  static_assert(kExponentMask == uint8_t(255));
 };
 
 template <typename Bits>
