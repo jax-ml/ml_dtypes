@@ -80,11 +80,18 @@ class FinfoTest(parameterized.TestCase):
     self.assertIs(info.dtype, dtype)
 
     self.assertEqual(info.bits, np.array(0, dtype).itemsize * 8)
-    self.assertEqual(info.nmant + info.nexp + 1, info.bits)
-
+    # Unsigned float => no sign bit.
+    if info.min >= 0.0:
+      self.assertEqual(info.nmant + info.nexp, info.bits)
+    else:
+      self.assertEqual(info.nmant + info.nexp + 1, info.bits)
     assert_representable(info.tiny)
 
+    print(info)
+    print(info.max, info.min, info.eps, float(info.tiny), np.spacing(info.max))
+
     assert_representable(info.max)
+    assert info.max > 0
     assert_infinite(np.spacing(info.max))
 
     assert_representable(info.min)

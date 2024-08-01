@@ -91,9 +91,9 @@ class _Float8E5m2fnuzMachArLike:
 class _Float8E8m0fnuMachArLike:
 
   def __init__(self):
-    smallest_normal = float.fromhex("0x1p-15")
+    smallest_normal = float.fromhex("0x1p-127")
     self.smallest_normal = float8_e8m0fnu(smallest_normal)
-    smallest_subnormal = float.fromhex("0x1p-17")
+    smallest_subnormal = float.fromhex("0x1p-127")
     self.smallest_subnormal = float8_e8m0fnu(smallest_subnormal)
 
 
@@ -376,26 +376,27 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     def float_to_str(f):
       return "%6.2e" % float(f)
 
-    tiny = float.fromhex("0x1p-15")
+    tiny = float.fromhex("0x1p-127")
+    # TODO: E8M0 resolution?
     resolution = 0.1
-    eps = float.fromhex("0x1p-2")
-    epsneg = float.fromhex("0x1p-3")
-    max_ = float.fromhex("0x1.Cp15")
+    eps = float.fromhex("0x1p+0")
+    epsneg = float.fromhex("0x1p-1")
+    max_ = float.fromhex("0x1p+127")
 
     obj = object.__new__(np.finfo)
     obj.dtype = _float8_e8m0fnu_dtype
     obj.bits = 8
     obj.eps = float8_e8m0fnu(eps)
     obj.epsneg = float8_e8m0fnu(epsneg)
-    obj.machep = -2
-    obj.negep = -3
+    obj.machep = 0
+    obj.negep = -1
     obj.max = float8_e8m0fnu(max_)
-    obj.min = float8_e8m0fnu(-max_)
-    obj.nexp = 5
-    obj.nmant = 2
+    obj.min = float8_e8m0fnu(tiny)
+    obj.nexp = 8
+    obj.nmant = 0
     obj.iexp = obj.nexp
-    obj.maxexp = 16
-    obj.minexp = -15
+    obj.maxexp = 127
+    obj.minexp = -127
     obj.precision = 1
     obj.resolution = float8_e8m0fnu(resolution)
     # pylint: disable=protected-access

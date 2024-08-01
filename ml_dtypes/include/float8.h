@@ -394,6 +394,8 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
 class float8_e8m0fnu : public float8_base<float8_e8m0fnu> {
   // 8-bit floating point with 8 bit exponent, no sign and zero mantissa.
   //
+  // See: https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
+  //
   // An 8-bit floating point type with no sign bit, 8 bits exponent and 0 bits
   // mantissa. The suffix "fnuz" is consistent with LLVM/MLIR naming and is
   // derived from the differences to IEEE floating point conventions. `F` is
@@ -415,18 +417,20 @@ class float8_e8m0fnu : public float8_base<float8_e8m0fnu> {
   explicit EIGEN_DEVICE_FUNC float8_e8m0fnu(T f8)
       : float8_e8m0fnu(ConvertFrom(f8)) {}
 
-  // constexpr float8_e4m3fnuz operator-() const {
-  //   if ((rep() & 0x7f) == 0x00) {
-  //     return *this;
-  //   }
-  //   return Base::operator-();
-  // }
+  constexpr float8_e8m0fnu operator-() const {
+    // No negative numbers supported in E8M0
+    return *this;
+  }
 
-  // float8_e4m3fnuz operator-(const float8_e4m3fnuz& other) const {
-  //   return Base::operator-(other);
-  // }
+  float8_e8m0fnu operator-(const float8_e8m0fnu& other) const {
+    // No negative numbers supported in E8M0
+    return other;
+  }
 
-  // explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
+  explicit EIGEN_DEVICE_FUNC operator bool() const {
+    // No zero supported in E8M0 format.
+    return true;
+  }
 };
 
 
@@ -479,7 +483,7 @@ constexpr int MinExponent10FromMinExponent(int min_exponent) {
 // emax * log10(2))
 constexpr int MaxExponent10FromMaxExponentAndDigits(int max_exponent,
                                                     int digits) {
-  // We only support digits in {3,4}. This table would grow if we wanted to
+  // We only support digits in {1,2,3,4}. This table would grow if we wanted to
   // handle more values.
   constexpr double kLog10OfOnePredecessor[] = {
       // log10(1 - 2**-1)
@@ -810,9 +814,7 @@ struct numeric_limits_float8_e5m2fnuz : public numeric_limits_float8_base {
 
 struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
  private:
-  // static inline constexpr const int kExponentBias = 127;
-  // static inline constexpr const int kMantissaBits = 0;
-  static inline constexpr const int kExponentBias = 16;
+  static inline constexpr const int kExponentBias = 127;
   static inline constexpr const int kMantissaBits = 0;
 
  public:
@@ -821,13 +823,12 @@ struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
   static inline constexpr const int digits10 = Digits10FromDigits(digits);
   static inline constexpr const int max_digits10 =
       MaxDigits10FromDigits(digits);
+  // -127 min exponent.
   static inline constexpr const int min_exponent = (1 - kExponentBias) + 1;
   static inline constexpr const int min_exponent10 =
       MinExponent10FromMinExponent(min_exponent);
-  static inline constexpr const int max_exponent =
-      127;
-  // static inline constexpr const int max_exponent =
-  //     (0b11111 - kExponentBias) + 1;
+  // 128 encoding using for NaN
+  static inline constexpr const int max_exponent = 127;
   static inline constexpr const int max_exponent10 =
       MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
   static inline constexpr const bool is_iec559 = false;
@@ -836,32 +837,35 @@ struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
   // NOLINTEND
 
   static constexpr float8_e8m0fnu min() {
-    return float8_e8m0fnu::FromRep(0x04);
+    return float8_e8m0fnu::FromRep(0x00);
   }
   static constexpr float8_e8m0fnu lowest() {
-    return float8_e8m0fnu::FromRep(0xFF);
+    return float8_e8m0fnu::FromRep(0x00);
   }
   static constexpr float8_e8m0fnu max() {
-    return float8_e8m0fnu::FromRep(0x7F);
+    return float8_e8m0fnu::FromRep(0xfe);
   }
   static constexpr float8_e8m0fnu epsilon() {
+    // TODO? Check? ==127?
     return float8_e8m0fnu::FromRep((-kMantissaBits + kExponentBias)
                                     << kMantissaBits);
   }
   static constexpr float8_e8m0fnu round_error() {
+    // TODO, check?
     return float8_e8m0fnu::FromRep((-1 + kExponentBias) << kMantissaBits);
   }
   static constexpr float8_e8m0fnu infinity() {
-    return float8_e8m0fnu::FromRep(0x80);
+    return float8_e8m0fnu::FromRep(0xFF);
   }  // NaN.
   static constexpr float8_e8m0fnu quiet_NaN() {
-    return float8_e8m0fnu::FromRep(0x80);
+    return float8_e8m0fnu::FromRep(0xFF);
   }
   static constexpr float8_e8m0fnu signaling_NaN() {
-    return float8_e8m0fnu::FromRep(0x80);
+    return float8_e8m0fnu::FromRep(0xFF);
   }
   static constexpr float8_e8m0fnu denorm_min() {
-    return float8_e8m0fnu::FromRep(0x01);
+    // No denorm => smallest value.
+    return float8_e8m0fnu::FromRep(0x00);
   }
 };
 
