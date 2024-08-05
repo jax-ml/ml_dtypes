@@ -989,7 +989,6 @@ template<typename T>
 bool constexpr IsPowerOfTwo(T x) {
     return (x != 0) && ((x & (x - 1)) == 0);
 }
-
 // Helper for getting a bytes size which is a power of two.
 template <int Size>
 struct NextPowerOfTwo {
@@ -1071,9 +1070,10 @@ struct Traits<float8_e5m2fnuz> : public TraitsBase<float8_e5m2fnuz> {
 template <>
 struct Traits<float8_e8m0fnu> : public TraitsBase<float8_e8m0fnu> {
   using Base = TraitsBase<float8_e8m0fnu>;
-  static constexpr int kExponentBias = 127;
+  // static constexpr int kExponentBias = 127;
 
   // TODO: remove these checks!
+  static_assert(kExponentBias == 127);
   static_assert(kMantissaBits == 0);
   static_assert(kExponentBits == 8);
   static_assert(kMantissaMask == uint8_t(0));
@@ -1162,6 +1162,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
                    std::enable_if_t<!std::is_same_v<From, To>>> {
   using FromTraits = Traits<From>;
   using FromBits = typename FromTraits::BitsType;
+  static constexpr bool kFromIsSigned = FromTraits::kIsSigned;
   static constexpr int kFromBits = FromTraits::kBits;
   static constexpr int kFromMantissaBits = FromTraits::kMantissaBits;
   static constexpr int kFromExponentBits = FromTraits::kExponentBits;
@@ -1170,6 +1171,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
 
   using ToTraits = Traits<To>;
   using ToBits = typename ToTraits::BitsType;
+  static constexpr bool kToIsSigned = ToTraits::kIsSigned;
   static constexpr int kToBits = ToTraits::kBits;
   static constexpr int kToMantissaBits = ToTraits::kMantissaBits;
   static constexpr int kToExponentBits = ToTraits::kExponentBits;
@@ -1194,7 +1196,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static EIGEN_DEVICE_FUNC inline To run(From from) {
     // Shift bits to destination type, without sign bit.
     const bool from_sign_bit =
-        Eigen::numext::bit_cast<FromBits>(from) >> (kFromBits - 1);
+        Eigen::numext::bit_cast<FromBits>(from) >> (kFromBits - 1) && kFromIsSigned;
     const FromBits from_bits =
         Eigen::numext::bit_cast<FromBits>(Eigen::numext::abs(from));
 
