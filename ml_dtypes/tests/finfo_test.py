@@ -95,14 +95,17 @@ class FinfoTest(parameterized.TestCase):
     assert_infinite(np.spacing(info.max))
 
     assert_representable(info.min)
-    print(info.min, -np.spacing(info.min))
-    # assert_infinite(-np.spacing(info.min))
+    # Only valid for signed floating format.
+    if info.min < 0:
+      assert_infinite(-np.spacing(info.min))
+
 
     assert_representable(2.0 ** (info.maxexp - 1))
-    # assert_infinite(2.0**info.maxexp)
+    assert_infinite(2.0**info.maxexp)
 
     assert_representable(info.smallest_subnormal)
     assert_zero(info.smallest_subnormal * 0.5)
+    self.assertGreater(info.smallest_normal, 0)
     self.assertEqual(info.tiny, info.smallest_normal)
 
     # Identities according to the documentation:
@@ -111,11 +114,13 @@ class FinfoTest(parameterized.TestCase):
     self.assertEqual(info.eps, make_val(2**info.machep))
     self.assertEqual(info.iexp, info.nexp)
 
-    # Check that minexp is consistent with nmant
-    # self.assertEqual(
-    #     make_val(2**info.minexp).view(UINT_TYPES[info.bits]),
-    #     2**info.nmant,
-    # )
+    is_min_exponent_valid_normal = make_val(2**info.minexp) == info.smallest_normal
+    # Check that minexp is consistent with nmant (subnormal representation)
+    if not is_min_exponent_valid_normal and info.nmant > 0:
+      self.assertEqual(
+          make_val(2**info.minexp).view(UINT_TYPES[info.bits]),
+          2**info.nmant,
+      )
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ limitations under the License.
 // 8-bit Floating Point Interchange Format, as described by
 //   https://arxiv.org/abs/2209.05433
 
+#include <iostream>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -820,14 +821,16 @@ struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
  public:
   // NOLINTBEGIN: these names must match std::numeric_limits.
   static inline constexpr const bool is_signed = false;
+  static inline constexpr const std::float_denorm_style has_denorm =
+      std::denorm_absent;
   // static inline constexpr const bool is_exact = true;???
 
   static inline constexpr const int digits = kMantissaBits + 1;
   static inline constexpr const int digits10 = Digits10FromDigits(digits);
   static inline constexpr const int max_digits10 =
       MaxDigits10FromDigits(digits);
-  // -127 min exponent.
-  static inline constexpr const int min_exponent = (1 - kExponentBias) + 1;
+  // 2**-127 smallest valid normalized value..
+  static inline constexpr const int min_exponent = -127 + 1;
   static inline constexpr const int min_exponent10 =
       MinExponent10FromMinExponent(min_exponent);
   // 128 encoding using for NaN
@@ -1037,6 +1040,8 @@ template <typename Float>
 struct TraitsBase {
   using BitsType = GetUnsignedInteger<sizeof(Float)>;
   static constexpr bool kIsSigned = std::numeric_limits<Float>::is_signed;
+  static constexpr bool kHasZero = true;
+
   static constexpr int kBits = sizeof(Float) * CHAR_BIT;
   static constexpr int kMantissaBits = Eigen::NumTraits<Float>::digits() - 1;
   // Extra bit used in exponent for unsigned float.
@@ -1070,6 +1075,8 @@ struct Traits<float8_e5m2fnuz> : public TraitsBase<float8_e5m2fnuz> {
 template <>
 struct Traits<float8_e8m0fnu> : public TraitsBase<float8_e8m0fnu> {
   using Base = TraitsBase<float8_e8m0fnu>;
+  // No zero in E8MO OCP MX format description.
+  static constexpr bool kHasZero = false;
   // static constexpr int kExponentBias = 127;
 
   // TODO: remove these checks!
@@ -1163,6 +1170,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   using FromTraits = Traits<From>;
   using FromBits = typename FromTraits::BitsType;
   static constexpr bool kFromIsSigned = FromTraits::kIsSigned;
+  static constexpr bool kFromHasZero = FromTraits::kHasZero;
   static constexpr int kFromBits = FromTraits::kBits;
   static constexpr int kFromMantissaBits = FromTraits::kMantissaBits;
   static constexpr int kFromExponentBits = FromTraits::kExponentBits;
@@ -1172,6 +1180,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   using ToTraits = Traits<To>;
   using ToBits = typename ToTraits::BitsType;
   static constexpr bool kToIsSigned = ToTraits::kIsSigned;
+  static constexpr bool kToHasZero = ToTraits::kHasZero;
   static constexpr int kToBits = ToTraits::kBits;
   static constexpr int kToMantissaBits = ToTraits::kMantissaBits;
   static constexpr int kToExponentBits = ToTraits::kExponentBits;
@@ -1194,6 +1203,10 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static constexpr int kDigitShift = kToMantissaBits - kFromMantissaBits;
 
   static EIGEN_DEVICE_FUNC inline To run(From from) {
+    // std::cerr << "CAST TYPE: " << kSaturate << " / " << kTruncate << std::endl;;
+    // std::cerr << "FROM: " << kFromMantissaBits << " / " << kFromExponentBits << " / " << std::numeric_limits<From>::min_exponent << std::endl;
+    // std::cerr << "TO: " << kToMantissaBits << " / " << kToExponentBits << " / " << std::numeric_limits<To>::min_exponent << std::endl;
+
     // Shift bits to destination type, without sign bit.
     const bool from_sign_bit =
         Eigen::numext::bit_cast<FromBits>(from) >> (kFromBits - 1) && kFromIsSigned;
@@ -1209,7 +1222,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
       return from_sign_bit ? -Eigen::NumTraits<To>::quiet_NaN()
                            : Eigen::NumTraits<To>::quiet_NaN();
     }
-    if (from_bits == 0) {
+    if (from_bits == 0 && kFromHasZero) {
       return from_sign_bit ? -To{} : To{};
     }
 
@@ -1261,10 +1274,12 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
                   std::numeric_limits<From>::min_exponent) {
       const int unbiased_exponent = biased_from_exponent - kFromExponentBias;
       const int biased_to_exponent = unbiased_exponent + kToExponentBias;
+      // std::cerr << "BIASED FROM/TO EXP: " << biased_from_exponent << " / " << biased_to_exponent << std::endl;
       // Subnormals and zero.
       if (biased_to_exponent <= 0) {
         // Round and shift mantissa down.
-        FromBits from_has_leading_one = (biased_from_exponent > 0 ? 1 : 0);
+        // Zero exponent valid if From has no zero representation.
+        FromBits from_has_leading_one = (biased_from_exponent > 0 || !kFromHasZero ? 1 : 0);
         int exponent_shift =
             -kDigitShift - biased_to_exponent + from_has_leading_one;
         // Insert the implicit leading 1 bit on the mantissa for normalized
@@ -1273,6 +1288,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
             (from_bits & FromTraits::kMantissaMask) |
             (from_has_leading_one << kFromMantissaBits);
         ToBits bits = 0;
+        // std::cerr << "EXPONENT SHIFT: " << biased_from_exponent << " / " << rounded_from_bits << std::endl;
         if (exponent_shift > 0) {
           // To avoid UB, limit rounding and shifting to the full mantissa plus
           // leading 1.
