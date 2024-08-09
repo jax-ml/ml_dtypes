@@ -24,6 +24,7 @@ ALL_DTYPES = [
     ml_dtypes.float8_e4m3fnuz,
     ml_dtypes.float8_e5m2,
     ml_dtypes.float8_e5m2fnuz,
+    ml_dtypes.float8_e8m0fnu,
 ]
 
 DTYPES_WITH_NO_INFINITY = [
@@ -31,6 +32,7 @@ DTYPES_WITH_NO_INFINITY = [
     ml_dtypes.float8_e4m3fn,
     ml_dtypes.float8_e4m3fnuz,
     ml_dtypes.float8_e5m2fnuz,
+    ml_dtypes.float8_e8m0fnu,
 ]
 
 UINT_TYPES = {
@@ -78,21 +80,37 @@ class FinfoTest(parameterized.TestCase):
     self.assertIs(info.dtype, dtype)
 
     self.assertEqual(info.bits, np.array(0, dtype).itemsize * 8)
-    self.assertEqual(info.nmant + info.nexp + 1, info.bits)
-
+    # Unsigned float => no sign bit.
+    if info.min >= 0.0:
+      self.assertEqual(info.nmant + info.nexp, info.bits)
+    else:
+      self.assertEqual(info.nmant + info.nexp + 1, info.bits)
     assert_representable(info.tiny)
 
     assert_representable(info.max)
+    assert info.max > 0
     assert_infinite(np.spacing(info.max))
 
     assert_representable(info.min)
-    assert_infinite(-np.spacing(info.min))
+    if info.min < 0:
+      # Only valid for signed floating format.
+      assert_infinite(-np.spacing(info.min))
+    elif info.min > 0:
+      # No zero in floating point format.
+      assert_infinite(0)
+      assert_infinite(make_val(-1))
+    else:
+      # Zero supported, but not negative values.
+      self.assertEqual(make_val(0), 0)
+      assert_infinite(make_val(-1))
 
     assert_representable(2.0 ** (info.maxexp - 1))
     assert_infinite(2.0**info.maxexp)
 
     assert_representable(info.smallest_subnormal)
-    assert_zero(info.smallest_subnormal * 0.5)
+    if info.min < 0:
+      assert_zero(info.smallest_subnormal * 0.5)
+    self.assertGreater(info.smallest_normal, 0)
     self.assertEqual(info.tiny, info.smallest_normal)
 
     # Identities according to the documentation:
@@ -101,11 +119,15 @@ class FinfoTest(parameterized.TestCase):
     self.assertEqual(info.eps, make_val(2**info.machep))
     self.assertEqual(info.iexp, info.nexp)
 
-    # Check that minexp is consistent with nmant
-    self.assertEqual(
-        make_val(2**info.minexp).view(UINT_TYPES[info.bits]),
-        2**info.nmant,
+    is_min_exponent_valid_normal = (
+        make_val(2**info.minexp) == info.smallest_normal
     )
+    # Check that minexp is consistent with nmant (subnormal representation)
+    if not is_min_exponent_valid_normal and info.nmant > 0:
+      self.assertEqual(
+          make_val(2**info.minexp).view(UINT_TYPES[info.bits]),
+          2**info.nmant,
+      )
 
 
 if __name__ == "__main__":
