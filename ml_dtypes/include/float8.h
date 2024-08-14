@@ -84,13 +84,13 @@ class float8_base {
   explicit EIGEN_DEVICE_FUNC operator double() const {
     return ConvertTo<double>(derived());
   }
-  explicit EIGEN_DEVICE_FUNC operator float() const {
+  EIGEN_DEVICE_FUNC operator float() const {
     return ConvertTo<float>(derived());
   }
-  explicit EIGEN_DEVICE_FUNC operator Eigen::bfloat16() const {
+  EIGEN_DEVICE_FUNC operator Eigen::bfloat16() const {
     return ConvertTo<Eigen::bfloat16>(derived());
   }
-  explicit EIGEN_DEVICE_FUNC operator Eigen::half() const {
+  EIGEN_DEVICE_FUNC operator Eigen::half() const {
     return ConvertTo<Eigen::half>(derived());
   }
   explicit EIGEN_DEVICE_FUNC operator bool() const {
