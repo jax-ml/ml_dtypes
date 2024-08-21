@@ -460,6 +460,11 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
           reinterpret_cast<PyObject*>(TypeDescriptor<uint4>::type_ptr)) < 0) {
     return nullptr;
   }
+
+#ifdef Py_GIL_DISABLED
+  PyUnstable_Module_SetGIL(m.get(), Py_MOD_GIL_NOT_USED);
+#endif
+
   return m.release();
 }
 }  // namespace ml_dtypes

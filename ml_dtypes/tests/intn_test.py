@@ -24,6 +24,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import ml_dtypes
 import numpy as np
+from multi_thread_utils import multi_threaded
 
 int2 = ml_dtypes.int2
 int4 = ml_dtypes.int4
@@ -48,6 +49,7 @@ def ignore_warning(**kw):
 
 
 # Tests for the Python scalar type
+@multi_threaded(num_workers=3)
 class ScalarTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)
@@ -245,6 +247,7 @@ class ScalarTest(parameterized.TestCase):
 
 
 # Tests for the Python scalar type
+@multi_threaded(num_workers=3, skip_tests=["testBinaryUfuncs"])
 class ArrayTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)

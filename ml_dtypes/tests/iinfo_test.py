@@ -16,8 +16,10 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import ml_dtypes
 import numpy as np
+from multi_thread_utils import multi_threaded
 
 
+@multi_threaded(num_workers=3)
 class IinfoTest(parameterized.TestCase):
 
   def testIinfoInt2(self):

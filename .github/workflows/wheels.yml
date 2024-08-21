@@ -40,17 +40,20 @@ jobs:
           platforms: all
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.15.0
+        run: python -m pip install cibuildwheel==2.20.0
 
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: universal2
-          CIBW_BUILD: cp39-* cp310-* cp311-* cp312-*
-          CIBW_SKIP: "*musllinux* *i686* *win32*"
+          CIBW_BUILD: cp39-* cp310-* cp311-* cp312-* cp313*
+          CIBW_FREE_THREADED_SUPPORT: True
+          CIBW_PRERELEASE_PYTHONS: True
+          CIBW_SKIP: "*musllinux* *i686* *win32* *t-win*"
           CIBW_TEST_REQUIRES: absl-py pytest pytest-xdist
           CIBW_TEST_COMMAND: pytest -n auto {project}
+          CIBW_BUILD_VERBOSITY: 1
 
       - uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # ratchet: actions/upload-artifact@v4
         with:
