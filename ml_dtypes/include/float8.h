@@ -371,8 +371,7 @@ class float8_e5m2 : public float8_base<float8_e5m2> {
 
  public:
   template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
-  explicit EIGEN_DEVICE_FUNC float8_e5m2(T f8)
-      : float8_e5m2(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e5m2(T f8) : float8_e5m2(ConvertFrom(f8)) {}
 };
 
 class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
