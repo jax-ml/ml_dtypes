@@ -61,6 +61,20 @@ struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
 };
 
 template <>
+struct TypeDescriptor<float8_e4m3> : CustomFloatType<float8_e4m3> {
+  typedef float8_e4m3 T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "float8_e4m3";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3";
+  static constexpr const char* kTpDoc = "float8_e4m3 floating-point values";
+  // Set e4m3 kind as Void since kind=f (float) with itemsize=1 is used by e5m2
+  static constexpr char kNpyDescrKind = 'V';       // Void
+  static constexpr char kNpyDescrType = '7';       // '4' is reserved for e4m3fn
+  static constexpr char kNpyDescrByteorder = '=';  // Native byte order
+};
+
+template <>
 struct TypeDescriptor<float8_e4m3b11fnuz>
     : CustomFloatType<float8_e4m3b11fnuz> {
   typedef float8_e4m3b11fnuz T;
@@ -269,6 +283,9 @@ bool Initialize() {
   if (!RegisterFloatDtype<bfloat16>(numpy.get())) {
     return false;
   }
+  if (!RegisterFloatDtype<float8_e4m3>(numpy.get())) {
+    return false;
+  }
   if (!RegisterFloatDtype<float8_e4m3b11fnuz>(numpy.get())) {
     return false;
   }
@@ -319,6 +336,12 @@ bool Initialize() {
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e4m3fn, float>();
   success &= RegisterTwoWayCustomCast<float8_e4m3fnuz, float8_e5m2, float>();
   success &= RegisterTwoWayCustomCast<float8_e5m2fnuz, float8_e5m2, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3, bfloat16, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3, float8_e4m3b11fnuz, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3, float8_e5m2fnuz, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3, float8_e4m3fnuz, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3, float8_e4m3fn, float>();
+  success &= RegisterTwoWayCustomCast<float8_e4m3, float8_e5m2, float>();
   success &= RegisterOneWayCustomCast<int2, int4, int8_t>();
   success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
   return success;
@@ -349,6 +372,11 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
     return nullptr;
   }
 
+  if (PyObject_SetAttrString(m.get(), "float8_e4m3",
+                             reinterpret_cast<PyObject*>(
+                                 TypeDescriptor<float8_e4m3>::type_ptr)) < 0) {
+    return nullptr;
+  }
   if (PyObject_SetAttrString(
           m.get(), "float8_e4m3b11fnuz",
           reinterpret_cast<PyObject*>(

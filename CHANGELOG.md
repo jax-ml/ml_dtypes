@@ -23,6 +23,9 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Added new 8-bit float type following IEEE 754 convention:
+  `ml_dtypes.float8_e4m3`.
+
 ## [0.4.0] - 2024-04-1
 
 * Updates `ml_dtypes` for compatibility with future NumPy 2.0 release.
