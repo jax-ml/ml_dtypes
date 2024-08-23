@@ -168,7 +168,13 @@ struct TrueDivide {
 inline std::pair<float, float> divmod(float a, float b) {
   if (b == 0.0f) {
     float nan = std::numeric_limits<float>::quiet_NaN();
-    return {nan, nan};
+    float inf = std::numeric_limits<float>::infinity();
+
+    if (std::isnan(a) || (a == 0.0f)) {
+      return {nan, nan};
+    } else {
+      return {std::signbit(a) == std::signbit(b) ? inf : -inf, nan};
+    }
   }
   float mod = std::fmod(a, b);
   float div = (a - mod) / b;
