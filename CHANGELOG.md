@@ -25,6 +25,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Added new 8-bit float type following IEEE 754 convention:
   `ml_dtypes.float8_e4m3`.
+* Fix outputs of float `divmod` and `floor_divide` when denominator is zero.
 
 ## [0.4.0] - 2024-04-1
 

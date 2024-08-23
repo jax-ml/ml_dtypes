@@ -830,6 +830,47 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         float_type=float_type,
     )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
+  @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
+  def testDivmodCornerCases(self, float_type):
+    x = np.array(
+        [-np.nan, -np.inf, -1.0, -0.0, 0.0, 1.0, np.inf, np.nan],
+        dtype=float_type,
+    )
+    xf32 = x.astype("float32")
+    out = np.divmod.outer(x, x)
+    expected = np.divmod.outer(xf32, xf32)
+    numpy_assert_allclose(
+        out[0],
+        truncate(expected[0], float_type=float_type),
+        rtol=0.0,
+        float_type=float_type,
+    )
+    numpy_assert_allclose(
+        out[1],
+        truncate(expected[1], float_type=float_type),
+        rtol=0.0,
+        float_type=float_type,
+    )
+
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
+  @ignore_warning(category=RuntimeWarning, message="divide by zero encountered")
+  def testFloordivCornerCases(self, float_type):
+    # Regression test for https://github.com/jax-ml/ml_dtypes/issues/170
+    x = np.array(
+        [-np.nan, -np.inf, -1.0, -0.0, 0.0, 1.0, np.inf, np.nan],
+        dtype=float_type,
+    )
+    xf32 = x.astype("float32")
+    out = np.floor_divide.outer(x, x)
+    expected = np.floor_divide.outer(xf32, xf32)
+    numpy_assert_allclose(
+        out,
+        truncate(expected, float_type=float_type),
+        rtol=0.0,
+        float_type=float_type,
+    )
+
   def testModf(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
