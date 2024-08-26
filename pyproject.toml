@@ -48,10 +48,10 @@ pyink-use-majority-quotes = true
 
 [build-system]
 requires = [
-    # We must build against NumPy 2.0 for the resulting wheels to
-    # be compatible with both NumPy 1.X and 2.X.
-    "numpy~=2.0.0",
-    "setuptools~=70.1.1",
+    # We build against the most recent supported NumPy 2.0 release;
+    # see https://github.com/numpy/numpy/issues/27265
+    "numpy~=2.0",
+    "setuptools~=73.0.1",
 ]
 build-backend = "setuptools.build_meta"
 
