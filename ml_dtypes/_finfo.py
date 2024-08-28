@@ -17,6 +17,7 @@
 from typing import Dict
 
 from ml_dtypes._ml_dtypes_ext import bfloat16
+from ml_dtypes._ml_dtypes_ext import float8_e3m4
 from ml_dtypes._ml_dtypes_ext import float8_e4m3
 from ml_dtypes._ml_dtypes_ext import float8_e4m3b11fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e4m3fn
@@ -26,6 +27,7 @@ from ml_dtypes._ml_dtypes_ext import float8_e5m2fnuz
 import numpy as np
 
 _bfloat16_dtype = np.dtype(bfloat16)
+_float8_e3m4_dtype = np.dtype(float8_e3m4)
 _float8_e4m3_dtype = np.dtype(float8_e4m3)
 _float8_e4m3b11fnuz_dtype = np.dtype(float8_e4m3b11fnuz)
 _float8_e4m3fn_dtype = np.dtype(float8_e4m3fn)
@@ -43,12 +45,21 @@ class _Bfloat16MachArLike:
     self.smallest_subnormal = bfloat16(smallest_subnormal)
 
 
+class _Float8E3m4MachArLike:
+
+  def __init__(self):
+    smallest_normal = float.fromhex("0x1p-2")
+    self.smallest_normal = float8_e3m4(smallest_normal)
+    smallest_subnormal = float.fromhex("0x0.1p-2")
+    self.smallest_subnormal = float8_e3m4(smallest_subnormal)
+
+
 class _Float8E4m3MachArLike:
 
   def __init__(self):
     smallest_normal = float.fromhex("0x1p-6")
     self.smallest_normal = float8_e4m3(smallest_normal)
-    smallest_subnormal = float.fromhex("0x1p-9")
+    smallest_subnormal = float.fromhex("0x0.2p-6")
     self.smallest_subnormal = float8_e4m3(smallest_subnormal)
 
 
@@ -132,6 +143,51 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     obj._machar = _Bfloat16MachArLike()
     if not hasattr(obj, "tiny"):
       obj.tiny = bfloat16(tiny)
+    if not hasattr(obj, "smallest_normal"):
+      obj.smallest_normal = obj._machar.smallest_normal
+    obj.smallest_subnormal = obj._machar.smallest_subnormal
+
+    obj._str_tiny = float_to_str(tiny)
+    obj._str_smallest_normal = float_to_str(tiny)
+    obj._str_smallest_subnormal = float_to_str(obj.smallest_subnormal)
+    obj._str_max = float_to_str(max_)
+    obj._str_epsneg = float_to_str(epsneg)
+    obj._str_eps = float_to_str(eps)
+    obj._str_resolution = float_to_str(resolution)
+    # pylint: enable=protected-access
+    return obj
+
+  @staticmethod
+  def _float8_e3m4_finfo():
+    def float_to_str(f):
+      return "%6.2e" % float(f)
+
+    tiny = float.fromhex("0x1p-2")  # 1/4 min normal
+    resolution = 0.1
+    eps = float.fromhex("0x1p-4")  # 1/16
+    epsneg = float.fromhex("0x1p-5")  # 1/32
+    max_ = float.fromhex("0x1.Fp3")  # 15.5 max normal
+
+    obj = object.__new__(np.finfo)
+    obj.dtype = _float8_e3m4_dtype
+    obj.bits = 8
+    obj.eps = float8_e3m4(eps)
+    obj.epsneg = float8_e3m4(epsneg)
+    obj.machep = -4
+    obj.negep = -5
+    obj.max = float8_e3m4(max_)
+    obj.min = float8_e3m4(-max_)
+    obj.nexp = 3
+    obj.nmant = 4
+    obj.iexp = obj.nexp
+    obj.maxexp = 4
+    obj.minexp = -2
+    obj.precision = 1
+    obj.resolution = float8_e3m4(resolution)
+    # pylint: disable=protected-access
+    obj._machar = _Float8E3m4MachArLike()
+    if not hasattr(obj, "tiny"):
+      obj.tiny = float8_e3m4(tiny)
     if not hasattr(obj, "smallest_normal"):
       obj.smallest_normal = obj._machar.smallest_normal
     obj.smallest_subnormal = obj._machar.smallest_subnormal
@@ -425,6 +481,14 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
       if _bfloat16_dtype not in cls._finfo_cache:
         cls._finfo_cache[_bfloat16_dtype] = cls._bfloat16_finfo()
       return cls._finfo_cache[_bfloat16_dtype]
+    if (
+        isinstance(dtype, str)
+        and dtype == "float8_e3m4"
+        or dtype == _float8_e3m4_dtype
+    ):
+      if _float8_e3m4_dtype not in cls._finfo_cache:
+        cls._finfo_cache[_float8_e3m4_dtype] = cls._float8_e3m4_finfo()
+      return cls._finfo_cache[_float8_e3m4_dtype]
     if (
         isinstance(dtype, str)
         and dtype == "float8_e4m3"

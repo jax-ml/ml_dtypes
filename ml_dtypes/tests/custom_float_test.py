@@ -30,6 +30,7 @@ import ml_dtypes
 import numpy as np
 
 bfloat16 = ml_dtypes.bfloat16
+float8_e3m4 = ml_dtypes.float8_e3m4
 float8_e4m3 = ml_dtypes.float8_e4m3
 float8_e4m3b11fnuz = ml_dtypes.float8_e4m3b11fnuz
 float8_e4m3fn = ml_dtypes.float8_e4m3fn
@@ -109,6 +110,7 @@ def dtype_has_inf(dtype):
 
 FLOAT_DTYPES = [
     bfloat16,
+    float8_e3m4,
     float8_e4m3,
     float8_e4m3b11fnuz,
     float8_e4m3fn,
@@ -148,6 +150,11 @@ FLOAT_VALUES = {
 # Values that should round trip exactly to integer and back.
 INT_VALUES = {
     bfloat16: [0, 1, 2, 10, 34, 47, 128, 255, 256, 512],
+    float8_e3m4: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(4)
+        )
+    ),
     float8_e4m3: list(
         itertools.chain.from_iterable(
             range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(8)
@@ -178,6 +185,7 @@ INT_VALUES = {
 
 BITS_TYPE = {
     bfloat16: np.uint16,
+    float8_e3m4: np.uint8,
     float8_e4m3: np.uint8,
     float8_e4m3b11fnuz: np.uint8,
     float8_e4m3fn: np.uint8,
@@ -631,9 +639,12 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     self.assertTrue((x == x).all())
 
   def testComparisons(self, float_type):
-    x = np.array([30, 7, -30], dtype=np.float32)
+    x0, x1, y0 = 30, 7, 17
+    if float_type == ml_dtypes.float8_e3m4:
+      x0, x1, y0 = 15, 3, 9
+    x = np.array([x0, x1, -x0], dtype=np.float32)
     bx = x.astype(float_type)
-    y = np.array([17, 7, 0], dtype=np.float32)
+    y = np.array([y0, x1, 0], dtype=np.float32)
     by = y.astype(float_type)
     np.testing.assert_equal(x == y, bx == by)
     np.testing.assert_equal(x != y, bx != by)
@@ -749,9 +760,12 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.arange(-0.0, -2.0, -0.25, dtype=np.float32).astype(float_type),
         np.arange(-0.0, -2.0, -0.25, dtype=float_type),
     )
+    m = 16
+    if float_type == ml_dtypes.float8_e3m4:
+      m = 14
     np.testing.assert_equal(
-        np.arange(-16.0, 16.0, 2.0, dtype=np.float32).astype(float_type),
-        np.arange(-16.0, 16.0, 2.0, dtype=float_type),
+        np.arange(-m, m, 2.0, dtype=np.float32).astype(float_type),
+        np.arange(-m, m, 2.0, dtype=float_type),
     )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")

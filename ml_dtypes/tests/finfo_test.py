@@ -19,6 +19,7 @@ import numpy as np
 
 ALL_DTYPES = [
     ml_dtypes.bfloat16,
+    ml_dtypes.float8_e3m4,
     ml_dtypes.float8_e4m3,
     ml_dtypes.float8_e4m3b11fnuz,
     ml_dtypes.float8_e4m3fn,
