@@ -21,8 +21,6 @@ limitations under the License.
 
 namespace ml_dtypes {
 
-void ImportNumpy() {
-  import_array1();
-}
+void ImportNumpy() { import_array1(); }
 
 }  // namespace ml_dtypes

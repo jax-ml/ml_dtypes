@@ -143,7 +143,7 @@ struct ConstexprEvaluator {
 // To avoid warnings about unused left-side of comma expressions,
 // we additionally pass the expression through a contexpr function.
 template <typename T>
-constexpr void ConstexprEvaluatorFunc(T&&){}
+constexpr void ConstexprEvaluatorFunc(T&&) {}
 
 #define TEST_CONSTEXPR(expr)                                                   \
   do {                                                                         \
