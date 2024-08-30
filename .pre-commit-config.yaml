@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c  # frozen: v4.6.0
     hooks:
       - id: check-ast
       - id: check-merge-conflict
@@ -10,7 +10,7 @@ repos:
       - id: trailing-whitespace
       - id: debug-statements
   - repo: https://github.com/google/pyink
-    rev: 23.10.0
+    rev: 8383e5df6527cc1173183875258347be0a7e07c0  # frozen: 24.3.0
     hooks:
       - id: pyink
         language_version: python3.9
@@ -21,6 +21,6 @@ repos:
           "--pyink-use-majority-quotes"
         ]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.2
+    rev: 8b5112a3b2ad121439a2092f8ff548c0d80f2514  # frozen: v0.6.1
     hooks:
     - id: ruff
