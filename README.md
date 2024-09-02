@@ -17,6 +17,10 @@
   * `float8_e4m3fnuz`
   * `float8_e5m2`
   * `float8_e5m2fnuz`
+- Microscaling (MX) sub-byte floating point representations including:
+  * `float4_e2m1fn`
+  * `float6_e2m3fn`
+  * `float6_e3m2fn`
 - `int2`, `int4`, `uint2` and `uint4`: low precision integer types.
 
 See below for specifications of these number formats.
@@ -65,6 +69,39 @@ dtype(float8_e5m2)
 A `bfloat16` number is a single-precision float truncated at 16 bits.
 
 Exponent: 8, Mantissa: 7, exponent bias: 127. IEEE 754, with NaN and inf.
+
+### `float4_e2m1fn`
+
+Exponent: 2, Mantissa: 1, bias: 1.
+
+Extended range: no inf, no NaN.
+
+Microscaling format, 4 bits (encoding: `0bSEEM`) using byte storage (higher 4
+bits are unused). NaN representation is undefined.
+
+Possible absolute values: [`0`, `0.5`, `1`, `1.5`, `2`, `3`, `4`, `6`]
+
+### `float6_e2m3fn`
+
+Exponent: 2, Mantissa: 3, bias: 1.
+
+Extended range: no inf, no NaN.
+
+Microscaling format, 6 bits (encoding: `0bSEEMMM`) using byte storage (higher 2
+bits are unused). NaN representation is undefined.
+
+Possible values range: [`-7.5`; `7.5`]
+
+### `float6_e3m2fn`
+
+Exponent: 3, Mantissa: 2, bias: 3.
+
+Extended range: no inf, no NaN.
+
+Microscaling format, 4 bits (encoding: `0bSEEEMM`) using byte storage (higher 2
+bits are unused). NaN representation is undefined.
+
+Possible values range: [`-28`; `28`]
 
 ### `float8_e3m4`
 

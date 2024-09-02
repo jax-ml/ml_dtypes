@@ -59,6 +59,7 @@ class float8_base {
   constexpr float8_base(uint8_t rep, ConstructFromRepTag) : rep_{rep} {}
 
  public:
+  static constexpr int kBits = 8;
   constexpr float8_base() : rep_(0) {}
 
   template <typename T>
@@ -200,7 +201,7 @@ class float8_base {
     const uint8_t x_abs_bits =
         Eigen::numext::bit_cast<uint8_t>(Eigen::numext::abs(x));
     const uint8_t x_bits = Eigen::numext::bit_cast<uint8_t>(x);
-    const uint8_t x_sign = x_bits ^ x_abs_bits;
+    const uint8_t x_sign = (x_bits ^ x_abs_bits) << (CHAR_BIT - Derived::kBits);
     return {x_sign, x_abs_bits};
   }
   static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int8_t
@@ -470,9 +471,11 @@ constexpr int MinExponent10FromMinExponent(int min_exponent) {
 // emax * log10(2))
 constexpr int MaxExponent10FromMaxExponentAndDigits(int max_exponent,
                                                     int digits) {
-  // We only support digits in {3,4}. This table would grow if we wanted to
+  // We only support digits in {2,5}. This table would grow if we wanted to
   // handle more values.
   constexpr double kLog10OfOnePredecessor[] = {
+      // log10(1 - 2**-2)
+      -0.12493873660829993,
       // log10(1 - 2**-3)
       -0.057991946977686754,
       // log10(1 - 2**-4)
@@ -480,7 +483,7 @@ constexpr int MaxExponent10FromMaxExponentAndDigits(int max_exponent,
       // log10(1 - 2**-5)
       -0.013788284485633295,
   };
-  return static_cast<int>(ConstexprFloor(kLog10OfOnePredecessor[digits - 3] +
+  return static_cast<int>(ConstexprFloor(kLog10OfOnePredecessor[digits - 2] +
                                          max_exponent * kLog10Of2));
 }
 
@@ -1186,7 +1189,6 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
                    std::enable_if_t<!std::is_same_v<From, To>>> {
   using FromTraits = Traits<From>;
   using FromBits = typename FromTraits::BitsType;
-  static constexpr int kFromBits = FromTraits::kBits;
   static constexpr int kFromMantissaBits = FromTraits::kMantissaBits;
   static constexpr int kFromExponentBits = FromTraits::kExponentBits;
   static constexpr int kFromExponentBias = FromTraits::kExponentBias;
@@ -1194,7 +1196,6 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
 
   using ToTraits = Traits<To>;
   using ToBits = typename ToTraits::BitsType;
-  static constexpr int kToBits = ToTraits::kBits;
   static constexpr int kToMantissaBits = ToTraits::kMantissaBits;
   static constexpr int kToExponentBits = ToTraits::kExponentBits;
   static constexpr int kToExponentBias = ToTraits::kExponentBias;
@@ -1213,7 +1214,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static EIGEN_DEVICE_FUNC inline To run(From from) {
     // Shift bits to destination type, without sign bit.
     const bool from_sign_bit =
-        Eigen::numext::bit_cast<FromBits>(from) >> (kFromBits - 1);
+        Eigen::numext::bit_cast<FromBits>(from) >> (FromTraits::kBits - 1);
     const FromBits from_bits =
         Eigen::numext::bit_cast<FromBits>(Eigen::numext::abs(from));
 
@@ -1241,8 +1242,9 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
         WideBits bits = from_bits;
 
         // Determine exponent in target type.
-        const int normalization_factor =
-            countl_zero(from_bits) - (kFromBits - kFromMantissaBits) + 1;
+        const int msb =
+            sizeof(from_bits) * CHAR_BIT - countl_zero(from_bits) - 1;
+        const int normalization_factor = kFromMantissaBits - msb;
         const int biased_exponent = kExponentOffset - normalization_factor + 1;
         if (biased_exponent <= 0) {
           // Result is subnormal.  Adjust the subnormal bits to account for
