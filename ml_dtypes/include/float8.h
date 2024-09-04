@@ -255,8 +255,7 @@ class float8_e3m4 : public float8_base<float8_e3m4> {
 
  public:
   template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
-  explicit EIGEN_DEVICE_FUNC float8_e3m4(T f8)
-      : float8_e3m4(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e3m4(T f8) : float8_e3m4(ConvertFrom(f8)) {}
 };
 
 class float8_e4m3 : public float8_base<float8_e4m3> {
@@ -269,8 +268,7 @@ class float8_e4m3 : public float8_base<float8_e4m3> {
 
  public:
   template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
-  explicit EIGEN_DEVICE_FUNC float8_e4m3(T f8)
-      : float8_e4m3(ConvertFrom(f8)) {}
+  explicit EIGEN_DEVICE_FUNC float8_e4m3(T f8) : float8_e4m3(ConvertFrom(f8)) {}
 };
 
 class float8_e4m3fn : public float8_base<float8_e4m3fn> {
@@ -1481,25 +1479,25 @@ namespace numext {
 
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e3m4
-bit_cast<ml_dtypes::float8_e3m4, uint8_t>(const uint8_t &src) {
+bit_cast<ml_dtypes::float8_e3m4, uint8_t>(const uint8_t& src) {
   return ml_dtypes::float8_e3m4::FromRep(src);
 }
 
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
-bit_cast<uint8_t, ml_dtypes::float8_e3m4>(const ml_dtypes::float8_e3m4 &src) {
+bit_cast<uint8_t, ml_dtypes::float8_e3m4>(const ml_dtypes::float8_e3m4& src) {
   return src.rep();
 }
 
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e4m3
-bit_cast<ml_dtypes::float8_e4m3, uint8_t>(const uint8_t &src) {
+bit_cast<ml_dtypes::float8_e4m3, uint8_t>(const uint8_t& src) {
   return ml_dtypes::float8_e4m3::FromRep(src);
 }
 
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
-bit_cast<uint8_t, ml_dtypes::float8_e4m3>(const ml_dtypes::float8_e4m3 &src) {
+bit_cast<uint8_t, ml_dtypes::float8_e4m3>(const ml_dtypes::float8_e4m3& src) {
   return src.rep();
 }
 

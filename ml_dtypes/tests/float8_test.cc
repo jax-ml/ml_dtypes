@@ -65,8 +65,7 @@ TEST(Float8E3m4Test, NumericLimits) {
       Eigen::numext::isnan(std::numeric_limits<float8_e3m4>::quiet_NaN()));
   EXPECT_TRUE(
       Eigen::numext::isnan(std::numeric_limits<float8_e3m4>::signaling_NaN()));
-  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_e3m4>::min()),
-            0.25);
+  EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_e3m4>::min()), 0.25);
   EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_e3m4>::max()), 15.5);
   EXPECT_EQ(static_cast<float>(std::numeric_limits<float8_e3m4>::lowest()),
             -15.5);
@@ -995,10 +994,10 @@ struct Float8CastTestParamNames {
       std::pair<Type, float8_e5m2>, std::pair<Type, bool>,                 \
       std::pair<Type, int32_t>, std::pair<Type, int64_t>
 
-#define GEN_TYPE_PAIRS()                                                       \
-  GEN_DEST_TYPES(float8_e3m4), GEN_DEST_TYPES(float8_e4m3),                    \
-      GEN_DEST_TYPES(float8_e4m3fn), GEN_DEST_TYPES(float8_e4m3b11fnuz),       \
-      GEN_DEST_TYPES(float8_e5m2), GEN_DEST_TYPES(float8_e4m3fnuz),            \
+#define GEN_TYPE_PAIRS()                                                 \
+  GEN_DEST_TYPES(float8_e3m4), GEN_DEST_TYPES(float8_e4m3),              \
+      GEN_DEST_TYPES(float8_e4m3fn), GEN_DEST_TYPES(float8_e4m3b11fnuz), \
+      GEN_DEST_TYPES(float8_e5m2), GEN_DEST_TYPES(float8_e4m3fnuz),      \
       GEN_DEST_TYPES(float8_e5m2fnuz)
 
 using Float8CastTypePairs = ::testing::Types<GEN_TYPE_PAIRS()>;

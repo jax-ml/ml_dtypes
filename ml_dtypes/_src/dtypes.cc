@@ -69,7 +69,7 @@ struct TypeDescriptor<float8_e3m4> : CustomFloatType<float8_e3m4> {
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e3m4";
   static constexpr const char* kTpDoc = "float8_e3m4 floating-point values";
   // Set e3m4 kind as Void since kind=f (float) with itemsize=1 is used by e5m2
-  static constexpr char kNpyDescrKind = 'V';       // Void
+  static constexpr char kNpyDescrKind = 'V';  // Void
   static constexpr char kNpyDescrType = '3';
   static constexpr char kNpyDescrByteorder = '=';  // Native byte order
 };
