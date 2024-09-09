@@ -27,6 +27,7 @@ import warnings
 from absl.testing import absltest
 from absl.testing import parameterized
 import ml_dtypes
+from multi_thread_utils import multi_threaded
 import numpy as np
 
 bfloat16 = ml_dtypes.bfloat16
@@ -196,6 +197,10 @@ BITS_TYPE = {
 
 
 # pylint: disable=g-complex-comprehension
+@multi_threaded(
+    num_workers=3,
+    skip_tests=["testDiv", "testRoundTripNumpyTypes", "testRoundTripToNumpy"],
+)
 @parameterized.named_parameters(
     (
         {"testcase_name": "_" + dtype.__name__, "float_type": dtype}
@@ -604,6 +609,19 @@ BINARY_PREDICATE_UFUNCS = [
 
 
 # pylint: disable=g-complex-comprehension
+@multi_threaded(
+    num_workers=3,
+    skip_tests=[
+        "testBinaryUfunc",
+        "testConformNumpyComplex",
+        "testFloordivCornerCases",
+        "testDivmodCornerCases",
+        "testSpacing",
+        "testUnaryUfunc",
+        "testCasts",
+        "testLdexp",
+    ],
+)
 @parameterized.named_parameters(
     (
         {"testcase_name": "_" + dtype.__name__, "float_type": dtype}

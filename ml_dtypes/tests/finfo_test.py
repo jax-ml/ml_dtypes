@@ -15,6 +15,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import ml_dtypes
+from multi_thread_utils import multi_threaded
 import numpy as np
 
 ALL_DTYPES = [
@@ -41,6 +42,7 @@ UINT_TYPES = {
 }
 
 
+@multi_threaded(num_workers=3)
 class FinfoTest(parameterized.TestCase):
 
   def assertNanEqual(self, x, y):

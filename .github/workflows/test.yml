@@ -96,3 +96,31 @@ jobs:
       - name: Run tests
         run: |
           pytest -n auto
+  build-free-threading:
+    # Later we can merge this job with build similarly to
+    # https://github.com/python-pillow/Pillow/blob/f0d8fd3059bc1b291563d8a0b1f224b6fd7d0b90/.github/workflows/test.yml#L56-L57
+    name: Python 3.13 with free-threading
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # ratchet:actions/checkout@v4
+        with:
+          submodules: true
+      - name: Set up Python 3.13 with free-threading
+        # TODO: replace with setup-python when there is support
+        uses: deadsnakes/action@6c8b9b82fe0b4344f4b98f2775fcc395df45e494 # v3.1.0
+        with:
+            python-version: '3.13-dev'
+            nogil: true
+      - name: Install dependencies
+        run: |
+            python -m pip install --upgrade pip
+            python -m pip install setuptools wheel
+            python -m pip install -U --pre numpy \
+              -i https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
+            python -c "import numpy; print(f'{numpy.__version__=}')"
+      - name: Build ml_dtypes
+        run: |
+            python -m pip install .[dev] --no-build-isolation
+      - name: Run tests
+        run: |
+          pytest -n auto
