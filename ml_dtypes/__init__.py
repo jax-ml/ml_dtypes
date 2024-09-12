@@ -17,6 +17,9 @@ __all__ = [
     "__version__",
     "bfloat16",
     "finfo",
+    "float4_e2m1fn",
+    "float6_e2m3fn",
+    "float6_e3m2fn",
     "float8_e3m4",
     "float8_e4m3",
     "float8_e4m3b11fnuz",
@@ -36,6 +39,9 @@ from typing import Type
 from ml_dtypes._finfo import finfo
 from ml_dtypes._iinfo import iinfo
 from ml_dtypes._ml_dtypes_ext import bfloat16
+from ml_dtypes._ml_dtypes_ext import float4_e2m1fn
+from ml_dtypes._ml_dtypes_ext import float6_e2m3fn
+from ml_dtypes._ml_dtypes_ext import float6_e3m2fn
 from ml_dtypes._ml_dtypes_ext import float8_e3m4
 from ml_dtypes._ml_dtypes_ext import float8_e4m3
 from ml_dtypes._ml_dtypes_ext import float8_e4m3b11fnuz
@@ -50,6 +56,9 @@ from ml_dtypes._ml_dtypes_ext import uint4
 import numpy as np
 
 bfloat16: Type[np.generic]
+float4_e2m1fn: Type[np.generic]
+float6_e2m3fn: Type[np.generic]
+float6_e3m2fn: Type[np.generic]
 float8_e3m4: Type[np.generic]
 float8_e4m3: Type[np.generic]
 float8_e4m3b11fnuz: Type[np.generic]

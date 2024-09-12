@@ -31,6 +31,9 @@ from multi_thread_utils import multi_threaded
 import numpy as np
 
 bfloat16 = ml_dtypes.bfloat16
+float4_e2m1fn = ml_dtypes.float4_e2m1fn
+float6_e2m3fn = ml_dtypes.float6_e2m3fn
+float6_e3m2fn = ml_dtypes.float6_e3m2fn
 float8_e3m4 = ml_dtypes.float8_e3m4
 float8_e4m3 = ml_dtypes.float8_e4m3
 float8_e4m3b11fnuz = ml_dtypes.float8_e4m3b11fnuz
@@ -89,7 +92,7 @@ def binary_operation_test(a, b, op, float_type):
   expected = op(np.float32(a), np.float32(b))
   result = op(a, b)
   if math.isnan(expected):
-    if not math.isnan(result):
+    if dtype_has_nan(float_type) and not math.isnan(result):
       raise AssertionError("%s expected to be nan." % repr(result))
   else:
     np.testing.assert_equal(
@@ -99,18 +102,25 @@ def binary_operation_test(a, b, op, float_type):
 
 def dtype_has_inf(dtype):
   """Determines if the dtype has an `inf` representation."""
-  inf = float("inf")
-  is_inf = False
   try:
-    x = dtype(inf)
-    is_inf = np.isinf(x)
+    return np.isinf(dtype(float("inf")))
   except (OverflowError, ValueError):
-    pass
-  return is_inf
+    return False
+
+
+def dtype_has_nan(dtype):
+  """Determines if the dtype has an `nan` representation."""
+  try:
+    return np.isnan(dtype(float("nan")))
+  except (OverflowError, ValueError):
+    return False
 
 
 FLOAT_DTYPES = [
     bfloat16,
+    float4_e2m1fn,
+    float6_e2m3fn,
+    float6_e3m2fn,
     float8_e3m4,
     float8_e4m3,
     float8_e4m3b11fnuz,
@@ -140,17 +150,25 @@ FLOAT_VALUES = {
         7,
         float(ml_dtypes.finfo(dtype).max),
         -float(ml_dtypes.finfo(dtype).max),
-        float("nan"),
-        float("-nan"),
+        float("nan") if dtype_has_nan(dtype) else 0.0,
+        float("-nan") if dtype_has_nan(dtype) else 0.0,
         float("inf") if dtype_has_inf(dtype) else 0.0,
         float("-inf") if dtype_has_inf(dtype) else 0.0,
     ]
     for dtype in FLOAT_DTYPES
 }
 
+# Remove values unsupported by some types.
+FLOAT_VALUES[float4_e2m1fn] = [
+    x for x in FLOAT_VALUES[float4_e2m1fn] if x not in {3.5, 5, 7}
+]
+
 # Values that should round trip exactly to integer and back.
 INT_VALUES = {
     bfloat16: [0, 1, 2, 10, 34, 47, 128, 255, 256, 512],
+    float4_e2m1fn: [0, 1, 2, 3, 4, 6],
+    float6_e2m3fn: [0, 1, 2, 3, 4, 5, 6, 7],
+    float6_e3m2fn: [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28],
     float8_e3m4: list(
         itertools.chain.from_iterable(
             range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(4)
@@ -182,17 +200,6 @@ INT_VALUES = {
             range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
         )
     ),
-}
-
-BITS_TYPE = {
-    bfloat16: np.uint16,
-    float8_e3m4: np.uint8,
-    float8_e4m3: np.uint8,
-    float8_e4m3b11fnuz: np.uint8,
-    float8_e4m3fn: np.uint8,
-    float8_e4m3fnuz: np.uint8,
-    float8_e5m2: np.uint8,
-    float8_e5m2fnuz: np.uint8,
 }
 
 
@@ -282,8 +289,9 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testFromStr(self, float_type):
     self.assertEqual(float_type(1.2), float_type("1.2"))
-    self.assertTrue(np.isnan(float_type("nan")))
-    self.assertTrue(np.isnan(float_type("-nan")))
+    if dtype_has_nan(float_type):
+      self.assertTrue(np.isnan(float_type("nan")))
+      self.assertTrue(np.isnan(float_type("-nan")))
     if dtype_has_inf(float_type):
       self.assertEqual(float_type(float("inf")), float_type("inf"))
       self.assertEqual(float_type(float("-inf")), float_type("-inf"))
@@ -451,6 +459,9 @@ class CustomFloatTest(parameterized.TestCase):
         self.assertIsInstance(result, np.bool_)
 
   def testNan(self, float_type):
+    if not dtype_has_nan(float_type):
+      self.skipTest("no NaN encoding")
+
     a = np.isnan(float_type(float("nan")))
     self.assertTrue(a)
     numpy_assert_allclose(
@@ -496,6 +507,9 @@ class CustomFloatTest(parameterized.TestCase):
 
   def testArgmaxOnNan(self, float_type):
     """Ensures we return the right thing for multiple NaNs."""
+    if not dtype_has_nan(float_type):
+      self.skipTest("no NaN encoding")
+
     one_with_nans = np.array(
         [1.0, float("nan"), float("nan")], dtype=np.float32
     )
@@ -657,9 +671,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     self.assertTrue((x == x).all())
 
   def testComparisons(self, float_type):
-    x0, x1, y0 = 30, 7, 17
-    if float_type == ml_dtypes.float8_e3m4:
-      x0, x1, y0 = 15, 3, 9
+    x0, x1, y0 = 6, 1, 3
     x = np.array([x0, x1, -x0], dtype=np.float32)
     bx = x.astype(float_type)
     y = np.array([y0, x1, 0], dtype=np.float32)
@@ -672,8 +684,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     np.testing.assert_equal(x >= y, bx >= by)
 
   def testEqual2(self, float_type):
-    a = np.array([31], float_type)
-    b = np.array([15], float_type)
+    a = np.array([7], float_type)
+    b = np.array([3], float_type)
     self.assertFalse(a.__eq__(b))
 
   def testCanCast(self, float_type):
@@ -756,7 +768,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   @ignore_warning(category=ComplexWarning)
   def testConformNumpyComplex(self, float_type):
     for dtype in [np.complex64, np.complex128, np.clongdouble]:
-      x = np.array([1.5, 2.5 + 2.0j, 3.5], dtype=dtype)
+      x = np.array([0.5, 1.5 + 2.0j, 4.0], dtype=dtype)
       y_np = x.astype(np.float32)
       y_tf = x.astype(float_type)
       numpy_assert_allclose(y_np, y_tf, atol=2e-2, float_type=float_type)
@@ -771,19 +783,12 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.arange(100, dtype=float_type),
     )
     np.testing.assert_equal(
-        np.arange(-8, 8, 1, dtype=np.float32).astype(float_type),
-        np.arange(-8, 8, 1, dtype=float_type),
+        np.arange(-6, 6, 2, dtype=np.float32).astype(float_type),
+        np.arange(-6, 6, 2, dtype=float_type),
     )
     np.testing.assert_equal(
-        np.arange(-0.0, -2.0, -0.25, dtype=np.float32).astype(float_type),
-        np.arange(-0.0, -2.0, -0.25, dtype=float_type),
-    )
-    m = 16
-    if float_type == ml_dtypes.float8_e3m4:
-      m = 14
-    np.testing.assert_equal(
-        np.arange(-m, m, 2.0, dtype=np.float32).astype(float_type),
-        np.arange(-m, m, 2.0, dtype=float_type),
+        np.arange(-0.0, -2.0, -0.5, dtype=np.float32).astype(float_type),
+        np.arange(-0.0, -2.0, -0.5, dtype=float_type),
     )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
@@ -847,6 +852,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
     y = rng.randn(4, 1, 7).astype(float_type)
+    y = np.where(y == 0, float_type(1), y)
     o1, o2 = np.divmod(x, y)
     e1, e2 = np.divmod(x.astype(np.float32), y.astype(np.float32))
     numpy_assert_allclose(
@@ -941,46 +947,54 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     mant1, exp1 = np.frexp(x)
     mant2, exp2 = np.frexp(x.astype(np.float32))
     np.testing.assert_equal(exp1, exp2)
-    numpy_assert_allclose(mant1, mant2, rtol=1e-2, float_type=float_type)
+
+    kwargs = {"rtol": 0.01}
+    if float_type == float6_e2m3fn:
+      kwargs = {"rtol": 0.1}
+    elif float_type == float4_e2m1fn:
+      kwargs = {"atol": 0.25}
+    numpy_assert_allclose(mant1, mant2, float_type=float_type, **kwargs)
 
   def testCopySign(self, float_type):
-    for bits in list(range(1, 128)):
+    bits_type = np.uint16 if float_type == bfloat16 else np.uint8
+    bit_size = ml_dtypes.finfo(float_type).bits
+    bit_sign = 1 << (bit_size - 1)
+
+    for bits in range(1, min(bit_sign, 256)):
       with self.subTest(bits):
-        bits_type = BITS_TYPE[float_type]
         val = bits_type(bits).view(float_type)
         val_with_sign = np.copysign(val, float_type(-1))
         val_with_sign_bits = val_with_sign.view(bits_type)
-        num_bits = np.iinfo(bits_type).bits
-        np.testing.assert_equal(
-            bits | (1 << (num_bits - 1)), val_with_sign_bits
-        )
+        self.assertEqual(bits | bit_sign, val_with_sign_bits)
 
   def testNextAfter(self, float_type):
     one = np.array(1.0, dtype=float_type)
     two = np.array(2.0, dtype=float_type)
     zero = np.array(0.0, dtype=float_type)
-    nan = np.array(np.nan, dtype=float_type)
     np.testing.assert_equal(
         np.nextafter(one, two) - one, ml_dtypes.finfo(float_type).eps
     )
     np.testing.assert_equal(
-        np.nextafter(one, zero) - one, -ml_dtypes.finfo(float_type).eps / 2
+        np.nextafter(one, zero) - one, -ml_dtypes.finfo(float_type).epsneg
     )
-    np.testing.assert_equal(np.isnan(np.nextafter(nan, one)), True)
-    np.testing.assert_equal(np.isnan(np.nextafter(one, nan)), True)
     np.testing.assert_equal(np.nextafter(one, one), one)
     smallest_denormal = ml_dtypes.finfo(float_type).smallest_subnormal
     np.testing.assert_equal(np.nextafter(zero, one), smallest_denormal)
     np.testing.assert_equal(np.nextafter(zero, -one), -smallest_denormal)
-    for a, b in itertools.permutations([0.0, nan], 2):
-      np.testing.assert_equal(
-          np.nextafter(
-              np.array(a, dtype=np.float32), np.array(b, dtype=np.float32)
-          ),
-          np.nextafter(
-              np.array(a, dtype=float_type), np.array(b, dtype=float_type)
-          ),
-      )
+
+    if dtype_has_nan(float_type):
+      nan = np.array(np.nan, dtype=float_type)
+      np.testing.assert_equal(np.isnan(np.nextafter(nan, one)), True)
+      np.testing.assert_equal(np.isnan(np.nextafter(one, nan)), True)
+      for a, b in itertools.permutations([0.0, nan], 2):
+        np.testing.assert_equal(
+            np.nextafter(
+                np.array(a, dtype=np.float32), np.array(b, dtype=np.float32)
+            ),
+            np.nextafter(
+                np.array(a, dtype=float_type), np.array(b, dtype=float_type)
+            ),
+        )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testSpacing(self, float_type):
@@ -1014,13 +1028,19 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         nextup = np.nextafter(x_float_type, toward)
         if np.isnan(spacing):
           self.assertTrue(np.isnan(nextup - x_float_type))
-        else:
+        elif spacing:
           np.testing.assert_equal(spacing, nextup - x_float_type)
+        else:
+          # If type has no NaN or infinity, spacing of the maximum value is
+          # expected to be zero (next value does not exist).
+          self.assertFalse(dtype_has_nan(float_type))
+          self.assertEqual(abs(x_float_type), ml_dtypes.finfo(float_type).max)
 
     # Check that spacing for special values gives the correct answer.
     with self.subTest(name="NonFinite"):
-      nan = float_type(float("nan"))
-      np.testing.assert_equal(np.spacing(nan), np.spacing(np.float32(nan)))
+      if dtype_has_nan(float_type):
+        nan = float_type(float("nan"))
+        np.testing.assert_equal(np.spacing(nan), np.spacing(np.float32(nan)))
       if dtype_has_inf(float_type):
         inf = float_type(float("inf"))
         np.testing.assert_equal(np.spacing(inf), np.spacing(np.float32(inf)))

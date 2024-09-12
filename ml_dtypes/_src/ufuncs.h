@@ -325,12 +325,15 @@ std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
   // For types that represent NaN by -0, (i.e. *fnuz), abs(x) remains -0 without
   // flipping the sign. Therefore, we need to explicitly check the
   // most-significant bit.
+  // For types without NaNs (i.e. mxfloat), use xor to keep the sign bit, which
+  // may be not the most-significant bit.
   constexpr BitsType<T> kSignMask = BitsType<T>(1)
                                     << (sizeof(BitsType<T>) * CHAR_BIT - 1);
+  constexpr bool has_nan = std::numeric_limits<T>::has_quiet_NaN;
   const BitsType<T> x_abs_bits =
       Eigen::numext::bit_cast<BitsType<T>>(Eigen::numext::abs(x));
   const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
-  return {x_bits & kSignMask, x_abs_bits};
+  return {has_nan ? x_bits & kSignMask : x_bits ^ x_abs_bits, x_abs_bits};
 }
 
 template <typename T>
@@ -705,6 +708,7 @@ struct Spacing {
     CopySign<T> copysign;
     if constexpr (!std::numeric_limits<T>::has_infinity) {
       if (Eigen::numext::abs(x) == std::numeric_limits<T>::max()) {
+        if constexpr (!std::numeric_limits<T>::has_quiet_NaN) return T();
         return copysign(std::numeric_limits<T>::quiet_NaN(), x);
       }
     }
