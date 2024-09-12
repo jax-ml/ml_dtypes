@@ -226,7 +226,7 @@ INT_VALUES = {
     num_workers=3,
     skip_tests=[
         "testDiv",
-        "testPicklable",
+        "testPickleable",
         "testRoundTripNumpyTypes",
         "testRoundTripToNumpy",
     ],
