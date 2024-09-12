@@ -224,7 +224,12 @@ INT_VALUES = {
 # pylint: disable=g-complex-comprehension
 @multi_threaded(
     num_workers=3,
-    skip_tests=["testDiv", "testRoundTripNumpyTypes", "testRoundTripToNumpy"],
+    skip_tests=[
+        "testDiv",
+        "testPicklable",
+        "testRoundTripNumpyTypes",
+        "testRoundTripToNumpy",
+    ],
 )
 @parameterized.named_parameters(
     (
@@ -664,15 +669,19 @@ BINARY_PREDICATE_UFUNCS = [
 @multi_threaded(
     num_workers=3,
     skip_tests=[
+        "testBinaryPredicateUfunc",
         "testBinaryUfunc",
+        "testCasts",
         "testConformNumpyComplex",
-        "testFloordivCornerCases",
+        "testDivmod",
         "testDivmodCornerCases",
+        "testFloordivCornerCases",
+        "testFrexp",
+        "testLdexp",
+        "testModf",
+        "testPredicateUfunc",
         "testSpacing",
         "testUnaryUfunc",
-        "testCasts",
-        "testLdexp",
-        "testPredicateUfunc",
     ],
 )
 @parameterized.named_parameters(
@@ -871,7 +880,6 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             float_type=float_type,
         )
 
-  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testBinaryPredicateUfunc(self, float_type):
     for op in BINARY_PREDICATE_UFUNCS:
       with self.subTest(op.__name__):
