@@ -238,6 +238,7 @@ class CustomFloatTest(parameterized.TestCase):
   def testModuleName(self, float_type):
     self.assertEqual(float_type.__module__, "ml_dtypes")
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPickleable(self, float_type):
     # https://github.com/google/jax/discussions/8505
     x = np.arange(10, dtype=float_type)
@@ -869,6 +870,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             float_type=float_type,
         )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testBinaryPredicateUfunc(self, float_type):
     for op in BINARY_PREDICATE_UFUNCS:
       with self.subTest(op.__name__):
@@ -894,6 +896,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         vals = vals.astype(float_type)
         np.testing.assert_equal(op(vals), op(vals.astype(np.float32)))
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testDivmod(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
@@ -959,6 +962,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         float_type=float_type,
     )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testModf(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
@@ -991,6 +995,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         float_type=float_type,
     )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testFrexp(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
