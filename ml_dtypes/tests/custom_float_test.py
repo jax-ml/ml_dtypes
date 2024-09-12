@@ -880,6 +880,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             float_type=float_type,
         )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testBinaryPredicateUfunc(self, float_type):
     for op in BINARY_PREDICATE_UFUNCS:
       with self.subTest(op.__name__):
