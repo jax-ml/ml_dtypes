@@ -55,7 +55,7 @@ UINT_TYPES = {
 }
 
 
-@multi_threaded(num_workers=3)
+@multi_threaded(num_workers=3, skip_tests=["testFInfo"])
 class FinfoTest(parameterized.TestCase):
 
   def assertNanEqual(self, x, y):
