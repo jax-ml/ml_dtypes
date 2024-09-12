@@ -217,6 +217,21 @@ struct TypeDescriptor<float4_e2m1fn> : CustomFloatType<float4_e2m1fn> {
 };
 
 template <>
+struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
+  typedef float8_e8m0fnu T;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "float8_e8m0fnu";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e8m0fnu";
+  static constexpr const char* kTpDoc = "float8_e8m0fnu floating-point values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'W';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
 struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
   typedef int2 T;
   static constexpr bool is_floating = false;
@@ -379,6 +394,9 @@ bool Initialize() {
       !RegisterFloatDtype<float4_e2m1fn>(numpy.get())) {
     return false;
   }
+  if (!RegisterFloatDtype<float8_e8m0fnu>(numpy.get())) {
+    return false;
+  }
 
   if (!RegisterIntNDtype<int2>(numpy.get()) ||
       !RegisterIntNDtype<uint2>(numpy.get()) ||
@@ -393,6 +411,9 @@ bool Initialize() {
                             float8_e4m3b11fnuz, float8_e4m3fn, float8_e4m3fnuz,
                             float8_e5m2, float8_e5m2fnuz, float6_e2m3fn,
                             float6_e3m2fn, float4_e2m1fn>();
+  // Only registering to/from BF16 and FP32 for float8_e8m0fnu.
+  success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bfloat16, float>();
+  success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();
   success &= RegisterOneWayCustomCast<int2, int4, int8_t>();
   success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
   return success;
@@ -433,6 +454,7 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
       !InitModuleType<float8_e4m3fnuz>(m.get(), "float8_e4m3fnuz") ||
       !InitModuleType<float8_e5m2>(m.get(), "float8_e5m2") ||
       !InitModuleType<float8_e5m2fnuz>(m.get(), "float8_e5m2fnuz") ||
+      !InitModuleType<float8_e8m0fnu>(m.get(), "float8_e8m0fnu") ||
       !InitModuleType<bfloat16>(m.get(), "bfloat16") ||
       !InitModuleType<int2>(m.get(), "int2") ||
       !InitModuleType<int4>(m.get(), "int4") ||

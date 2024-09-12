@@ -155,6 +155,16 @@ This type has the following characteristics:
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
 
+### `float8_e8m0fnu`
+
+[OpenCompute MX](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf)
+scale format E8M0, which has the following properties:
+  * Unsigned format
+  * 8 exponent bits
+  * Exponent range from -127 to 127
+  * No zero and infinity
+  * Single NaN value (0xFF).
+
 ## `int2`, `int4`, `uint2` and `uint4`
 
 2 and 4-bit integer types, where each element is represented unpacked (i.e.,
