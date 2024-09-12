@@ -881,6 +881,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
             op(x, y), op(x.astype(np.float32), y.astype(np.float32))
         )
 
+  @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPredicateUfunc(self, float_type):
     for op in [np.isfinite, np.isinf, np.isnan, np.signbit, np.logical_not]:
       with self.subTest(op.__name__):
