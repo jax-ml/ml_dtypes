@@ -672,6 +672,7 @@ BINARY_PREDICATE_UFUNCS = [
         "testUnaryUfunc",
         "testCasts",
         "testLdexp",
+        "testPredicateUfunc",
     ],
 )
 @parameterized.named_parameters(

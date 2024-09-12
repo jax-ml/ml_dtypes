@@ -8,9 +8,9 @@ on:
   pull_request:  # trigger on pull requests affecting relevant files
     branches:
       - main
-    paths:
-      - '**workflows/wheels.yml'
-      - 'pyproject.toml'
+    # paths:
+    #   - '**workflows/wheels.yml'
+    #   - 'pyproject.toml'
   release:  # trigger on published release
     types:
       - published
