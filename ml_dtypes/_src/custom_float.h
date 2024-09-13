@@ -101,7 +101,7 @@ template <typename T>
 Safe_PyObjectPtr PyCustomFloat_FromT(T x) {
   PyTypeObject* type =
       reinterpret_cast<PyTypeObject*>(TypeDescriptor<T>::type_ptr);
-  Safe_PyObjectPtr ref = make_safe(type->tp_alloc(type, 0));
+  Safe_PyObjectPtr ref = make_safe(PyObject_New(PyObject, type));
   PyCustomFloat<T>* p = reinterpret_cast<PyCustomFloat<T>*>(ref.get());
   if (p) {
     p->value = x;
@@ -213,7 +213,9 @@ PyObject* PyCustomFloat_Add(PyObject* a, PyObject* b) {
   if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
     return PyCustomFloat_FromT<T>(x + y).release();
   }
-  return PyArray_Type.tp_as_number->nb_add(a, b);
+  auto array_nb_add =
+      reinterpret_cast<binaryfunc>(PyType_GetSlot(&PyArray_Type, Py_nb_add));
+  return array_nb_add(a, b);
 }
 
 template <typename T>
@@ -222,7 +224,9 @@ PyObject* PyCustomFloat_Subtract(PyObject* a, PyObject* b) {
   if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
     return PyCustomFloat_FromT<T>(x - y).release();
   }
-  return PyArray_Type.tp_as_number->nb_subtract(a, b);
+  auto array_nb_subtract = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_subtract));
+  return array_nb_subtract(a, b);
 }
 
 template <typename T>
@@ -231,7 +235,9 @@ PyObject* PyCustomFloat_Multiply(PyObject* a, PyObject* b) {
   if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
     return PyCustomFloat_FromT<T>(x * y).release();
   }
-  return PyArray_Type.tp_as_number->nb_multiply(a, b);
+  auto array_nb_multiply = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_multiply));
+  return array_nb_multiply(a, b);
 }
 
 template <typename T>
@@ -240,7 +246,9 @@ PyObject* PyCustomFloat_TrueDivide(PyObject* a, PyObject* b) {
   if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
     return PyCustomFloat_FromT<T>(x / y).release();
   }
-  return PyArray_Type.tp_as_number->nb_true_divide(a, b);
+  auto array_nb_true_divide = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_true_divide));
+  return array_nb_true_divide(a, b);
 }
 
 // Constructs a new PyCustomFloat.
@@ -281,8 +289,7 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
       return PyCustomFloat_FromT<T>(value).release();
     }
   }
-  PyErr_Format(PyExc_TypeError, "expected number, got %s",
-               Py_TYPE(arg)->tp_name);
+  PyErr_Format(PyExc_TypeError, "expected number, got %R", Py_TYPE(arg));
   return nullptr;
 }
 
@@ -291,7 +298,9 @@ template <typename T>
 PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
   T x, y;
   if (!SafeCastToCustomFloat<T>(a, &x) || !SafeCastToCustomFloat<T>(b, &y)) {
-    return PyGenericArrType_Type.tp_richcompare(a, b, op);
+    auto generic_tp_richcompare = reinterpret_cast<richcmpfunc>(
+        PyType_GetSlot(&PyGenericArrType_Type, Py_tp_richcompare));
+    return generic_tp_richcompare(a, b, op);
   }
   bool result;
   switch (op) {
@@ -340,25 +349,18 @@ PyObject* PyCustomFloat_Str(PyObject* self) {
   return PyUnicode_FromString(s.str().c_str());
 }
 
-// _Py_HashDouble changed its prototype for Python 3.10 so we use an overload to
-// handle the two possibilities.
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
-inline Py_hash_t HashImpl(Py_hash_t (*hash_double)(PyObject*, double),
-                          PyObject* self, double value) {
-  return hash_double(self, value);
-}
-
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
-inline Py_hash_t HashImpl(Py_hash_t (*hash_double)(double), PyObject* self,
-                          double value) {
-  return hash_double(value);
-}
-
 // Hash function for PyCustomFloat.
 template <typename T>
 Py_hash_t PyCustomFloat_Hash(PyObject* self) {
   T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  return HashImpl(&_Py_HashDouble, self, static_cast<double>(x));
+  if (std::isnan(x)) {
+    // NaNs hash as the pointer hash of the object.
+    auto f = reinterpret_cast<hashfunc>(
+        PyType_GetSlot(&PyBaseObject_Type, Py_tp_hash));
+    return f(self);
+  }
+  Safe_PyObjectPtr f(PyFloat_FromDouble(static_cast<double>(x)));
+  return PyObject_Hash(f.get());
 }
 
 template <typename T>
@@ -428,8 +430,7 @@ template <typename T>
 int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
   T x;
   if (!CastToCustomFloat<T>(item, &x)) {
-    PyErr_Format(PyExc_TypeError, "expected number, got %s",
-                 Py_TYPE(item)->tp_name);
+    PyErr_Format(PyExc_TypeError, "expected number, got %R", Py_TYPE(item));
     return -1;
   }
   memcpy(data, &x, sizeof(T));
