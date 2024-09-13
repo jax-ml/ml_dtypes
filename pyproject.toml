@@ -1,6 +1,6 @@
 [project]
 name = "ml_dtypes"
-version = "0.4.0"  # Keep in sync with ml_dtypes/__init__.py:__version__
+version = "0.4.1"  # Keep in sync with ml_dtypes/__init__.py:__version__
 description = ""
 readme = "README.md"
 requires-python = ">=3.9"
@@ -48,8 +48,7 @@ pyink-use-majority-quotes = true
 
 [build-system]
 requires = [
-    # TODO(phawkins): update this to 2.0.0 after its release.
-    "numpy==2.0.0rc1",
+    "numpy~=2.0",
     "setuptools~=68.1.0",
 ]
 build-backend = "setuptools.build_meta"

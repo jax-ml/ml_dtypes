@@ -30,7 +30,7 @@ jobs:
         os: ["ubuntu-latest"]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         include:
-          - os: macOS-11
+          - os: macOS-12
             python-version: "3.11"
           - os: windows-2019
             python-version: "3.11"
