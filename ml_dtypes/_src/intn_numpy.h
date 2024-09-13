@@ -50,7 +50,9 @@ struct IntNTypeDescriptor {
   // registered by another system into NumPy.
   static PyObject* type_ptr;
 
-  static PyNumberMethods number_methods;
+  static PyType_Spec type_spec;
+  static PyType_Slot type_slots[];
+
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
@@ -310,47 +312,6 @@ PyObject* PyIntN_nb_floor_divide(PyObject* a, PyObject* b) {
   return PyArray_Type.tp_as_number->nb_floor_divide(a, b);
 }
 
-// Python number methods for PyIntN objects.
-template <typename T>
-PyNumberMethods IntNTypeDescriptor<T>::number_methods = {
-    PyIntN_nb_add<T>,        // nb_add
-    PyIntN_nb_subtract<T>,   // nb_subtract
-    PyIntN_nb_multiply<T>,   // nb_multiply
-    PyIntN_nb_remainder<T>,  // nb_remainder
-    nullptr,                 // nb_divmod
-    nullptr,                 // nb_power
-    PyIntN_nb_negative<T>,   // nb_negative
-    PyIntN_nb_positive<T>,   // nb_positive
-    nullptr,                 // nb_absolute
-    nullptr,                 // nb_nonzero
-    nullptr,                 // nb_invert
-    nullptr,                 // nb_lshift
-    nullptr,                 // nb_rshift
-    nullptr,                 // nb_and
-    nullptr,                 // nb_xor
-    nullptr,                 // nb_or
-    PyIntN_nb_int<T>,        // nb_int
-    nullptr,                 // reserved
-    PyIntN_nb_float<T>,      // nb_float
-
-    nullptr,  // nb_inplace_add
-    nullptr,  // nb_inplace_subtract
-    nullptr,  // nb_inplace_multiply
-    nullptr,  // nb_inplace_remainder
-    nullptr,  // nb_inplace_power
-    nullptr,  // nb_inplace_lshift
-    nullptr,  // nb_inplace_rshift
-    nullptr,  // nb_inplace_and
-    nullptr,  // nb_inplace_xor
-    nullptr,  // nb_inplace_or
-
-    PyIntN_nb_floor_divide<T>,  // nb_floor_divide
-    nullptr,                    // nb_true_divide
-    nullptr,                    // nb_inplace_floor_divide
-    nullptr,                    // nb_inplace_true_divide
-    nullptr,                    // nb_index
-};
-
 // Implementation of repr() for PyIntN.
 template <typename T>
 PyObject* PyIntN_Repr(PyObject* self) {
@@ -409,6 +370,36 @@ PyObject* PyIntN_RichCompare(PyObject* a, PyObject* b, int op) {
   }
   PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
 }
+
+template <typename T>
+PyType_Slot IntNTypeDescriptor<T>::type_slots[] = {
+    {Py_tp_new, reinterpret_cast<void*>(PyIntN_tp_new<T>)},
+    {Py_tp_repr, reinterpret_cast<void*>(PyIntN_Repr<T>)},
+    {Py_tp_hash, reinterpret_cast<void*>(PyIntN_Hash<T>)},
+    {Py_tp_str, reinterpret_cast<void*>(PyIntN_Str<T>)},
+    {Py_tp_doc,
+     reinterpret_cast<void*>(const_cast<char*>(TypeDescriptor<T>::kTpDoc))},
+    {Py_tp_richcompare, reinterpret_cast<void*>(PyIntN_RichCompare<T>)},
+    {Py_nb_add, reinterpret_cast<void*>(PyIntN_nb_add<T>)},
+    {Py_nb_subtract, reinterpret_cast<void*>(PyIntN_nb_subtract<T>)},
+    {Py_nb_multiply, reinterpret_cast<void*>(PyIntN_nb_multiply<T>)},
+    {Py_nb_remainder, reinterpret_cast<void*>(PyIntN_nb_remainder<T>)},
+    {Py_nb_negative, reinterpret_cast<void*>(PyIntN_nb_negative<T>)},
+    {Py_nb_positive, reinterpret_cast<void*>(PyIntN_nb_positive<T>)},
+    {Py_nb_int, reinterpret_cast<void*>(PyIntN_nb_int<T>)},
+    {Py_nb_float, reinterpret_cast<void*>(PyIntN_nb_float<T>)},
+    {Py_nb_floor_divide, reinterpret_cast<void*>(PyIntN_nb_floor_divide<T>)},
+    {0, nullptr},
+};
+
+template <typename T>
+PyType_Spec IntNTypeDescriptor<T>::type_spec = {
+    /*.name=*/TypeDescriptor<T>::kQualifiedTypeName,
+    /*.basicsize=*/static_cast<int>(sizeof(PyIntN<T>)),
+    /*.itemsize=*/0,
+    /*.flags=*/Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    /*.slots=*/IntNTypeDescriptor<T>::type_slots,
+};
 
 // Numpy support
 template <typename T>
@@ -775,38 +766,16 @@ bool RegisterIntNUFuncs(PyObject* numpy) {
 
 template <typename T>
 bool RegisterIntNDtype(PyObject* numpy) {
-  Safe_PyObjectPtr name =
-      make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
-  Safe_PyObjectPtr qualname =
-      make_safe(PyUnicode_FromString(TypeDescriptor<T>::kTypeName));
-
-  PyHeapTypeObject* heap_type = reinterpret_cast<PyHeapTypeObject*>(
-      PyType_Type.tp_alloc(&PyType_Type, 0));
-  if (!heap_type) {
+  // bases must be a tuple for Python 3.9 and earlier. Change to just pass
+  // the base type directly when dropping Python 3.9 support.
+  Safe_PyObjectPtr bases(
+      PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
+  PyObject* type =
+      PyType_FromSpecWithBases(&IntNTypeDescriptor<T>::type_spec, bases.get());
+  if (!type) {
     return false;
   }
-  // Caution: we must not call any functions that might invoke the GC until
-  // PyType_Ready() is called. Otherwise the GC might see a half-constructed
-  // type object.
-  heap_type->ht_name = name.release();
-  heap_type->ht_qualname = qualname.release();
-  PyTypeObject* type = &heap_type->ht_type;
-  type->tp_name = TypeDescriptor<T>::kTypeName;
-  type->tp_basicsize = sizeof(PyIntN<T>);
-  type->tp_flags =
-      Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HEAPTYPE;
-  type->tp_base = &PyGenericArrType_Type;
-  type->tp_new = PyIntN_tp_new<T>;
-  type->tp_repr = PyIntN_Repr<T>;
-  type->tp_hash = PyIntN_Hash<T>;
-  type->tp_str = PyIntN_Str<T>;
-  type->tp_doc = const_cast<char*>(TypeDescriptor<T>::kTpDoc);
-  type->tp_richcompare = PyIntN_RichCompare<T>;
-  type->tp_as_number = &IntNTypeDescriptor<T>::number_methods;
-  if (PyType_Ready(type) < 0) {
-    return false;
-  }
-  TypeDescriptor<T>::type_ptr = reinterpret_cast<PyObject*>(type);
+  TypeDescriptor<T>::type_ptr = type;
 
   Safe_PyObjectPtr module = make_safe(PyUnicode_FromString("ml_dtypes"));
   if (!module) {
@@ -840,7 +809,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
   PyArray_DescrProto& descr_proto = IntNTypeDescriptor<T>::npy_descr_proto;
   descr_proto = GetIntNDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
-  descr_proto.typeobj = type;
+  descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
   TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
   if (TypeDescriptor<T>::npy_type < 0) {
