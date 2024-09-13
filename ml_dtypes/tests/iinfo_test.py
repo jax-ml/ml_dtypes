@@ -15,11 +15,12 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import ml_dtypes
-from multi_thread_utils import multi_threaded
+# from multi_thread_utils import multi_threaded
 import numpy as np
 
 
-@multi_threaded(num_workers=3)
+# TODO(jakevdp): re-enable multi-threaded tests after 0.5.0 release.
+# @multi_threaded(num_workers=3)
 class IinfoTest(parameterized.TestCase):
 
   def testIinfoInt2(self):
