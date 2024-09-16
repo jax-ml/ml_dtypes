@@ -25,8 +25,6 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [0.5.0] - 2024-09-13
 
-**Note: due to an unintentional workflow issue, v0.5.0 is linux-only: see [#196](https://github.com/jax-ml/ml_dtypes/issues/196).**
-
 * Added new 8-bit float types following IEEE 754 convention:
   `ml_dtypes.float8_e4m3`, `ml_dtypes.float8_e3m4`
 * Added the 8-bit floating point type `ml_dtypes.float8_e8m0fnu`, which is the
