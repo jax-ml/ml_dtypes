@@ -16,11 +16,10 @@ from importlib import metadata
 
 from absl.testing import absltest
 import ml_dtypes
-# from multi_thread_utils import multi_threaded
+from multi_thread_utils import multi_threaded
 
 
-# TODO(jakevdp): re-enable multi-threaded tests after 0.5.0 release.
-# @multi_threaded(num_workers=3)
+@multi_threaded(num_workers=3)
 class CustomFloatTest(absltest.TestCase):
 
   def test_version_matches_package_metadata(self):
