@@ -97,6 +97,9 @@ jobs:
     name: Release & Upload to PyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
     # Only publish release to PyPI when a github release is created.
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
@@ -110,6 +113,5 @@ jobs:
       - name: List files
         run: ls -l dist/
 
-      - uses: pypa/gh-action-pypi-publish@ec4db0b4ddc65acdf4bff5fa45ac92d78b56bdf0 # ratchet:pypa/gh-action-pypi-publish@v1.9
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@ec4db0b4ddc65acdf4bff5fa45ac92d78b56bdf0 # ratchet:pypa/gh-action-pypi-publish@v1.9
