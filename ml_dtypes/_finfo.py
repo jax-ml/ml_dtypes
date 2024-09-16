@@ -14,8 +14,6 @@
 
 """Overload of numpy.finfo to handle dtypes defined in ml_dtypes."""
 
-from typing import Dict
-
 from ml_dtypes._ml_dtypes_ext import bfloat16
 from ml_dtypes._ml_dtypes_ext import float4_e2m1fn
 from ml_dtypes._ml_dtypes_ext import float6_e2m3fn
@@ -154,7 +152,6 @@ class _Float8E8m0fnuMachArLike:
 
 class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
   __doc__ = np.finfo.__doc__
-  _finfo_cache: Dict[type, np.finfo] = {}  # pylint: disable=g-bare-generic
 
   @staticmethod
   def _bfloat16_finfo():
@@ -699,6 +696,9 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
       _float8_e8m0fnu_dtype: _float8_e8m0fnu_finfo,
   }
   _finfo_name_map = {t.name: t for t in _finfo_type_map}
+  _finfo_cache = {
+      t: init_fn.__func__() for t, init_fn in _finfo_type_map.items()  # pytype: disable=attribute-error
+  }
 
   def __new__(cls, dtype):
     if isinstance(dtype, str):
@@ -710,9 +710,4 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     i = cls._finfo_cache.get(key)
     if i is not None:
       return i
-
-    init = cls._finfo_type_map.get(key)
-    if init is not None:
-      cls._finfo_cache[dtype] = init.__func__()  # pytype: disable=attribute-error
-      return cls._finfo_cache[dtype]
     return super().__new__(cls, dtype)
