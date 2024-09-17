@@ -125,6 +125,14 @@ TYPED_TEST(FloatMXTest, Negate) {
   }
 }
 
+TYPED_TEST(FloatMXTest, Signbit) {
+  using FloatMX = TypeParam;
+
+  FloatMX one(1.0);
+  EXPECT_EQ(Eigen::numext::signbit(one).rep(), 0x00);
+  EXPECT_EQ(Eigen::numext::signbit(-one).rep(), 0xff);
+}
+
 TYPED_TEST(FloatMXTest, BitCasts) {
   using FloatMX = TypeParam;
 
