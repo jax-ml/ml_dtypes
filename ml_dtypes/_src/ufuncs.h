@@ -21,8 +21,13 @@ limitations under the License.
 #include "_src/numpy.h"
 // clang-format on
 
+#include <array>    // NOLINT
 #include <cmath>    // NOLINT
 #include <complex>  // NOLINT
+#include <cstddef>  // NOLINT
+#include <limits>   // NOLINT
+#include <utility>  // NOLINT
+#include <vector>   // NOLINT
 
 #include "_src/common.h"  // NOLINT
 
@@ -33,100 +38,74 @@ limitations under the License.
 
 namespace ml_dtypes {
 
-template <typename InType, typename OutType, typename Functor>
-struct UnaryUFunc {
+template <typename Functor, typename OutType, typename... InTypes>
+struct UFunc {
   static std::vector<int> Types() {
-    return {TypeDescriptor<InType>::Dtype(), TypeDescriptor<OutType>::Dtype()};
-  }
-  static void Call(char** args, const npy_intp* dimensions,
-                   const npy_intp* steps, void* data) {
-    const char* i0 = args[0];
-    char* o = args[1];
-    for (npy_intp k = 0; k < *dimensions; k++) {
-      auto x = *reinterpret_cast<const typename TypeDescriptor<InType>::T*>(i0);
-      *reinterpret_cast<typename TypeDescriptor<OutType>::T*>(o) = Functor()(x);
-      i0 += steps[0];
-      o += steps[1];
-    }
-  }
-};
-
-template <typename InType, typename OutType, typename OutType2,
-          typename Functor>
-struct UnaryUFunc2 {
-  static std::vector<int> Types() {
-    return {TypeDescriptor<InType>::Dtype(), TypeDescriptor<OutType>::Dtype(),
-            TypeDescriptor<OutType2>::Dtype()};
-  }
-  static void Call(char** args, const npy_intp* dimensions,
-                   const npy_intp* steps, void* data) {
-    const char* i0 = args[0];
-    char* o0 = args[1];
-    char* o1 = args[2];
-    for (npy_intp k = 0; k < *dimensions; k++) {
-      auto x = *reinterpret_cast<const typename TypeDescriptor<InType>::T*>(i0);
-      std::tie(*reinterpret_cast<typename TypeDescriptor<OutType>::T*>(o0),
-               *reinterpret_cast<typename TypeDescriptor<OutType2>::T*>(o1)) =
-          Functor()(x);
-      i0 += steps[0];
-      o0 += steps[1];
-      o1 += steps[2];
-    }
-  }
-};
-
-template <typename InType, typename OutType, typename Functor>
-struct BinaryUFunc {
-  static std::vector<int> Types() {
-    return {TypeDescriptor<InType>::Dtype(), TypeDescriptor<InType>::Dtype(),
+    return {TypeDescriptor<InTypes>::Dtype()...,
             TypeDescriptor<OutType>::Dtype()};
   }
+  static constexpr int kInputArity = sizeof...(InTypes);
+
+  template <std::size_t... Is>
+  static void CallImpl(std::index_sequence<Is...>, char** args,
+                       const npy_intp* dimensions, const npy_intp* steps,
+                       void* data) {
+    std::array<const char*, kInputArity> inputs = {args[Is]...};
+    char* o = args[kInputArity];
+    for (npy_intp k = 0; k < *dimensions; k++) {
+      *reinterpret_cast<OutType*>(o) =
+          Functor()(*reinterpret_cast<const InTypes*>(inputs[Is])...);
+      ([&]() { inputs[Is] += steps[Is]; }(), ...);
+      o += steps[kInputArity];
+    }
+  }
   static void Call(char** args, const npy_intp* dimensions,
                    const npy_intp* steps, void* data) {
-    const char* i0 = args[0];
-    const char* i1 = args[1];
-    char* o = args[2];
-    for (npy_intp k = 0; k < *dimensions; k++) {
-      auto x = *reinterpret_cast<const typename TypeDescriptor<InType>::T*>(i0);
-      auto y = *reinterpret_cast<const typename TypeDescriptor<InType>::T*>(i1);
-      *reinterpret_cast<typename TypeDescriptor<OutType>::T*>(o) =
-          Functor()(x, y);
-      i0 += steps[0];
-      i1 += steps[1];
-      o += steps[2];
-    }
+    return CallImpl(std::index_sequence_for<InTypes...>(), args, dimensions,
+                    steps, data);
   }
 };
 
-template <typename InType, typename InType2, typename OutType, typename Functor>
-struct BinaryUFunc2 {
+template <typename Functor, typename OutType, typename OutType2,
+          typename... InTypes>
+struct UFunc2 {
   static std::vector<int> Types() {
-    return {TypeDescriptor<InType>::Dtype(), TypeDescriptor<InType2>::Dtype(),
-            TypeDescriptor<OutType>::Dtype()};
+    return {
+        TypeDescriptor<InTypes>::Dtype()...,
+        TypeDescriptor<OutType>::Dtype(),
+        TypeDescriptor<OutType2>::Dtype(),
+    };
+  }
+  static constexpr int kInputArity = sizeof...(InTypes);
+
+  template <std::size_t... Is>
+  static void CallImpl(std::index_sequence<Is...>, char** args,
+                       const npy_intp* dimensions, const npy_intp* steps,
+                       void* data) {
+    std::array<const char*, kInputArity> inputs = {args[Is]...};
+    char* o0 = args[kInputArity];
+    char* o1 = args[kInputArity + 1];
+    for (npy_intp k = 0; k < *dimensions; k++) {
+      std::tie(*reinterpret_cast<OutType*>(o0),
+               *reinterpret_cast<OutType2*>(o1)) =
+          Functor()(*reinterpret_cast<const InTypes*>(inputs[Is])...);
+      ([&]() { inputs[Is] += steps[Is]; }(), ...);
+      o0 += steps[kInputArity];
+      o1 += steps[kInputArity + 1];
+    }
   }
   static void Call(char** args, const npy_intp* dimensions,
                    const npy_intp* steps, void* data) {
-    const char* i0 = args[0];
-    const char* i1 = args[1];
-    char* o = args[2];
-    for (npy_intp k = 0; k < *dimensions; k++) {
-      auto x = *reinterpret_cast<const typename TypeDescriptor<InType>::T*>(i0);
-      auto y =
-          *reinterpret_cast<const typename TypeDescriptor<InType2>::T*>(i1);
-      *reinterpret_cast<typename TypeDescriptor<OutType>::T*>(o) =
-          Functor()(x, y);
-      i0 += steps[0];
-      i1 += steps[1];
-      o += steps[2];
-    }
+    return CallImpl(std::index_sequence_for<InTypes...>(), args, dimensions,
+                    steps, data);
   }
 };
 
-template <typename UFunc, typename CustomT>
+template <typename UFuncT, typename CustomT>
 bool RegisterUFunc(PyObject* numpy, const char* name) {
-  std::vector<int> types = UFunc::Types();
+  std::vector<int> types = UFuncT::Types();
   PyUFuncGenericFunction fn =
-      reinterpret_cast<PyUFuncGenericFunction>(UFunc::Call);
+      reinterpret_cast<PyUFuncGenericFunction>(UFuncT::Call);
   Safe_PyObjectPtr ufunc_obj = make_safe(PyObject_GetAttrString(numpy, name));
   if (!ufunc_obj) {
     return false;
@@ -165,7 +144,7 @@ struct TrueDivide {
   T operator()(T a, T b) { return a / b; }
 };
 
-inline std::pair<float, float> divmod(float a, float b) {
+static std::pair<float, float> divmod_impl(float a, float b) {
   if (b == 0.0f) {
     float nan = std::numeric_limits<float>::quiet_NaN();
     float inf = std::numeric_limits<float>::infinity();
@@ -200,6 +179,14 @@ inline std::pair<float, float> divmod(float a, float b) {
 }
 
 template <typename T>
+struct Divmod {
+  std::pair<T, T> operator()(T a, T b) {
+    float c, d;
+    std::tie(c, d) = divmod_impl(static_cast<float>(a), static_cast<float>(b));
+    return {T(c), T(d)};
+  }
+};
+template <typename T>
 struct FloorDivide {
   template <typename U = T,
             std::enable_if_t<TypeDescriptor<U>::is_integral, bool> = true>
@@ -218,7 +205,7 @@ struct FloorDivide {
   template <typename U = T,
             std::enable_if_t<TypeDescriptor<U>::is_floating, bool> = true>
   T operator()(T a, T b) {
-    return T(divmod(static_cast<float>(a), static_cast<float>(b)).first);
+    return T(divmod_impl(static_cast<float>(a), static_cast<float>(b)).first);
   }
 };
 template <typename T>
@@ -240,36 +227,10 @@ struct Remainder {
   template <typename U = T,
             std::enable_if_t<TypeDescriptor<U>::is_floating, bool> = true>
   T operator()(T a, T b) {
-    return T(divmod(static_cast<float>(a), static_cast<float>(b)).second);
+    return T(divmod_impl(static_cast<float>(a), static_cast<float>(b)).second);
   }
 };
-template <typename T>
-struct DivmodUFunc {
-  static std::vector<int> Types() {
-    return {TypeDescriptor<T>::Dtype(), TypeDescriptor<T>::Dtype(),
-            TypeDescriptor<T>::Dtype(), TypeDescriptor<T>::Dtype()};
-  }
-  static void Call(char** args, npy_intp* dimensions, npy_intp* steps,
-                   void* data) {
-    const char* i0 = args[0];
-    const char* i1 = args[1];
-    char* o0 = args[2];
-    char* o1 = args[3];
-    for (npy_intp k = 0; k < *dimensions; k++) {
-      T x = *reinterpret_cast<const T*>(i0);
-      T y = *reinterpret_cast<const T*>(i1);
-      float floordiv, mod;
-      std::tie(floordiv, mod) =
-          divmod(static_cast<float>(x), static_cast<float>(y));
-      *reinterpret_cast<T*>(o0) = T(floordiv);
-      *reinterpret_cast<T*>(o1) = T(mod);
-      i0 += steps[0];
-      i1 += steps[1];
-      o0 += steps[2];
-      o1 += steps[3];
-    }
-  }
-};
+
 template <typename T>
 struct Fmod {
   T operator()(T a, T b) {

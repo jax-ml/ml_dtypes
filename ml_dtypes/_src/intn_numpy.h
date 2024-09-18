@@ -751,15 +751,15 @@ bool RegisterIntNCasts() {
 
 template <typename T>
 bool RegisterIntNUFuncs(PyObject* numpy) {
-  bool ok = RegisterUFunc<BinaryUFunc<T, T, ufuncs::Add<T>>, T>(numpy, "add") &&
-            RegisterUFunc<BinaryUFunc<T, T, ufuncs::Subtract<T>>, T>(
-                numpy, "subtract") &&
-            RegisterUFunc<BinaryUFunc<T, T, ufuncs::Multiply<T>>, T>(
-                numpy, "multiply") &&
-            RegisterUFunc<BinaryUFunc<T, T, ufuncs::FloorDivide<T>>, T>(
+  bool ok = RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>, T>(numpy, "add") &&
+            RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>, T>(numpy,
+                                                                  "subtract") &&
+            RegisterUFunc<UFunc<ufuncs::Multiply<T>, T, T, T>, T>(numpy,
+                                                                  "multiply") &&
+            RegisterUFunc<UFunc<ufuncs::FloorDivide<T>, T, T, T>, T>(
                 numpy, "floor_divide") &&
-            RegisterUFunc<BinaryUFunc<T, T, ufuncs::Remainder<T>>, T>(
-                numpy, "remainder");
+            RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy,
+                                                                   "remainder");
 
   return ok;
 }
