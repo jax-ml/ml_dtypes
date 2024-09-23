@@ -1555,7 +1555,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     } else if constexpr (kDigitShift >= 0) {
       // Shift up, inserting zeros in the newly created digits.
       rounded_from_bits <<= kDigitShift;
-      bits = ToBits{rounded_from_bits};
+      bits = static_cast<ToBits>(rounded_from_bits);
     }
 
     To to = Eigen::numext::bit_cast<To>(bits);
