@@ -8,8 +8,9 @@
 
 - [`bfloat16`](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format):
   an alternative to the standard [`float16`](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) format
-- `float8_*`: several experimental 8-bit floating point representations
-  including:
+- 8-bit floating point representations, parameterized by number of exponent and
+  mantissa bits, as well as the bias (if any) and representability of infinity,
+  NaN, and signed zero.
   * `float8_e3m4`
   * `float8_e4m3`
   * `float8_e4m3b11fnuz`
@@ -17,11 +18,16 @@
   * `float8_e4m3fnuz`
   * `float8_e5m2`
   * `float8_e5m2fnuz`
-- Microscaling (MX) sub-byte floating point representations including:
+  * `float8_e8m0fnu`
+- Microscaling (MX) sub-byte floating point representations:
   * `float4_e2m1fn`
   * `float6_e2m3fn`
   * `float6_e3m2fn`
-- `int2`, `int4`, `uint2` and `uint4`: low precision integer types.
+- Narrow integer encodings:
+  * `int2`
+  * `int4`
+  * `uint2`
+  * `uint4`
 
 See below for specifications of these number formats.
 
