@@ -105,7 +105,7 @@ jobs:
     permissions:
       id-token: write
     # Only publish release to PyPI when a github release is created.
-    if: github.event_name == 'release' && github.event.action == 'published'
+    # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
@@ -117,5 +117,5 @@ jobs:
       - name: List files
         run: ls -l dist/
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@897895f1e160c830e369f9779632ebc134688e1b  # v1.10.2
+      # - name: Publish package distributions to PyPI
+      #   uses: pypa/gh-action-pypi-publish@897895f1e160c830e369f9779632ebc134688e1b  # v1.10.2
