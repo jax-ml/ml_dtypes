@@ -51,7 +51,8 @@ pyink-use-majority-quotes = true
 requires = [
     # We build against the most recent supported NumPy 2.0 release;
     # see https://github.com/numpy/numpy/issues/27265
-    "numpy~=2.0",
+    "numpy~=2.0; python_version<'3.13'",
+    "numpy~=2.1; python_version>='3.13'",
     "setuptools~=73.0.1",
 ]
 build-backend = "setuptools.build_meta"
