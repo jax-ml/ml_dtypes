@@ -1689,63 +1689,10 @@ using float8_e8m0fnu = float8_internal::float8_e8m0fnu;
 
 }  // namespace ml_dtypes
 
-// Eigen-specific overrides.
-namespace Eigen {
-namespace numext {
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e3m4
-bit_cast<ml_dtypes::float8_e3m4, uint8_t>(const uint8_t& src) {
-  return ml_dtypes::float8_e3m4::FromRep(src);
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
-bit_cast<uint8_t, ml_dtypes::float8_e3m4>(const ml_dtypes::float8_e3m4& src) {
-  return src.rep();
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e4m3
-bit_cast<ml_dtypes::float8_e4m3, uint8_t>(const uint8_t& src) {
-  return ml_dtypes::float8_e4m3::FromRep(src);
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
-bit_cast<uint8_t, ml_dtypes::float8_e4m3>(const ml_dtypes::float8_e4m3& src) {
-  return src.rep();
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e4m3fn
-bit_cast<ml_dtypes::float8_e4m3fn, uint8_t>(const uint8_t& src) {
-  return ml_dtypes::float8_e4m3fn::FromRep(src);
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
-bit_cast<uint8_t, ml_dtypes::float8_e4m3fn>(
-    const ml_dtypes::float8_e4m3fn& src) {
-  return src.rep();
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC ml_dtypes::float8_e5m2
-bit_cast<ml_dtypes::float8_e5m2, uint8_t>(const uint8_t& src) {
-  return ml_dtypes::float8_e5m2::FromRep(src);
-}
-
-template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t
-bit_cast<uint8_t, ml_dtypes::float8_e5m2>(const ml_dtypes::float8_e5m2& src) {
-  return src.rep();
-}
-
-}  // namespace numext
-
 // Work-around for isinf/isnan/isfinite issue on aarch64.
+namespace Eigen {
 namespace internal {
+
 template <>
 EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e3m4>(
     const ml_dtypes::float8_e3m4& x) {

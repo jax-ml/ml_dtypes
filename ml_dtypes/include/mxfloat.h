@@ -338,28 +338,18 @@ struct Traits<float4_e2m1fn>
 namespace Eigen {
 namespace numext {
 
-#define MXFLOAT_EIGEN_BITCAST_AND_SIGNBIT_IMPL(Type)                     \
-  template <>                                                            \
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint8_t bit_cast<uint8_t, Type>( \
-      const Type& x) {                                                   \
-    return x.rep();                                                      \
-  }                                                                      \
-  template <>                                                            \
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Type bit_cast<Type, uint8_t>(    \
-      const uint8_t& x) {                                                \
-    return Type::FromRep(x);                                             \
-  }                                                                      \
-  template <>                                                            \
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Type signbit(const Type& x) {    \
-    int8_t t = bit_cast<int8_t, Type>(x) << (8 - Type::kBits);           \
-    return bit_cast<Type, int8_t>(t >> 7);                               \
+#define MXFLOAT_EIGEN_SIGNBIT_IMPL(Type)                              \
+  template <>                                                         \
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Type signbit(const Type& x) { \
+    int8_t t = bit_cast<int8_t, Type>(x) << (8 - Type::kBits);        \
+    return bit_cast<Type, int8_t>(t >> 7);                            \
   }
 
-MXFLOAT_EIGEN_BITCAST_AND_SIGNBIT_IMPL(ml_dtypes::float6_e2m3fn)
-MXFLOAT_EIGEN_BITCAST_AND_SIGNBIT_IMPL(ml_dtypes::float6_e3m2fn)
-MXFLOAT_EIGEN_BITCAST_AND_SIGNBIT_IMPL(ml_dtypes::float4_e2m1fn)
+MXFLOAT_EIGEN_SIGNBIT_IMPL(ml_dtypes::float6_e2m3fn)
+MXFLOAT_EIGEN_SIGNBIT_IMPL(ml_dtypes::float6_e3m2fn)
+MXFLOAT_EIGEN_SIGNBIT_IMPL(ml_dtypes::float4_e2m1fn)
 
-#undef MXFLOAT_EIGEN_BITCAST_IMPL
+#undef MXFLOAT_EIGEN_SIGNBIT_IMPL
 
 }  // namespace numext
 
