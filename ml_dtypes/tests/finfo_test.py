@@ -111,16 +111,16 @@ class FinfoTest(parameterized.TestCase):
 
     if dtype not in DTYPES_WITH_NO_INFINITY_AND_NO_NAN:
       assert_infinite(np.spacing(info.max))
-    assert info.max > 0
+    assert info.max > 0.0
 
-    if info.min < 0 and dtype not in DTYPES_WITH_NO_INFINITY_AND_NO_NAN:
+    if info.min < 0.0 and dtype not in DTYPES_WITH_NO_INFINITY_AND_NO_NAN:
       # Only valid for signed floating format.
       assert_infinite(-np.spacing(info.min))
-    elif info.min > 0:
+    elif info.min > 0.0:
       # No zero in floating point format.
       assert_infinite(0)
       assert_infinite(make_val(-1))
-    elif info.min == 0:
+    elif info.min == 0.0:
       # Zero supported, but not negative values.
       self.assertEqual(make_val(0), 0)
       assert_infinite(make_val(-1))
@@ -129,9 +129,9 @@ class FinfoTest(parameterized.TestCase):
     assert_infinite(2.0**info.maxexp)
 
     assert_representable(info.smallest_subnormal)
-    if info.min < 0:
+    if info.min < 0.0:
       assert_zero(info.smallest_subnormal * 0.5)
-    self.assertGreater(info.smallest_normal, 0)
+    self.assertGreater(info.smallest_normal, 0.0)
     self.assertEqual(info.tiny, info.smallest_normal)
 
     # Identities according to the documentation:
