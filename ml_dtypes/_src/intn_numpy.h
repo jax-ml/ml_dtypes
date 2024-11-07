@@ -413,7 +413,7 @@ PyArray_DescrProto GetIntNDescrProto() {
       /*kind=*/TypeDescriptor<T>::kNpyDescrKind,
       /*type=*/TypeDescriptor<T>::kNpyDescrType,
       /*byteorder=*/TypeDescriptor<T>::kNpyDescrByteorder,
-      /*flags=*/NPY_USE_SETITEM,
+      /*flags=*/NPY_NEEDS_PYAPI | NPY_USE_SETITEM,
       /*type_num=*/0,
       /*elsize=*/sizeof(T),
       /*alignment=*/alignof(T),
