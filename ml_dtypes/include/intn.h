@@ -241,7 +241,9 @@ struct intN {
   }
 };
 
+using int1 = intN<1, int8_t>;
 using int2 = intN<2, int8_t>;
+using uint1 = intN<1, uint8_t>;
 using uint2 = intN<2, uint8_t>;
 using int4 = intN<4, int8_t>;
 using uint4 = intN<4, uint8_t>;
@@ -294,7 +296,12 @@ struct intN_numeric_limits_base {
 }  // namespace ml_dtypes
 
 namespace std {
-
+template <>
+struct numeric_limits<ml_dtypes::int1>
+    : public ml_dtypes::internal::intN_numeric_limits_base<ml_dtypes::int1> {};
+template <>
+struct numeric_limits<ml_dtypes::uint1>
+    : public ml_dtypes::internal::intN_numeric_limits_base<ml_dtypes::uint1> {};
 template <>
 struct numeric_limits<ml_dtypes::int2>
     : public ml_dtypes::internal::intN_numeric_limits_base<ml_dtypes::int2> {};
