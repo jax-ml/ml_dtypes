@@ -58,7 +58,7 @@ struct IntNTestParamNames {
   }
 };
 
-using IntNTypes = ::testing::Types<int2, uint2, int4, uint4>;
+using IntNTypes = ::testing::Types<int1, uint1, int2, uint2, int4, uint4>;
 TYPED_TEST_SUITE(IntNTest, IntNTypes, IntNTestParamNames);
 
 TEST(IntNTest, NumericLimits) {
@@ -69,6 +69,13 @@ TEST(IntNTest, NumericLimits) {
   EXPECT_EQ(static_cast<int>(std::numeric_limits<int4>::lowest()), -8);
   EXPECT_EQ(std::numeric_limits<int4>::digits, 3);
   EXPECT_EQ(std::numeric_limits<int4>::digits10, 0);
+  EXPECT_EQ(std::numeric_limits<int1>::is_signed, true);
+  EXPECT_EQ(std::numeric_limits<int1>::is_modulo, false);
+  EXPECT_EQ(static_cast<int>(std::numeric_limits<int1>::min()), -1);
+  EXPECT_EQ(static_cast<int>(std::numeric_limits<int1>::max()), 0);
+  EXPECT_EQ(static_cast<int>(std::numeric_limits<int1>::lowest()), -1);
+  EXPECT_EQ(std::numeric_limits<int1>::digits, 0);
+  EXPECT_EQ(std::numeric_limits<int1>::digits10, 0);
 }
 
 TEST(UIntNTest, NumericLimits) {
@@ -79,6 +86,13 @@ TEST(UIntNTest, NumericLimits) {
   EXPECT_EQ(static_cast<int>(std::numeric_limits<uint4>::lowest()), 0);
   EXPECT_EQ(std::numeric_limits<uint4>::digits, 4);
   EXPECT_EQ(std::numeric_limits<uint4>::digits10, 1);
+  EXPECT_EQ(std::numeric_limits<uint1>::is_signed, false);
+  EXPECT_EQ(std::numeric_limits<uint1>::is_modulo, true);
+  EXPECT_EQ(static_cast<int>(std::numeric_limits<uint1>::min()), 0);
+  EXPECT_EQ(static_cast<int>(std::numeric_limits<uint1>::max()), 1);
+  EXPECT_EQ(static_cast<int>(std::numeric_limits<uint4>::lowest()), 0);
+  EXPECT_EQ(std::numeric_limits<uint1>::digits, 1);
+  EXPECT_EQ(std::numeric_limits<uint1>::digits10, 0);
 }
 
 TYPED_TEST(IntNTest, NumericLimitsBase) {
@@ -141,7 +155,7 @@ struct ConstexprEvaluator {
 };
 
 // To avoid warnings about unused left-side of comma expressions,
-// we additionally pass the expression through a contexpr function.
+// we additionally pass the expression through a constexpr function.
 template <typename T>
 constexpr void ConstexprEvaluatorFunc(T&&) {}
 
@@ -211,8 +225,8 @@ TYPED_TEST(IntNTest, Casts) {
   }
 
   // Implicit conversion to optional.
-  std::optional<int64_t> c = IntN(1);
-  EXPECT_EQ(c, 1);
+  std::optional<int64_t> c = IntN(0);
+  EXPECT_EQ(c, 0);
 
   // Loop through all valid values.
   for (int i = static_cast<int>(std::numeric_limits<IntN>::min());
@@ -329,17 +343,18 @@ struct CustomInt {
   int x;
 };
 
-#define GEN_DEST_TYPES(Type)                                                 \
-  std::pair<Type, bool>, std::pair<Type, uint2>, std::pair<Type, uint4>,     \
-      std::pair<Type, uint8_t>, std::pair<Type, uint16_t>,                   \
-      std::pair<Type, uint32_t>, std::pair<Type, uint64_t>,                  \
-      std::pair<Type, int2>, std::pair<Type, int4>, std::pair<Type, int8_t>, \
-      std::pair<Type, int16_t>, std::pair<Type, int32_t>,                    \
+#define GEN_DEST_TYPES(Type)                                                   \
+  std::pair<Type, bool>, std::pair<Type, uint1>, std::pair<Type, uint2>,       \
+      std::pair<Type, uint4>, std::pair<Type, uint8_t>,                        \
+      std::pair<Type, uint16_t>, std::pair<Type, uint32_t>,                    \
+      std::pair<Type, uint64_t>, std::pair<Type, int1>, std::pair<Type, int2>, \
+      std::pair<Type, int4>, std::pair<Type, int8_t>,                          \
+      std::pair<Type, int16_t>, std::pair<Type, int32_t>,                      \
       std::pair<Type, int64_t>, std::pair<Type, CustomInt>
 
 #define GEN_TYPE_PAIRS()                                             \
-  GEN_DEST_TYPES(int2), GEN_DEST_TYPES(uint2), GEN_DEST_TYPES(int4), \
-      GEN_DEST_TYPES(uint4)
+  GEN_DEST_TYPES(int1), GEN_DEST_TYPES(uint1), GEN_DEST_TYPES(int2), \
+      GEN_DEST_TYPES(uint2), GEN_DEST_TYPES(int4), GEN_DEST_TYPES(uint4)
 
 using IntNCastTypePairs = ::testing::Types<GEN_TYPE_PAIRS()>;
 template <typename CastPair>
