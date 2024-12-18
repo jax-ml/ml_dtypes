@@ -296,7 +296,12 @@ struct intN_numeric_limits_base {
 }  // namespace ml_dtypes
 
 namespace std {
-
+template <>
+struct numeric_limits<ml_dtypes::int1>
+    : public ml_dtypes::internal::intN_numeric_limits_base<ml_dtypes::int1> {};
+template <>
+struct numeric_limits<ml_dtypes::uint1>
+    : public ml_dtypes::internal::intN_numeric_limits_base<ml_dtypes::uint1> {};
 template <>
 struct numeric_limits<ml_dtypes::int1>
     : public ml_dtypes::internal::intN_numeric_limits_base<ml_dtypes::int1> {};
