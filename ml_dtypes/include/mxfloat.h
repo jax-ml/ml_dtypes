@@ -339,6 +339,7 @@ namespace Eigen {
 namespace numext {
 
 #define MXFLOAT_EIGEN_SIGNBIT_IMPL(Type)                              \
+  template <>                                                         \
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Type signbit(const Type& x) { \
     int8_t t = bit_cast<int8_t, Type>(x) << (8 - Type::kBits);        \
     return bit_cast<Type, int8_t>(t >> 7);                            \
