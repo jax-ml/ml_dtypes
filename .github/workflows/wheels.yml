@@ -49,7 +49,7 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_ARCHS_LINUX: auto aarch64 ppc64le
+          CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: universal2
           CIBW_BUILD: cp39-* cp310-* cp311-* cp312-* cp313-* cp313t-*
           CIBW_FREE_THREADED_SUPPORT: True
