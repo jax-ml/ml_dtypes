@@ -23,6 +23,12 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-01-06
+
+ * Dropped support for Power wheels again. These turned out to cause problems in
+   our release process. We will consider readding these if NumPy ships Power
+   wheels.
+
 ## [0.5.1] - 2025-01-06
 
  * Fixed sign bit handling for float4 and float6 types.
@@ -87,6 +93,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 * Initial release
 
 [Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.1...HEAD
+[0.5.2]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.1....v0.5.2
 [0.5.1]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.0....v0.5.1
 [0.5.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.4.0....v0.5.0
 [0.4.1]: https://github.com/jax-ml/ml_dtypes/compare/v0.4.0....v0.4.1
