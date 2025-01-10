@@ -35,6 +35,7 @@ namespace mxfloat_internal {
 template <typename Derived>
 class mxfloat6_base : public float8_internal::float8_base<Derived> {
   using Base = float8_internal::float8_base<Derived>;
+  friend class float8_internal::float8_base<Derived>;
   using Base::Base;
 
  public:
@@ -54,6 +55,7 @@ class mxfloat6_base : public float8_internal::float8_base<Derived> {
 template <typename Derived>
 class mxfloat4_base : public float8_internal::float8_base<Derived> {
   using Base = float8_internal::float8_base<Derived>;
+  friend class float8_internal::float8_base<Derived>;
   using Base::Base;
 
  public:
@@ -74,6 +76,7 @@ class float6_e2m3fn : public mxfloat6_base<float6_e2m3fn> {
   // Exponent: 2, Mantissa: 3, bias: 1.
   // Extended range: no inf, no NaN.
   using Base = mxfloat6_base<float6_e2m3fn>;
+  friend class float8_internal::float8_base<float6_e2m3fn>;
   using Base::Base;
 
  public:
@@ -86,6 +89,7 @@ class float6_e3m2fn : public mxfloat6_base<float6_e3m2fn> {
   // Exponent: 3, Mantissa: 2, bias: 3.
   // Extended range: no inf, no NaN.
   using Base = mxfloat6_base<float6_e3m2fn>;
+  friend class float8_internal::float8_base<float6_e3m2fn>;
   using Base::Base;
 
  public:
@@ -98,6 +102,7 @@ class float4_e2m1fn : public mxfloat4_base<float4_e2m1fn> {
   // Exponent: 2, Mantissa: 1, bias: 1.
   // Extended range: no inf, no NaN.
   using Base = mxfloat4_base<float4_e2m1fn>;
+  friend class float8_internal::float8_base<float4_e2m1fn>;;
   using Base::Base;
 
  public:
