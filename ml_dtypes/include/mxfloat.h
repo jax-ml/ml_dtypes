@@ -102,7 +102,7 @@ class float4_e2m1fn : public mxfloat4_base<float4_e2m1fn> {
   // Exponent: 2, Mantissa: 1, bias: 1.
   // Extended range: no inf, no NaN.
   using Base = mxfloat4_base<float4_e2m1fn>;
-  friend class float8_internal::float8_base<float4_e2m1fn>;;
+  friend class float8_internal::float8_base<float4_e2m1fn>;
   using Base::Base;
 
  public:
