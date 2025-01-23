@@ -100,7 +100,7 @@ template <typename T>
 Safe_PyObjectPtr PyIntN_FromValue(T x) {
   PyTypeObject* type =
       reinterpret_cast<PyTypeObject*>(TypeDescriptor<T>::type_ptr);
-  Safe_PyObjectPtr ref = make_safe(type->tp_alloc(type, 0));
+  Safe_PyObjectPtr ref = make_safe(PyObject_New(PyObject, type));
   PyIntN<T>* p = reinterpret_cast<PyIntN<T>*>(ref.get());
   if (p) {
     p->value = x;
@@ -214,16 +214,21 @@ PyObject* PyIntN_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     }
   } else if (PyUnicode_Check(arg) || PyBytes_Check(arg)) {
     // Parse float from string, then cast to T.
-    PyObject* f = PyLong_FromUnicodeObject(arg, /*base=*/0);
-    if (PyErr_Occurred()) {
+    Safe_PyObjectPtr bytes(PyUnicode_AsUTF8String(arg));
+    if (!bytes) {
+      return nullptr;
+    }
+    PyObject* f =
+        PyLong_FromString(PyBytes_AsString(bytes.get()), /*end=*/nullptr,
+                          /*base=*/0);
+    if (!f) {
       return nullptr;
     }
     if (CastToIntN<T>(f, &value)) {
       return PyIntN_FromValue<T>(value).release();
     }
   }
-  PyErr_Format(PyExc_TypeError, "expected number, got %s",
-               Py_TYPE(arg)->tp_name);
+  PyErr_Format(PyExc_TypeError, "expected number, got %R", Py_TYPE(arg));
   return nullptr;
 }
 
@@ -257,7 +262,9 @@ PyObject* PyIntN_nb_add(PyObject* a, PyObject* b) {
   if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
     return PyIntN_FromValue<T>(x + y).release();
   }
-  return PyArray_Type.tp_as_number->nb_add(a, b);
+  auto array_nb_add =
+      reinterpret_cast<binaryfunc>(PyType_GetSlot(&PyArray_Type, Py_nb_add));
+  return array_nb_add(a, b);
 }
 
 template <typename T>
@@ -266,7 +273,9 @@ PyObject* PyIntN_nb_subtract(PyObject* a, PyObject* b) {
   if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
     return PyIntN_FromValue<T>(x - y).release();
   }
-  return PyArray_Type.tp_as_number->nb_subtract(a, b);
+  auto array_nb_subtract = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_subtract));
+  return array_nb_subtract(a, b);
 }
 
 template <typename T>
@@ -275,7 +284,9 @@ PyObject* PyIntN_nb_multiply(PyObject* a, PyObject* b) {
   if (PyIntN_Value<T>(a, &x) && PyIntN_Value<T>(b, &y)) {
     return PyIntN_FromValue<T>(x * y).release();
   }
-  return PyArray_Type.tp_as_number->nb_multiply(a, b);
+  auto array_nb_multiply = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_multiply));
+  return array_nb_multiply(a, b);
 }
 
 template <typename T>
@@ -292,7 +303,9 @@ PyObject* PyIntN_nb_remainder(PyObject* a, PyObject* b) {
     }
     return PyIntN_FromValue<T>(v).release();
   }
-  return PyArray_Type.tp_as_number->nb_remainder(a, b);
+  auto array_nb_remainder = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_remainder));
+  return array_nb_remainder(a, b);
 }
 
 template <typename T>
@@ -309,7 +322,9 @@ PyObject* PyIntN_nb_floor_divide(PyObject* a, PyObject* b) {
     }
     return PyIntN_FromValue<T>(v).release();
   }
-  return PyArray_Type.tp_as_number->nb_floor_divide(a, b);
+  auto array_nb_floor_divide = reinterpret_cast<binaryfunc>(
+      PyType_GetSlot(&PyArray_Type, Py_nb_floor_divide));
+  return array_nb_floor_divide(a, b);
 }
 
 // Implementation of repr() for PyIntN.
@@ -342,7 +357,9 @@ template <typename T>
 PyObject* PyIntN_RichCompare(PyObject* a, PyObject* b, int op) {
   T x, y;
   if (!PyIntN_Value<T>(a, &x) || !PyIntN_Value<T>(b, &y)) {
-    return PyGenericArrType_Type.tp_richcompare(a, b, op);
+    auto generic_tp_richcompare = reinterpret_cast<richcmpfunc>(
+        PyType_GetSlot(&PyGenericArrType_Type, Py_tp_richcompare));
+    return generic_tp_richcompare(a, b, op);
   }
   bool result;
   switch (op) {
@@ -440,8 +457,7 @@ template <typename T>
 int NPyIntN_SetItem(PyObject* item, void* data, void* arr) {
   T x;
   if (!CastToIntN<T>(item, &x)) {
-    PyErr_Format(PyExc_TypeError, "expected number, got %s",
-                 Py_TYPE(item)->tp_name);
+    PyErr_Format(PyExc_TypeError, "expected number, got %R", Py_TYPE(item));
     return -1;
   }
   memcpy(data, &x, sizeof(T));
