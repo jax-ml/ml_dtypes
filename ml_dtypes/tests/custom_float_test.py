@@ -590,6 +590,11 @@ class CustomFloatTest(parameterized.TestCase):
   def testDtypeFromString(self, float_type):
     assert np.dtype(float_type.__name__) == np.dtype(float_type)
 
+  def testIssubdtype(self, float_type):
+    # We should switch to np.floating once we drop support for NumPy 1.X.
+    self.assertTrue(np.issubdtype(float_type, np.number))
+    self.assertTrue(np.issubdtype(np.dtype(float_type), np.number))
+
 
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])
 

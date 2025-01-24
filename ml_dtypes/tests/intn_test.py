@@ -245,6 +245,13 @@ class ScalarTest(parameterized.TestCase):
         ((a, b) in allowed_casts), np.can_cast(a, b, casting="safe")
     )
 
+  @parameterized.product(scalar_type=INTN_TYPES)
+  def testIssubdtype(self, scalar_type):
+    # We should switch to np.signedinteger/np.unsignedinteger once we drop
+    # support for NumPy 1.X.
+    self.assertTrue(np.issubdtype(scalar_type, np.number))
+    self.assertTrue(np.issubdtype(np.dtype(scalar_type), np.number))
+
 
 # Tests for the Python scalar type
 @multi_threaded(num_workers=3, skip_tests=["testBinaryUfuncs"])
