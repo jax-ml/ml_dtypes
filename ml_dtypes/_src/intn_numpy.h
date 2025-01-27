@@ -768,8 +768,10 @@ template <typename T>
 bool RegisterIntNDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
   // the base type directly when dropping Python 3.9 support.
+  // Change to PySignedIntegerArrType_Type/PyUnsignedIntegerArrType_Type once
+  // we drop support for NumPy 1.X.
   Safe_PyObjectPtr bases(
-      PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
+      PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyNumberArrType_Type)));
   PyObject* type =
       PyType_FromSpecWithBases(&IntNTypeDescriptor<T>::type_spec, bases.get());
   if (!type) {
