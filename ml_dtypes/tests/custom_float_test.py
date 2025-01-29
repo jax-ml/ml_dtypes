@@ -590,6 +590,20 @@ class CustomFloatTest(parameterized.TestCase):
   def testDtypeFromString(self, float_type):
     assert np.dtype(float_type.__name__) == np.dtype(float_type)
 
+  def testIssubdtype(self, float_type):
+    # In the future, we may want to make these more specific (e.g. use
+    # np.number or np.floating instead of np.generic) by changing the
+    # base in RegisterFloatDtype.
+    self.assertTrue(np.issubdtype(float_type, np.generic))
+    self.assertTrue(np.issubdtype(np.dtype(float_type), np.generic))
+
+  def testCastToDtype(self, float_type):
+    name = float_type.__name__
+    dt = np.dtype(float_type)
+    self.assertIs(dt.type, float_type)
+    self.assertEqual(dt.name, name)
+    self.assertEqual(repr(dt), f"dtype({name})")
+
 
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])
 

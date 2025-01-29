@@ -849,6 +849,9 @@ template <typename T>
 bool RegisterFloatDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
   // the base type directly when dropping Python 3.9 support.
+  // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
+  // PyFloatingArrType, but this breaks some assumptions made by NumPy, because
+  // dtype.kind='V' is then interpreted as a 'void' type in some contexts.
   Safe_PyObjectPtr bases(
       PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
   PyObject* type =

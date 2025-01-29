@@ -245,6 +245,22 @@ class ScalarTest(parameterized.TestCase):
         ((a, b) in allowed_casts), np.can_cast(a, b, casting="safe")
     )
 
+  @parameterized.product(scalar_type=INTN_TYPES)
+  def testIssubdtype(self, scalar_type):
+    # In the future, we may want to make these more specific (e.g. use
+    # np.number or np.integer instead of np.generic) by changing the
+    # base in RegisterIntNDtype.
+    self.assertTrue(np.issubdtype(scalar_type, np.generic))
+    self.assertTrue(np.issubdtype(np.dtype(scalar_type), np.generic))
+
+  @parameterized.product(scalar_type=INTN_TYPES)
+  def testCastToDtype(self, scalar_type):
+    name = scalar_type.__name__
+    dt = np.dtype(scalar_type)
+    self.assertIs(dt.type, scalar_type)
+    self.assertEqual(dt.name, name)
+    self.assertEqual(repr(dt), f"dtype({name})")
+
 
 # Tests for the Python scalar type
 @multi_threaded(num_workers=3, skip_tests=["testBinaryUfuncs"])
