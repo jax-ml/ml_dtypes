@@ -21,13 +21,13 @@ limitations under the License.
 
 // Must be included first
 // clang-format off
-#include "_src/numpy.h"
+#include "ml_dtypes/_src/numpy.h"
 // clang-format on
 
 #include "Eigen/Core"
-#include "_src/common.h"  // NOLINT
-#include "_src/ufuncs.h"  // NOLINT
-#include "include/intn.h"
+#include "ml_dtypes/_src/common.h"  // NOLINT
+#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/include/intn.h"
 
 #if NPY_ABI_VERSION < 0x02000000
 #define PyArray_DescrProto PyArray_Descr

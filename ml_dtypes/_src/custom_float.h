@@ -18,7 +18,7 @@ limitations under the License.
 
 // Must be included first
 // clang-format off
-#include "_src/numpy.h" // NOLINT
+#include "ml_dtypes/_src/numpy.h" // NOLINT
 // clang-format on
 
 // Support utilities for adding custom floating-point dtypes to TensorFlow,
@@ -35,8 +35,8 @@ limitations under the License.
 #include <Python.h>
 
 #include "Eigen/Core"
-#include "_src/common.h"  // NOLINT
-#include "_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/_src/common.h"  // NOLINT
+#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
 
 #undef copysign  // TODO(ddunleavy): temporary fix for Windows bazel build
                  // Possible this has to do with numpy.h being included before

@@ -18,7 +18,7 @@ limitations under the License.
 
 // Must be included first
 // clang-format off
-#include "_src/numpy.h" //NOLINT
+#include "ml_dtypes/_src/numpy.h" //NOLINT
 // clang-format on
 
 #include <array>    // NOLINT
@@ -31,11 +31,11 @@ limitations under the License.
 #include <Python.h>
 
 #include "Eigen/Core"
-#include "_src/custom_float.h"
-#include "_src/intn_numpy.h"
-#include "include/float8.h"
-#include "include/intn.h"
-#include "include/mxfloat.h"
+#include "ml_dtypes/_src/custom_float.h"
+#include "ml_dtypes/_src/intn_numpy.h"
+#include "ml_dtypes/include/float8.h"
+#include "ml_dtypes/include/intn.h"
+#include "ml_dtypes/include/mxfloat.h"
 
 namespace ml_dtypes {
 

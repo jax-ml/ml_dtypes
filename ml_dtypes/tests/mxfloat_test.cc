@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "include/mxfloat.h"
+#include "ml_dtypes/include/mxfloat.h"
 
 #include <gtest/gtest.h>
 

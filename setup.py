@@ -67,7 +67,7 @@ setup(
             ],
             include_dirs=[
                 "third_party/eigen",
-                "ml_dtypes",
+                ".",
                 np.get_include(),
             ],
             extra_compile_args=COMPILE_ARGS,

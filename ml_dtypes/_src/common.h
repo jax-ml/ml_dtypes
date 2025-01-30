@@ -18,7 +18,7 @@ limitations under the License.
 
 // Must be included first
 // clang-format off
-#include "_src/numpy.h"
+#include "ml_dtypes/_src/numpy.h"
 // clang-format on
 
 #include <Python.h>

@@ -18,7 +18,7 @@ limitations under the License.
 
 // Must be included first
 // clang-format off
-#include "_src/numpy.h"
+#include "ml_dtypes/_src/numpy.h"
 // clang-format on
 
 #include <array>    // NOLINT
@@ -29,7 +29,7 @@ limitations under the License.
 #include <utility>  // NOLINT
 #include <vector>   // NOLINT
 
-#include "_src/common.h"  // NOLINT
+#include "ml_dtypes/_src/common.h"  // NOLINT
 
 // Some versions of MSVC define a "copysign" macro which wreaks havoc.
 #if defined(_MSC_VER) && defined(copysign)

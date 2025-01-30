@@ -25,7 +25,7 @@ limitations under the License.
 #include <cstdint>
 #include <limits>
 
-#include "include/float8.h"
+#include "ml_dtypes/include/float8.h"
 #include "Eigen/Core"
 
 namespace ml_dtypes {
