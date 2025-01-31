@@ -55,6 +55,16 @@ class float8_e5m2;
 class float8_e5m2fnuz;
 class float8_e8m0fnu;
 
+#ifdef __GNUC__
+    static_assert(false, "GCC COMPILER VERSION: " __VERSION__);
+#elif _MSC_VER
+    static_assert(false, "MSVC COMPILER VERSION: " __VERSION__);
+#elif __clang__
+    static_assert(false, "Clang COMPILER VERSION: " __VERSION__);
+#else
+    static_assert(false, "Unknown COMPILER VERSION: " __VERSION__);
+#endif
+
 template <typename Derived>
 class float8_base {
  protected:
