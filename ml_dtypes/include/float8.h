@@ -399,17 +399,8 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
   using Base::Base;
 
  public:
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e5m2& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e3m4& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3b11fnuz& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fn& f8)
-      : float8_e5m2fnuz(ConvertFrom(f8)) {}
-  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(const float8_e4m3fnuz& f8)
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e5m2fnuz(T f8)
       : float8_e5m2fnuz(ConvertFrom(f8)) {}
 
   constexpr float8_e5m2fnuz operator-() const {
