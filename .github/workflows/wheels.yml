@@ -25,7 +25,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-14, windows-2019]
+        os: [ubuntu-20.04, ubuntu-22.04-arm, macos-14, windows-2019]
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -37,19 +37,13 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a  # v3.3.0
-        with:
-          platforms: all
-
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==2.20.0
 
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_ARCHS_LINUX: auto aarch64
+          CIBW_ARCHS_LINUX: auto
           CIBW_ARCHS_MACOS: universal2
           CIBW_BUILD: cp39-* cp310-* cp311-* cp312-* cp313-* cp313t-*
           CIBW_FREE_THREADED_SUPPORT: True
