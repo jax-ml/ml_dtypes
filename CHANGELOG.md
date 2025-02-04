@@ -23,11 +23,12 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-## [0.5.2] - 2025-01-06
+## [0.5.2] - 2025-01-31
 
  * Dropped support for Power wheels again. These turned out to cause problems in
    our release process. We will consider readding these if NumPy ships Power
    wheels.
+ * Fixed GCC compilation issues related to ambiguous casts.
 
 ## [0.5.1] - 2025-01-06
 
