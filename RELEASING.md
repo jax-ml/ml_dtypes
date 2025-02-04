@@ -2,10 +2,10 @@
 
 To create a new `ml_dtypes` release, take the following steps:
 
-1. Send a pull request updating the version in `pyproject.toml` and
-   `ml_dtypes/__init__.py` to the correct version number, as well as
-   updating `CHANGELOG.md` with the changes since the previous release
-   (an example for the 0.2.0 release is [PR #78]).
+1. Send a pull request updating the version in `ml_dtypes/__init__.py` to
+   the new version number, as well as updating `CHANGELOG.md` with the
+   changes since the previous release (an example for the 0.2.0 release
+   is [PR #78]).
 2. Once this is merged, create the release tag and push it to github. An
    example from the 0.2.0 release:
    ```
