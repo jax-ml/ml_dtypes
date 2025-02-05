@@ -58,7 +58,7 @@ class ScalarTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testPickleable(self, scalar_type):
-    # https://github.com/google/jax/discussions/8505
+    # https://github.com/jax-ml/jax/discussions/8505
     x = np.arange(10, dtype=scalar_type)
     serialized = pickle.dumps(x)
     x_out = pickle.loads(serialized)
@@ -278,7 +278,7 @@ class ArrayTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testDeepCopyDoesNotAlterHash(self, scalar_type):
-    # For context, see https://github.com/google/jax/issues/4651. If the hash
+    # For context, see https://github.com/jax-ml/jax/issues/4651. If the hash
     # value of the type descriptor is not initialized correctly, a deep copy
     # can change the type hash.
     dtype = np.dtype(scalar_type)
