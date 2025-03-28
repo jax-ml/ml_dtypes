@@ -123,14 +123,17 @@ bool CastToIntN(PyObject* arg, T* output) {
     }
     if (std::isnan(d)) {
       PyErr_SetString(PyExc_ValueError, "cannot convert float NaN to integer");
+      return false;
     }
     if (std::isinf(d)) {
       PyErr_SetString(PyExc_OverflowError,
                       "cannot convert float infinity to integer");
+      return false;
     }
     if (d < static_cast<double>(T::lowest()) ||
         d > static_cast<double>(T::highest())) {
       PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      return false;
     }
     *output = T(d);
     return true;
@@ -221,6 +224,9 @@ PyObject* PyIntN_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     if (CastToIntN<T>(f, &value)) {
       return PyIntN_FromValue<T>(value).release();
     }
+  }
+  if (PyErr_Occurred()) {
+    return nullptr;
   }
   PyErr_Format(PyExc_TypeError, "expected number, got %s",
                Py_TYPE(arg)->tp_name);
@@ -440,6 +446,9 @@ template <typename T>
 int NPyIntN_SetItem(PyObject* item, void* data, void* arr) {
   T x;
   if (!CastToIntN<T>(item, &x)) {
+    if (PyErr_Occurred()) {
+      return -1;
+    }
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;

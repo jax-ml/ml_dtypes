@@ -261,6 +261,25 @@ class ScalarTest(parameterized.TestCase):
     self.assertEqual(dt.name, name)
     self.assertEqual(repr(dt), f"dtype({name})")
 
+  @parameterized.product(scalar_type=INTN_TYPES)
+  def testCastFailure(self, scalar_type):
+    with self.assertRaises(ValueError):
+      scalar_type(np.nan)
+    with self.assertRaises(OverflowError):
+      scalar_type(np.inf)
+    with self.assertRaises(OverflowError):
+      scalar_type(1e10)
+    with self.assertRaises(ValueError):
+      np.array(np.nan, dtype=scalar_type)
+    with self.assertRaises(OverflowError):
+      np.array(np.inf, dtype=scalar_type)
+    with self.assertRaises(OverflowError):
+      np.array(1e10, dtype=scalar_type)
+    # But these shouldn't raise exceptions.
+    np.array(np.nan).astype(scalar_type)
+    np.array(np.inf).astype(scalar_type)
+    np.array(1e10).astype(scalar_type)
+
 
 # Tests for the Python scalar type
 @multi_threaded(num_workers=3, skip_tests=["testBinaryUfuncs"])
