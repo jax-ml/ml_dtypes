@@ -52,7 +52,7 @@ requires = [
     # We build against the most recent supported NumPy 2.0 release;
     # see https://github.com/numpy/numpy/issues/27265
     "numpy~=2.0",
-    "setuptools~=78.0.2",
+    "setuptools~=78.1.0",
 ]
 build-backend = "setuptools.build_meta"
 
