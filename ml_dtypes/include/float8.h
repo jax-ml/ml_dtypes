@@ -72,7 +72,7 @@ class float8_base {
       : float8_base(ConvertFrom(static_cast<float>(i)).rep(),
                     ConstructFromRepTag{}) {}
   template <typename T>
-  explicit EIGEN_DEVICE_FUNC float8_base(
+  constexpr explicit EIGEN_DEVICE_FUNC float8_base(
       T f, std::enable_if_t<std::is_floating_point_v<T>, int> = 0)
       : float8_base(ConvertFrom(f).rep(), ConstructFromRepTag{}) {}
   explicit EIGEN_DEVICE_FUNC float8_base(Eigen::bfloat16 bf16)
