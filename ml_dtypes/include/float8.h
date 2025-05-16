@@ -1194,17 +1194,17 @@ template <typename T>
 bool constexpr IsPowerOfTwo(T x) {
   return (x != 0) && ((x & (x - 1)) == 0);
 }
-template <unsigned int N>
+template <long long N>
 constexpr unsigned int MostSignificantBit() {
   unsigned int result = 0;
-  unsigned int x = N;
+  long long x = N;
   while (x >>= 1) {
     ++result;
   }
   return result; // return N == 0 ? 0 : (sizeof(long long) * 8 - 1 - __builtin_clz(N));
 }
 // Helper for getting a bytes size which is a power of two.
-template <int Size>
+template <long long Size>
 struct NextPowerOfTwo {
   static constexpr int value = IsPowerOfTwo(Size) ? Size : 2 << MostSignificantBit<Size>();
 };
