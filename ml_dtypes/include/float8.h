@@ -1206,7 +1206,7 @@ constexpr unsigned int MostSignificantBit() {
 // Helper for getting a bytes size which is a power of two.
 template <long long Size>
 struct NextPowerOfTwo {
-  static constexpr int value = 1 << MostSignificantBit<Size>();
+  static constexpr int value = IsPowerOfTwo(Size) ? Size : 2 << MostSignificantBit<Size>();
 };
 
 // Helper for getting a bit representation provided a byte size.
