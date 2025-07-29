@@ -1,7 +1,7 @@
 [project]
 name = "ml_dtypes"
 dynamic = ["version"]  # Load from ml_dtypes.__version__.
-description = ""
+description = "ml_dtypes is a stand-alone implementation of several NumPy dtype extensions used in machine learning."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"

@@ -278,7 +278,8 @@ class ScalarTest(parameterized.TestCase):
     # But these shouldn't raise exceptions.
     np.array(np.nan).astype(scalar_type)
     np.array(np.inf).astype(scalar_type)
-    np.array(1e10).astype(scalar_type)
+    with np.errstate(invalid="ignore"):
+      np.array(1e10).astype(scalar_type)
 
 
 # Tests for the Python scalar type

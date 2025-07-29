@@ -23,6 +23,15 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.5.3] - 2025-07-29
+
+  * NPY_NEEDS_PYAPI was removed from the dtype flags. This should improve the
+    speed of array operations, but it does mean that values pickled using
+    previous versions of ml_dtypes are incompatible with the current release
+    and should be regenerated with the current release.
+  * Wheels now support Python 3.14.
+  * Wheels now support Windows 11 ARM.
+
 ## [0.5.2] - 2025-01-31
 
  * Dropped support for Power wheels again. These turned out to cause problems in

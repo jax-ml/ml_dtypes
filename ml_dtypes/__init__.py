@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.5.1"
+__version__ = "0.5.3"
 __all__ = [
     "__version__",
     "bfloat16",
