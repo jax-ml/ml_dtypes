@@ -14,6 +14,8 @@
 
 """Test cases for int4 types."""
 
+# pylint: disable=g-complex-comprehension
+
 import contextlib
 import copy
 import operator
@@ -39,6 +41,23 @@ VALUES = {
     uint2: list(range(0, 4)),
     uint4: list(range(0, 16)),
 }
+
+
+FLOAT_TYPES = [
+    ml_dtypes.bfloat16,
+    ml_dtypes.float4_e2m1fn,
+    ml_dtypes.float6_e2m3fn,
+    ml_dtypes.float6_e3m2fn,
+    ml_dtypes.float8_e3m4,
+    ml_dtypes.float8_e4m3,
+    ml_dtypes.float8_e4m3b11fnuz,
+    ml_dtypes.float8_e4m3fn,
+    ml_dtypes.float8_e4m3fnuz,
+    ml_dtypes.float8_e5m2,
+    ml_dtypes.float8_e5m2fnuz,
+    # No casts to e8m0fnu for now.
+    # ml_dtypes.float8_e8m0fnu,
+]
 
 
 @contextlib.contextmanager
@@ -241,6 +260,7 @@ class ScalarTest(parameterized.TestCase):
         (uint4, np.complex64),
         (uint4, np.complex128),
     ]
+    allowed_casts += [(a, b) for a in INTN_TYPES for b in FLOAT_TYPES]
     self.assertEqual(
         ((a, b) in allowed_casts), np.can_cast(a, b, casting="safe")
     )
@@ -392,12 +412,24 @@ class ArrayTest(parameterized.TestCase):
   # TODO(phawkins): ideally we would also allow unsafe casts between custom
   # types, but I'm unable to figure out how to convince NumPy to treat custom
   # casts as unsafe.
-  @parameterized.product(types=[(int2, int4), (uint2, uint4)])
+  @parameterized.product(
+      types=[(int2, int4), (uint2, uint4)]
+      + [
+          (a, b)
+          for a in INTN_TYPES
+          for b in FLOAT_TYPES
+          if (a, b) not in [
+              (int4, ml_dtypes.float6_e2m3fn),
+              (uint4, ml_dtypes.float6_e2m3fn),
+          ]
+      ]
+  )
   def testCastBetweenCustomTypes(self, types):
     a, b = types
     x = np.array(VALUES[a], dtype=a)
     y = x.astype(b)
-    np.testing.assert_array_equal(x.astype(np.int32), y.astype(np.int32))
+    np.testing.assert_array_equal(np.array(VALUES[a], dtype=b).astype(np.int32),
+                                  y.astype(np.int32))
 
   @parameterized.product(
       scalar_type=INTN_TYPES,

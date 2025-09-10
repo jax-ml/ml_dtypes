@@ -23,27 +23,30 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* We now register casts from int2 and int4 to all of the custom float types,
+  except `float6_e2m3fn` and `float8_e8m0fnu`.
+
 ## [0.5.3] - 2025-07-29
 
-  * NPY_NEEDS_PYAPI was removed from the dtype flags. This should improve the
-    speed of array operations, but it does mean that values pickled using
-    previous versions of ml_dtypes are incompatible with the current release
-    and should be regenerated with the current release.
-  * Wheels now support Python 3.14.
-  * Wheels now support Windows 11 ARM.
+* NPY_NEEDS_PYAPI was removed from the dtype flags. This should improve the
+  speed of array operations, but it does mean that values pickled using
+  previous versions of ml_dtypes are incompatible with the current release
+  and should be regenerated with the current release.
+* Wheels now support Python 3.14.
+* Wheels now support Windows 11 ARM.
 
 ## [0.5.2] - 2025-01-31
 
- * Dropped support for Power wheels again. These turned out to cause problems in
-   our release process. We will consider readding these if NumPy ships Power
-   wheels.
- * Fixed GCC compilation issues related to ambiguous casts.
+* Dropped support for Power wheels again. These turned out to cause problems in
+  our release process. We will consider readding these if NumPy ships Power
+  wheels.
+* Fixed GCC compilation issues related to ambiguous casts.
 
 ## [0.5.1] - 2025-01-06
 
- * Fixed sign bit handling for float4 and float6 types.
- * Wheels now support Python 3.13 free-threading.
- * Wheels now support the Power architecture.
+* Fixed sign bit handling for float4 and float6 types.
+* Wheels now support Python 3.13 free-threading.
+* Wheels now support the Power architecture.
 
 ## [0.5.0] - 2024-09-13
 

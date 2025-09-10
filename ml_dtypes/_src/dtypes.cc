@@ -416,6 +416,30 @@ bool Initialize() {
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();
   success &= RegisterOneWayCustomCast<int2, int4, int8_t>();
   success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
+
+  // Int -> float casts.
+  success &=
+      RegisterTwoWayFloatCasts<int2, bfloat16, float8_e3m4, float8_e4m3,
+                               float8_e4m3b11fnuz, float8_e4m3fn,
+                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+                               float6_e2m3fn, float6_e3m2fn, float4_e2m1fn>();
+  success &=
+      RegisterTwoWayFloatCasts<uint2, bfloat16, float8_e3m4, float8_e4m3,
+                               float8_e4m3b11fnuz, float8_e4m3fn,
+                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+                               float6_e2m3fn, float6_e3m2fn, float4_e2m1fn>();
+  success &=
+      RegisterTwoWayFloatCasts<int4, bfloat16, float8_e3m4, float8_e4m3,
+                               float8_e4m3b11fnuz, float8_e4m3fn,
+                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+                               float6_e3m2fn, float4_e2m1fn>();
+  // int4 -> float6_e2m3fn is not safe and we only register safe casts.
+  success &=
+      RegisterTwoWayFloatCasts<uint4, bfloat16, float8_e3m4, float8_e4m3,
+                               float8_e4m3b11fnuz, float8_e4m3fn,
+                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+                               float6_e3m2fn, float4_e2m1fn>();
+  // uint4 -> float6_e2m3fn is not safe and we only register safe casts.
   return success;
 }
 
