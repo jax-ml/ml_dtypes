@@ -137,6 +137,20 @@ FLOAT_DTYPES = [
     float8_e8m0fnu,
 ]
 
+NUMPY_DTYPES = [
+    np.int8,
+    np.int16,
+    np.int32,
+    np.int64,
+    np.uint8,
+    np.uint16,
+    np.uint32,
+    np.uint64,
+    np.float16,
+    np.float32,
+    np.float64,
+]
+
 # Values that should round trip exactly to float and back.
 # pylint: disable=g-complex-comprehension
 FLOAT_VALUES = {
@@ -603,6 +617,14 @@ class CustomFloatTest(parameterized.TestCase):
     self.assertIs(dt.type, float_type)
     self.assertEqual(dt.name, name)
     self.assertEqual(repr(dt), f"dtype({name})")
+
+  def testConstructFromDtype(self, float_type):
+    for np_dtype in NUMPY_DTYPES:
+      with self.subTest(np_dtype.__name__):
+        expected = float_type(1)
+        actual = float_type(np_dtype(1))
+        self.assertEqual(type(expected), type(actual))
+        self.assertEqual(float(expected), float(actual))
 
 
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])

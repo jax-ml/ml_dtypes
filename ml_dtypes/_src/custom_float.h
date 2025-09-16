@@ -159,6 +159,12 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     *output = T(f);
     return true;
   }
+  if (PyArray_IsScalar(arg, Integer)) {
+    int64_t i;
+    PyArray_CastScalarToCtype(arg, &i, PyArray_DescrFromType(NPY_INT64));
+    *output = T(i);
+    return true;
+  }
   if (PyArray_IsZeroDim(arg)) {
     Safe_PyObjectPtr ref;
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
