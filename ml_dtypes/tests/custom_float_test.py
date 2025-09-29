@@ -626,6 +626,33 @@ class CustomFloatTest(parameterized.TestCase):
         self.assertEqual(type(expected), type(actual))
         self.assertEqual(float(expected), float(actual))
 
+  def testByteSwap(self, float_type):
+    """Test that byteswap works correctly."""
+    arr = np.array([1.0, 2.0, 3.0], dtype=float_type)
+    original_bytes = arr.tobytes()
+    
+    # Test copy byteswap
+    swapped = arr.byteswap(inplace=False)
+    self.assertIsNot(swapped, arr)  # Different object
+    self.assertEqual(arr.tobytes(), original_bytes)  # Original unchanged
+    
+    if np.dtype(float_type).itemsize == 2:
+      # 16-bit types should swap bytes
+      self.assertNotEqual(original_bytes, swapped.tobytes())
+      
+      # Test in-place byteswap
+      arr_copy = arr.copy()
+      result = arr_copy.byteswap(inplace=True)
+      self.assertIs(result, arr_copy)  # Same object
+      self.assertEqual(arr_copy.tobytes(), swapped.tobytes())  # Same bytes
+      
+      # Double swap restores original
+      arr_copy.byteswap(inplace=True)
+      self.assertEqual(arr_copy.tobytes(), original_bytes)
+    else:
+      # 8-bit types should be unchanged
+      self.assertEqual(original_bytes, swapped.tobytes())
+
 
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])
 
