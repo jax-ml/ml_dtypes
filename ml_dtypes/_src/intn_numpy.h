@@ -480,24 +480,25 @@ void NPyIntN_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
                        npy_intp sstride, npy_intp n, int swap, void* arr) {
   char* dst = reinterpret_cast<char*>(dstv);
   char* src = reinterpret_cast<char*>(srcv);
-  if (!src) {
-    return;
-  }
-  if (dstride == sizeof(T) && sstride == sizeof(T)) {
-    memcpy(dst, src, n * sizeof(T));
-  } else {
-    for (npy_intp i = 0; i < n; i++) {
-      memcpy(dst + dstride * i, src + sstride * i, sizeof(T));
+
+  if (src) {
+    if (dstride == sizeof(T) && sstride == sizeof(T)) {
+      memcpy(dst, src, n * sizeof(T));
+    } else {
+      for (npy_intp i = 0; i < n; i++) {
+        memcpy(dst + dstride * i, src + sstride * i, sizeof(T));
+      }
     }
   }
+  // Note: No byte swapping needed for 8-bit integer types
 }
 
 template <typename T>
 void NPyIntN_CopySwap(void* dst, void* src, int swap, void* arr) {
-  if (!src) {
-    return;
+  if (src) {
+    memcpy(dst, src, sizeof(T));
   }
-  memcpy(dst, src, sizeof(T));
+  // Note: No byte swapping needed for 8-bit integer types
 }
 
 template <typename T>
