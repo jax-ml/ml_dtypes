@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c  # frozen: v4.6.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # v6.0.0
     hooks:
       - id: check-ast
       - id: check-merge-conflict
@@ -10,7 +10,7 @@ repos:
       - id: trailing-whitespace
       - id: debug-statements
   - repo: https://github.com/google/pyink
-    rev: 8383e5df6527cc1173183875258347be0a7e07c0  # frozen: 24.3.0
+    rev: 1de8968a0d9a9ad4b8f7d9378602d14c5939602d  # v24.10.1
     hooks:
       - id: pyink
         language_version: python3.12
@@ -21,11 +21,11 @@ repos:
           "--pyink-use-majority-quotes"
         ]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 8b5112a3b2ad121439a2092f8ff548c0d80f2514  # frozen: v0.6.1
+    rev: 9c89adb347f6b973f4905a4be0051eb2ecf85dea  # v0.13.3
     hooks:
     - id: ruff
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: 05241dc3def184dba136e62d54ff57f1c8a497a9  # frozen: v17.0.6
+    rev: 719856d56a62953b8d2839fb9e851f25c3cfeef8  # v21.1.2
     hooks:
     - id: clang-format
       files: ml_dtypes/
