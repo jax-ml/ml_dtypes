@@ -564,9 +564,12 @@ struct numeric_limits_float8_base {
   static inline constexpr const bool is_integer = false;
   static inline constexpr const bool is_exact = false;
   static inline constexpr const bool has_quiet_NaN = true;
+// has_denorm and has_denorm_loss are deprecated in C++23.
+#if !defined(__cplusplus) || __cplusplus < 202302L
   static inline constexpr const std::float_denorm_style has_denorm =
       std::denorm_present;
   static inline constexpr const bool has_denorm_loss = false;
+#endif
   static inline constexpr const std::float_round_style round_style =
       std::round_to_nearest;
   static inline constexpr const bool is_bounded = true;
@@ -1005,8 +1008,11 @@ struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
  public:
   // NOLINTBEGIN: these names must match std::numeric_limits.
   static inline constexpr const bool is_signed = false;
+// has_denorm and has_denorm_loss are deprecated in C++23.
+#if !defined(__cplusplus) || __cplusplus < 202302L
   static inline constexpr const std::float_denorm_style has_denorm =
       std::denorm_absent;
+#endif
   static inline constexpr const int digits = kMantissaBits + 1;
   static inline constexpr const int digits10 = Digits10FromDigits(digits);
   static inline constexpr const int max_digits10 =
