@@ -697,7 +697,8 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
   }
   _finfo_name_map = {t.name: t for t in _finfo_type_map}
   _finfo_cache = {
-      t: init_fn.__func__() for t, init_fn in _finfo_type_map.items()  # pytype: disable=attribute-error
+      t: init_fn.__func__()  # pytype: disable=attribute-error
+      for t, init_fn in _finfo_type_map.items()
   }
 
   def __new__(cls, dtype):
