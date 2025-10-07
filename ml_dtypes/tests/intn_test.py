@@ -418,7 +418,8 @@ class ArrayTest(parameterized.TestCase):
           (a, b)
           for a in INTN_TYPES
           for b in FLOAT_TYPES
-          if (a, b) not in [
+          if (a, b)
+          not in [
               (int4, ml_dtypes.float6_e2m3fn),
               (uint4, ml_dtypes.float6_e2m3fn),
           ]
@@ -428,8 +429,9 @@ class ArrayTest(parameterized.TestCase):
     a, b = types
     x = np.array(VALUES[a], dtype=a)
     y = x.astype(b)
-    np.testing.assert_array_equal(np.array(VALUES[a], dtype=b).astype(np.int32),
-                                  y.astype(np.int32))
+    np.testing.assert_array_equal(
+        np.array(VALUES[a], dtype=b).astype(np.int32), y.astype(np.int32)
+    )
 
   @parameterized.product(
       scalar_type=INTN_TYPES,
