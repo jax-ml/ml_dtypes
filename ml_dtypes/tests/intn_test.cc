@@ -103,8 +103,10 @@ TYPED_TEST(IntNTest, NumericLimitsBase) {
   EXPECT_EQ(std::numeric_limits<IntN>::has_infinity, false);
   EXPECT_EQ(std::numeric_limits<IntN>::has_quiet_NaN, false);
   EXPECT_EQ(std::numeric_limits<IntN>::has_signaling_NaN, false);
+#if !defined(__cplusplus) || __cplusplus < 202302L
   EXPECT_EQ(std::numeric_limits<IntN>::has_denorm, std::denorm_absent);
   EXPECT_EQ(std::numeric_limits<IntN>::has_denorm_loss, false);
+#endif
   EXPECT_EQ(std::numeric_limits<IntN>::round_style, std::round_toward_zero);
   EXPECT_EQ(std::numeric_limits<IntN>::is_iec559, false);
   EXPECT_EQ(std::numeric_limits<IntN>::is_bounded, true);
