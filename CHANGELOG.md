@@ -25,6 +25,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * We now register casts from int2 and int4 to all of the custom float types,
   except `float6_e2m3fn` and `float8_e8m0fnu`.
+* --- # TODO(jakevdp): remove this
 
 ## [0.5.3] - 2025-07-29
 
