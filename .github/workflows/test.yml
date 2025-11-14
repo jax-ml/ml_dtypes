@@ -48,12 +48,21 @@ jobs:
           - os: macos-14
             python-version: "3.12"
             freethreaded: false
+          - os: macos-14
+            python-version: "3.14"
+            freethreaded: true
           - os: windows-2022
             python-version: "3.12"
             freethreaded: false
+          - os: windows-2022
+            python-version: "3.14"
+            freethreaded: true
           - os: windows-11-arm
             python-version: "3.12"
             freethreaded: false
+          - os: windows-11-arm
+            python-version: "3.14"
+            freethreaded: true
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
