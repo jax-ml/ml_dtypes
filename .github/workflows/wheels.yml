@@ -54,7 +54,7 @@ jobs:
           CIBW_BUILD: ${{ matrix.cibw_build }}
           CIBW_ENABLE: cpython-freethreading
           CIBW_PRERELEASE_PYTHONS: True
-          CIBW_SKIP: "*musllinux* *i686* *win32* *t-win*"
+          CIBW_SKIP: "*musllinux* *i686* *win32*"
           CIBW_TEST_REQUIRES: absl-py pytest pytest-xdist
           CIBW_TEST_COMMAND: pytest -n auto {project}
           CIBW_BUILD_VERBOSITY: 1

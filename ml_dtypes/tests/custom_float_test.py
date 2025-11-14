@@ -243,6 +243,9 @@ INT_VALUES = {
         "testPickleable",
         "testRoundTripNumpyTypes",
         "testRoundTripToNumpy",
+        "testConstructFromDtype",
+        "testHashNumbers",
+        "testHashNan",
     ],
 )
 @parameterized.named_parameters(
@@ -734,8 +737,10 @@ BINARY_PREDICATE_UFUNCS = [
     skip_tests=[
         "testBinaryPredicateUfunc",
         "testBinaryUfunc",
+        "testCanCast",
         "testCasts",
         "testConformNumpyComplex",
+        "testCopySign",  # pytest 9.0.1's subtest appears not to be thread-safe
         "testDivmod",
         "testDivmodCornerCases",
         "testFloordivCornerCases",
