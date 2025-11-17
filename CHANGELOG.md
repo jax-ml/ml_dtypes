@@ -23,8 +23,13 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.5.4] - 2025-11-17
+
 * We now register casts from int2 and int4 to all of the custom float types,
   except `float6_e2m3fn` and `float8_e8m0fnu`.
+* Custom floats may now be constructed from Python integers ([#317](https://github.com/jax-ml/ml_dtypes/issues/317))
+* Fixed bug in byte-swap operation for custom floats ([#311](https://github.com/jax-ml/ml_dtypes/pull/311))
+* Wheels now support Python 3.14 free threading on Windows.
 
 ## [0.5.3] - 2025-07-29
 
@@ -105,7 +110,9 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Initial release
 
-[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.3....v0.5.4
+[0.5.3]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.2....v0.5.3
 [0.5.2]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.1....v0.5.2
 [0.5.1]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.0....v0.5.1
 [0.5.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.4.0....v0.5.0
