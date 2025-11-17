@@ -23,6 +23,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Drop support for Python 3.9, which reached end-of-life in October 2025.
+
 ## [0.5.4] - 2025-11-17
 
 * We now register casts from int2 and int4 to all of the custom float types,
