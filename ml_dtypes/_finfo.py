@@ -26,6 +26,8 @@ from ml_dtypes._ml_dtypes_ext import float8_e4m3fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e5m2
 from ml_dtypes._ml_dtypes_ext import float8_e5m2fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e8m0fnu
+from ml_dtypes._ml_dtypes_ext import bcomplex32
+from ml_dtypes._ml_dtypes_ext import complex32
 import numpy as np
 
 _bfloat16_dtype = np.dtype(bfloat16)
@@ -40,6 +42,8 @@ _float8_e4m3fnuz_dtype = np.dtype(float8_e4m3fnuz)
 _float8_e5m2_dtype = np.dtype(float8_e5m2)
 _float8_e5m2fnuz_dtype = np.dtype(float8_e5m2fnuz)
 _float8_e8m0fnu_dtype = np.dtype(float8_e8m0fnu)
+_bcomplex32_dtype = np.dtype(bcomplex32)
+_complex32_dtype = np.dtype(complex32)
 
 
 class _Bfloat16MachArLike:
@@ -694,12 +698,14 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
       _float8_e5m2_dtype: _float8_e5m2_finfo,
       _float8_e5m2fnuz_dtype: _float8_e5m2fnuz_finfo,
       _float8_e8m0fnu_dtype: _float8_e8m0fnu_finfo,
+      _bcomplex32_dtype: _bfloat16_finfo,
   }
   _finfo_name_map = {t.name: t for t in _finfo_type_map}
   _finfo_cache = {
       t: init_fn.__func__()  # pytype: disable=attribute-error
       for t, init_fn in _finfo_type_map.items()
   }
+  _finfo_cache[_complex32_dtype] = np.finfo(np.float16)
 
   def __new__(cls, dtype):
     # Check for dtype attribute in order to handle finfo(arr), as required by

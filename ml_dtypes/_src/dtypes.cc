@@ -31,19 +31,20 @@ limitations under the License.
 #include <Python.h>
 
 #include "Eigen/Core"
-#include "ml_dtypes/_src/custom_float.h"
 #include "ml_dtypes/_src/intn_numpy.h"
 #include "ml_dtypes/include/float8.h"
 #include "ml_dtypes/include/intn.h"
 #include "ml_dtypes/include/mxfloat.h"
+#include "ml_dtypes/include/other_inexact.h"
+#include "ml_dtypes/_src/custom_float.h"
+#include "ml_dtypes/_src/custom_complex.h"
 
 namespace ml_dtypes {
-
-using bfloat16 = Eigen::bfloat16;
 
 template <>
 struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
   typedef bfloat16 T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "bfloat16";
@@ -64,6 +65,7 @@ struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
 template <>
 struct TypeDescriptor<float8_e3m4> : CustomFloatType<float8_e3m4> {
   typedef float8_e3m4 T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e3m4";
@@ -78,6 +80,7 @@ struct TypeDescriptor<float8_e3m4> : CustomFloatType<float8_e3m4> {
 template <>
 struct TypeDescriptor<float8_e4m3> : CustomFloatType<float8_e4m3> {
   typedef float8_e4m3 T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3";
@@ -93,6 +96,7 @@ template <>
 struct TypeDescriptor<float8_e4m3b11fnuz>
     : CustomFloatType<float8_e4m3b11fnuz> {
   typedef float8_e4m3b11fnuz T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3b11fnuz";
@@ -115,6 +119,7 @@ struct TypeDescriptor<float8_e4m3b11fnuz>
 template <>
 struct TypeDescriptor<float8_e4m3fn> : CustomFloatType<float8_e4m3fn> {
   typedef float8_e4m3fn T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3fn";
@@ -134,6 +139,7 @@ struct TypeDescriptor<float8_e4m3fn> : CustomFloatType<float8_e4m3fn> {
 template <>
 struct TypeDescriptor<float8_e4m3fnuz> : CustomFloatType<float8_e4m3fnuz> {
   typedef float8_e4m3fnuz T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e4m3fnuz";
@@ -149,6 +155,7 @@ struct TypeDescriptor<float8_e4m3fnuz> : CustomFloatType<float8_e4m3fnuz> {
 template <>
 struct TypeDescriptor<float8_e5m2> : CustomFloatType<float8_e5m2> {
   typedef float8_e5m2 T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e5m2";
@@ -165,6 +172,7 @@ struct TypeDescriptor<float8_e5m2> : CustomFloatType<float8_e5m2> {
 template <>
 struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
   typedef float8_e5m2fnuz T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e5m2fnuz";
@@ -180,6 +188,7 @@ struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
 template <>
 struct TypeDescriptor<float6_e2m3fn> : CustomFloatType<float6_e2m3fn> {
   typedef float6_e2m3fn T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float6_e2m3fn";
@@ -193,6 +202,7 @@ struct TypeDescriptor<float6_e2m3fn> : CustomFloatType<float6_e2m3fn> {
 template <>
 struct TypeDescriptor<float6_e3m2fn> : CustomFloatType<float6_e3m2fn> {
   typedef float6_e3m2fn T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float6_e3m2fn";
@@ -206,6 +216,7 @@ struct TypeDescriptor<float6_e3m2fn> : CustomFloatType<float6_e3m2fn> {
 template <>
 struct TypeDescriptor<float4_e2m1fn> : CustomFloatType<float4_e2m1fn> {
   typedef float4_e2m1fn T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float4_e2m1fn";
@@ -219,6 +230,7 @@ struct TypeDescriptor<float4_e2m1fn> : CustomFloatType<float4_e2m1fn> {
 template <>
 struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
   typedef float8_e8m0fnu T;
+  typedef float builtin_type;
   static constexpr bool is_floating = true;
   static constexpr bool is_integral = false;
   static constexpr const char* kTypeName = "float8_e8m0fnu";
@@ -234,6 +246,7 @@ struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
 template <>
 struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
   typedef int2 T;
+  typedef int8_t builtin_type;
   static constexpr bool is_floating = false;
   static constexpr bool is_integral = true;
   static constexpr const char* kTypeName = "int2";
@@ -249,6 +262,7 @@ struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
 template <>
 struct TypeDescriptor<uint2> : IntNTypeDescriptor<uint2> {
   typedef uint2 T;
+  typedef uint8_t builtin_type;
   static constexpr bool is_floating = false;
   static constexpr bool is_integral = true;
   static constexpr const char* kTypeName = "uint2";
@@ -264,6 +278,7 @@ struct TypeDescriptor<uint2> : IntNTypeDescriptor<uint2> {
 template <>
 struct TypeDescriptor<int4> : IntNTypeDescriptor<int4> {
   typedef int4 T;
+  typedef int8_t builtin_type;
   static constexpr bool is_floating = false;
   static constexpr bool is_integral = true;
   static constexpr const char* kTypeName = "int4";
@@ -279,6 +294,7 @@ struct TypeDescriptor<int4> : IntNTypeDescriptor<int4> {
 template <>
 struct TypeDescriptor<uint4> : IntNTypeDescriptor<uint4> {
   typedef uint4 T;
+  typedef uint8_t builtin_type;
   static constexpr bool is_floating = false;
   static constexpr bool is_integral = true;
   static constexpr const char* kTypeName = "uint4";
@@ -291,6 +307,41 @@ struct TypeDescriptor<uint4> : IntNTypeDescriptor<uint4> {
   static constexpr char kNpyDescrByteorder = '=';
 };
 
+template <>
+struct TypeDescriptor<bcomplex32> : CustomComplexType<bcomplex32> {
+  typedef bcomplex32 T;
+  typedef std::complex<float> builtin_type;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "bcomplex32";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.bcomplex32";
+  static constexpr const char* kTpDoc =
+      "complex bfloat16 floating-point values";
+  // See also bfloat16, the kind argument is tricky to choose well.
+  static constexpr char kNpyDescrKind = 'W';  // TODO(seberg): better name?
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'P';  // TODO(seberg): better name?
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<complex32> : CustomComplexType<complex32> {
+  typedef complex32 T;
+  typedef std::complex<float> builtin_type;
+  static constexpr bool is_floating = true;
+  static constexpr bool is_integral = false;
+  static constexpr const char* kTypeName = "complex32";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.complex32";
+  static constexpr const char* kTpDoc = "complex half floating-point values";
+  // See also bfloat16. `E` type char is used for bfloat16 unfortunately.
+  static constexpr char kNpyDescrKind = 'W';  // TODO(seberg): better name?
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'O';  // TODO(seberg): better name?
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
 namespace {
 
 // Performs a NumPy array cast from type 'From' to 'To' via `Via`.
@@ -299,8 +350,18 @@ void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
             void* toarr) {
   const auto* from = static_cast<From*>(from_void);
   auto* to = static_cast<To*>(to_void);
-  for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(static_cast<Via>(from[i]));
+
+  if constexpr (is_complex_v<From> && !is_complex_v<To>) {
+    if (GiveComplexWarning() < 0) {
+      return;
+    }
+    for (npy_intp i = 0; i < n; ++i) {
+      to[i] = static_cast<To>(static_cast<Via>(from[i].real()));
+    }
+  } else {
+    for (npy_intp i = 0; i < n; ++i) {
+      to[i] = static_cast<To>(static_cast<Via>(from[i]));
+    }
   }
 }
 
@@ -381,6 +442,19 @@ bool Initialize() {
     return false;
   }
 
+  // TODO: Do we need NumPy 1.x support, then this is wrong.
+  Safe_PyObjectPtr exceptions =
+      make_safe(PyObject_GetAttrString(numpy.get(), "exceptions"));
+  if (!exceptions) {
+    return false;
+  }
+  ComplexWarning =
+      make_safe(PyObject_GetAttrString(exceptions.get(), "ComplexWarning"))
+          .get();
+  if (!ComplexWarning) {
+    return false;
+  }
+
   if (!RegisterFloatDtype<bfloat16>(numpy.get()) ||
       !RegisterFloatDtype<float8_e3m4>(numpy.get()) ||
       !RegisterFloatDtype<float8_e4m3>(numpy.get()) ||
@@ -405,12 +479,16 @@ bool Initialize() {
     return false;
   }
 
+  if (!RegisterComplexDtype<bcomplex32>(numpy.get()) ||
+      !RegisterComplexDtype<complex32>(numpy.get())) {
+    return false;
+  }
+
   // Register casts between pairs of custom float dtypes.
-  bool success =
-      RegisterAllFloatCasts<bfloat16, float8_e3m4, float8_e4m3,
-                            float8_e4m3b11fnuz, float8_e4m3fn, float8_e4m3fnuz,
-                            float8_e5m2, float8_e5m2fnuz, float6_e2m3fn,
-                            float6_e3m2fn, float4_e2m1fn>();
+  bool success = RegisterAllFloatCasts<
+      bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz, float8_e4m3fn,
+      float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz, float6_e2m3fn,
+      float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
   // Only registering to/from BF16 and FP32 for float8_e8m0fnu.
   success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bfloat16, float>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();
@@ -418,27 +496,23 @@ bool Initialize() {
   success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
 
   // Int -> float casts.
-  success &=
-      RegisterTwoWayFloatCasts<int2, bfloat16, float8_e3m4, float8_e4m3,
-                               float8_e4m3b11fnuz, float8_e4m3fn,
-                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
-                               float6_e2m3fn, float6_e3m2fn, float4_e2m1fn>();
-  success &=
-      RegisterTwoWayFloatCasts<uint2, bfloat16, float8_e3m4, float8_e4m3,
-                               float8_e4m3b11fnuz, float8_e4m3fn,
-                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
-                               float6_e2m3fn, float6_e3m2fn, float4_e2m1fn>();
-  success &=
-      RegisterTwoWayFloatCasts<int4, bfloat16, float8_e3m4, float8_e4m3,
-                               float8_e4m3b11fnuz, float8_e4m3fn,
-                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
-                               float6_e3m2fn, float4_e2m1fn>();
+  success &= RegisterTwoWayFloatCasts<
+      int2, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
+      float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+      float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
+  success &= RegisterTwoWayFloatCasts<
+      uint2, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
+      float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+      float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
+  success &= RegisterTwoWayFloatCasts<
+      int4, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
+      float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+      float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
   // int4 -> float6_e2m3fn is not safe and we only register safe casts.
-  success &=
-      RegisterTwoWayFloatCasts<uint4, bfloat16, float8_e3m4, float8_e4m3,
-                               float8_e4m3b11fnuz, float8_e4m3fn,
-                               float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
-                               float6_e3m2fn, float4_e2m1fn>();
+  success &= RegisterTwoWayFloatCasts<
+      uint4, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
+      float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+      float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
   // uint4 -> float6_e2m3fn is not safe and we only register safe casts.
   return success;
 }
@@ -480,6 +554,8 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
       !InitModuleType<float8_e5m2fnuz>(m.get(), "float8_e5m2fnuz") ||
       !InitModuleType<float8_e8m0fnu>(m.get(), "float8_e8m0fnu") ||
       !InitModuleType<bfloat16>(m.get(), "bfloat16") ||
+      !InitModuleType<bcomplex32>(m.get(), "bcomplex32") ||
+      !InitModuleType<complex32>(m.get(), "complex32") ||
       !InitModuleType<int2>(m.get(), "int2") ||
       !InitModuleType<int4>(m.get(), "int4") ||
       !InitModuleType<uint2>(m.get(), "uint2") ||

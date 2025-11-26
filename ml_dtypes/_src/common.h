@@ -29,6 +29,17 @@ limitations under the License.
 
 namespace ml_dtypes {
 
+inline void ByteSwap16(void* value) {
+  char* p = reinterpret_cast<char*>(value);
+  std::swap(p[0], p[1]);
+}
+
+inline void ByteSwap32(void* value) {
+  char* p = reinterpret_cast<char*>(value);
+  std::swap(p[0], p[3]);
+  std::swap(p[1], p[2]);
+}
+
 struct PyDecrefDeleter {
   void operator()(PyObject* p) const { Py_DECREF(p); }
 };
@@ -115,9 +126,20 @@ struct TypeDescriptor<bool> {
   static int Dtype() { return NPY_BOOL; }
 };
 
+struct half : Eigen::half {
+  using Eigen::half::half;
+
+  // Allow implicit conversions from float, Eigen forbids it due to it being
+  // lossy. This is mainly to make the complex implementation work a bit
+  // simpler.
+  half(float d) : Eigen::half(static_cast<float>(d)) {}
+  half(int i) : half(static_cast<float>(i)) {}
+  half(double d) : half(static_cast<float>(d)) {}
+};
+
 template <>
-struct TypeDescriptor<Eigen::half> {
-  typedef Eigen::half T;
+struct TypeDescriptor<ml_dtypes::half> {
+  typedef ml_dtypes::half T;
   static int Dtype() { return NPY_HALF; }
 };
 

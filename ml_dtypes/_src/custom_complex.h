@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_CUSTOM_FLOAT_H_
-#define ML_DTYPES_CUSTOM_FLOAT_H_
+#ifndef ML_DTYPES_CUSTOM_COMPLEX_H_
+#define ML_DTYPES_CUSTOM_COMPLEX_H_
 
 // Must be included first
 // clang-format off
@@ -49,7 +49,7 @@ limitations under the License.
 namespace ml_dtypes {
 
 template <typename T>
-struct CustomFloatType {
+struct CustomComplexType {
   static int Dtype() { return npy_type; }
 
   // Registered numpy type ID. Global variable populated by the registration
@@ -63,58 +63,80 @@ struct CustomFloatType {
 
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
+  static PyMethodDef methods[];
+  static PyGetSetDef getset[];
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
 };
 
 template <typename T>
-int CustomFloatType<T>::npy_type = NPY_NOTYPE;
+int CustomComplexType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
-PyObject* CustomFloatType<T>::type_ptr = nullptr;
+PyObject* CustomComplexType<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_DescrProto CustomFloatType<T>::npy_descr_proto;
+PyArray_DescrProto CustomComplexType<T>::npy_descr_proto;
 template <typename T>
-PyArray_Descr* CustomFloatType<T>::npy_descr = nullptr;
+PyArray_Descr* CustomComplexType<T>::npy_descr = nullptr;
 
 // Representation of a Python custom float object.
 template <typename T>
-struct PyCustomFloat {
+struct PyCustomComplex {
   PyObject_HEAD;  // Python object header
   T value;
 };
 
-// Returns true if 'object' is a PyCustomFloat.
+// Returns true if 'object' is a PyCustomComplex.
 template <typename T>
-bool PyCustomFloat_Check(PyObject* object) {
+bool PyCustomComplex_Check(PyObject* object) {
   return PyObject_IsInstance(object, TypeDescriptor<T>::type_ptr);
 }
 
-// Extracts the value of a PyCustomFloat object.
+// Extracts the value of a PyCustomComplex object.
 template <typename T>
-T PyCustomFloat_CustomFloat(PyObject* object) {
-  return reinterpret_cast<PyCustomFloat<T>*>(object)->value;
+T PyCustomComplex_CustomComplex(PyObject* object) {
+  return reinterpret_cast<PyCustomComplex<T>*>(object)->value;
 }
 
-// Constructs a PyCustomFloat object from PyCustomFloat<T>::T.
+// Constructs a PyCustomComplex object from PyCustomComplex<T>::T.
 template <typename T>
-Safe_PyObjectPtr PyCustomFloat_FromT(T x) {
+Safe_PyObjectPtr PyCustomComplex_FromT(T x) {
   PyTypeObject* type =
       reinterpret_cast<PyTypeObject*>(TypeDescriptor<T>::type_ptr);
   Safe_PyObjectPtr ref = make_safe(type->tp_alloc(type, 0));
-  PyCustomFloat<T>* p = reinterpret_cast<PyCustomFloat<T>*>(ref.get());
+  PyCustomComplex<T>* p = reinterpret_cast<PyCustomComplex<T>*>(ref.get());
   if (p) {
     p->value = x;
   }
   return ref;
 }
 
+inline const std::complex<double> to_cpp(const Py_complex& p) {
+  return *reinterpret_cast<const std::complex<double>*>(&p);
+}
+
+inline const Py_complex to_python(const std::complex<double> p) {
+  return *reinterpret_cast<const Py_complex*>(&p);
+}
+
 // Converts a Python object to a reduced float value. Returns true on success,
 // returns false and reports a Python error on failure.
 template <typename T>
-bool CastToCustomFloat(PyObject* arg, T* output) {
-  if (PyCustomFloat_Check<T>(arg)) {
-    *output = PyCustomFloat_CustomFloat<T>(arg);
+bool CastToCustomComplex(PyObject* arg, T* output) {
+  using real_type = typename T::value_type;
+  // Complex part is often zero, so initialize it here.
+  output->imag(static_cast<real_type>(0));
+
+  if (PyCustomComplex_Check<T>(arg)) {
+    *output = PyCustomComplex_CustomComplex<T>(arg);
+    return true;
+  }
+  if (PyComplex_Check(arg)) {
+    std::complex<double> c = to_cpp(PyComplex_AsCComplex(arg));
+    if (PyErr_Occurred()) {
+      return false;
+    }
+    *output = T(c);
     return true;
   }
   if (PyFloat_Check(arg)) {
@@ -122,8 +144,7 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    // TODO(phawkins): check for overflow
-    *output = T(d);
+    output->real(static_cast<real_type>(d));
     return true;
   }
   if (PyLong_Check(arg)) {
@@ -132,7 +153,7 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
       return false;
     }
     // TODO(phawkins): check for overflow
-    *output = T(static_cast<float>(l));
+    output->real(static_cast<real_type>(l));
     return true;
   }
   if (PyArray_IsScalar(arg, Generic)) {
@@ -142,12 +163,12 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     // make even more conversions (ie. casts) work. (May want to use new dtypes
     // then also.) (If a limitation is found, could do this already on NumPy 2
     // at runtime.)
-    float c;
-    PyArray_Descr* f_descr = PyArray_DescrFromType(NPY_FLOAT32);
+    std::complex<float> c;
+    PyArray_Descr* cf_descr = PyArray_DescrFromType(NPY_COMPLEX64);
     // Similar to our code, NumPy accepts the array to be NULL here.
     // TODO(phawkins): check for overflow
-    PyDataType_GetArrFuncs(f_descr)->setitem(arg, &c, NULL);
-    Py_DECREF(f_descr);
+    PyDataType_GetArrFuncs(cf_descr)->setitem(arg, &c, NULL);
+    Py_DECREF(cf_descr);
     *output = T(c);
     return true;
   }
@@ -169,82 +190,109 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
 }
 
 template <typename T>
-bool SafeCastToCustomFloat(PyObject* arg, T* output) {
-  if (PyCustomFloat_Check<T>(arg)) {
-    *output = PyCustomFloat_CustomFloat<T>(arg);
+bool SafeCastToCustomComplex(PyObject* arg, T* output) {
+  if (PyCustomComplex_Check<T>(arg)) {
+    *output = PyCustomComplex_CustomComplex<T>(arg);
     return true;
   }
   return false;
 }
 
-// Converts a PyReduceFloat into a PyFloat.
+// Converts a PyReduceFloat into a PyInt.
 template <typename T>
-PyObject* PyCustomFloat_Float(PyObject* self) {
-  T x = PyCustomFloat_CustomFloat<T>(self);
-  return PyFloat_FromDouble(static_cast<double>(static_cast<float>(x)));
+PyObject* PyCustomComplex_Int(PyObject* self) {
+  if (GiveComplexWarning() < 0) {
+    return nullptr;
+  }
+  T x = PyCustomComplex_CustomComplex<T>(self);
+  long y = static_cast<long>(static_cast<float>(x.real()));  // NOLINT
+  return PyLong_FromLong(y);
 }
 
 // Converts a PyReduceFloat into a PyInt.
 template <typename T>
-PyObject* PyCustomFloat_Int(PyObject* self) {
-  T x = PyCustomFloat_CustomFloat<T>(self);
-  long y = static_cast<long>(static_cast<float>(x));  // NOLINT
-  return PyLong_FromLong(y);
+PyObject* PyCustomComplex_Float(PyObject* self) {
+  if (GiveComplexWarning() < 0) {
+    return nullptr;
+  }
+  T x = PyCustomComplex_CustomComplex<T>(self);
+  return PyFloat_FromDouble(static_cast<float>(x.real()));
 }
 
-// Negates a PyCustomFloat.
+// Converts to Python complex.
 template <typename T>
-PyObject* PyCustomFloat_Negative(PyObject* self) {
-  T x = PyCustomFloat_CustomFloat<T>(self);
-  return PyCustomFloat_FromT<T>(-x).release();
+PyObject* PyCustomComplex_Complex(PyObject* self, PyObject*) {
+  T x = PyCustomComplex_CustomComplex<T>(self);
+  std::complex<float> c = static_cast<std::complex<float>>(x);
+  return PyComplex_FromDoubles(c.real(), c.imag());
+}
+
+// Negates a PyCustomComplex.
+template <typename T>
+PyObject* PyCustomComplex_Negative(PyObject* self) {
+  T x = PyCustomComplex_CustomComplex<T>(self);
+  return PyCustomComplex_FromT<T>(-x).release();
 }
 
 template <typename T>
-PyObject* PyCustomFloat_Add(PyObject* a, PyObject* b) {
+PyObject* PyCustomComplex_Add(PyObject* a, PyObject* b) {
   T x, y;
-  if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
-    return PyCustomFloat_FromT<T>(x + y).release();
+  if (SafeCastToCustomComplex<T>(a, &x) && SafeCastToCustomComplex<T>(b, &y)) {
+    return PyCustomComplex_FromT<T>(x + y).release();
   }
   return PyArray_Type.tp_as_number->nb_add(a, b);
 }
 
 template <typename T>
-PyObject* PyCustomFloat_Subtract(PyObject* a, PyObject* b) {
+PyObject* PyCustomComplex_Subtract(PyObject* a, PyObject* b) {
   T x, y;
-  if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
-    return PyCustomFloat_FromT<T>(x - y).release();
+  if (SafeCastToCustomComplex<T>(a, &x) && SafeCastToCustomComplex<T>(b, &y)) {
+    return PyCustomComplex_FromT<T>(x - y).release();
   }
   return PyArray_Type.tp_as_number->nb_subtract(a, b);
 }
 
 template <typename T>
-PyObject* PyCustomFloat_Multiply(PyObject* a, PyObject* b) {
+PyObject* PyCustomComplex_Multiply(PyObject* a, PyObject* b) {
   T x, y;
-  if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
-    return PyCustomFloat_FromT<T>(x * y).release();
+  if (SafeCastToCustomComplex<T>(a, &x) && SafeCastToCustomComplex<T>(b, &y)) {
+    return PyCustomComplex_FromT<T>(x * y).release();
   }
   return PyArray_Type.tp_as_number->nb_multiply(a, b);
 }
 
 template <typename T>
-PyObject* PyCustomFloat_TrueDivide(PyObject* a, PyObject* b) {
+PyObject* PyCustomComplex_TrueDivide(PyObject* a, PyObject* b) {
   T x, y;
-  if (SafeCastToCustomFloat<T>(a, &x) && SafeCastToCustomFloat<T>(b, &y)) {
-    return PyCustomFloat_FromT<T>(x / y).release();
+  if (SafeCastToCustomComplex<T>(a, &x) && SafeCastToCustomComplex<T>(b, &y)) {
+    return PyCustomComplex_FromT<T>(x / y).release();
   }
   return PyArray_Type.tp_as_number->nb_true_divide(a, b);
 }
 
-// Constructs a new PyCustomFloat.
+// Constructs a new PyCustomComplex.
 template <typename T>
-PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
-                            PyObject* kwds) {
+PyObject* PyCustomComplex_New(PyTypeObject* type, PyObject* args,
+                              PyObject* kwds) {
+  T value;
+
   if (kwds && PyDict_Size(kwds)) {
     PyErr_SetString(PyExc_TypeError, "constructor takes no keyword arguments");
     return nullptr;
   }
   Py_ssize_t size = PyTuple_Size(args);
-  if (size != 1) {
+  if (size == 2) {
+    // The user passed two arguments, just forward them to the complex
+    // constructor.
+    Safe_PyObjectPtr c =
+        make_safe(PyComplex_Type.tp_new(&PyComplex_Type, args, kwds));
+    if (!c) {
+      return nullptr;
+    }
+    if (CastToCustomComplex<T>(c.get(), &value)) {
+      return PyCustomComplex_FromT<T>(value).release();
+    }
+  } else if (size != 1) {
     PyErr_Format(PyExc_TypeError,
                  "expected number as argument to %s constructor",
                  TypeDescriptor<T>::kTypeName);
@@ -252,12 +300,11 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
   }
   PyObject* arg = PyTuple_GetItem(args, 0);
 
-  T value;
-  if (PyCustomFloat_Check<T>(arg)) {
+  if (PyCustomComplex_Check<T>(arg)) {
     Py_INCREF(arg);
     return arg;
-  } else if (CastToCustomFloat<T>(arg, &value)) {
-    return PyCustomFloat_FromT<T>(value).release();
+  } else if (CastToCustomComplex<T>(arg, &value)) {
+    return PyCustomComplex_FromT<T>(value).release();
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != TypeDescriptor<T>::Dtype()) {
@@ -268,9 +315,13 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
     }
   } else if (PyUnicode_Check(arg) || PyBytes_Check(arg)) {
     // Parse float from string, then cast to T.
-    PyObject* f = PyFloat_FromString(arg);
-    if (CastToCustomFloat<T>(f, &value)) {
-      return PyCustomFloat_FromT<T>(value).release();
+    Safe_PyObjectPtr f =
+        make_safe(PyComplex_Type.tp_new(&PyComplex_Type, args, kwds));
+    if (!f) {
+      return nullptr;
+    }
+    if (CastToCustomComplex<T>(f.get(), &value)) {
+      return PyCustomComplex_FromT<T>(value).release();
     }
   }
   PyErr_Format(PyExc_TypeError, "expected number, got %s",
@@ -278,11 +329,12 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
   return nullptr;
 }
 
-// Comparisons on PyCustomFloats.
+// Comparisons on PyCustomComplexes.
 template <typename T>
-PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
+PyObject* PyCustomComplex_RichCompare(PyObject* a, PyObject* b, int op) {
   T x, y;
-  if (!SafeCastToCustomFloat<T>(a, &x) || !SafeCastToCustomFloat<T>(b, &y)) {
+  if (!SafeCastToCustomComplex<T>(a, &x) ||
+      !SafeCastToCustomComplex<T>(b, &y)) {
     return PyGenericArrType_Type.tp_richcompare(a, b, op);
   }
   bool result;
@@ -312,81 +364,169 @@ PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
   PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
 }
 
-// Implementation of repr() for PyCustomFloat.
+// Implementation of repr() for PyCustomComplex.
 template <typename T>
-PyObject* PyCustomFloat_Repr(PyObject* self) {
-  T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  float f = static_cast<float>(x);
+PyObject* PyCustomComplex_Repr(PyObject* self) {
+  T x = reinterpret_cast<PyCustomComplex<T>*>(self)->value;
+  float real = static_cast<float>(x.real());
+  float imag = static_cast<float>(x.imag());
   std::ostringstream s;
-  s << (std::isnan(f) ? std::abs(f) : f);
+  bool print_real = real != 0 || std::signbit(real);
+  if (print_real) {
+    // Print real part (but not if it's positive zero)
+    s << "(" << (std::isnan(real) ? std::abs(real) : real);
+    if (!std::signbit(imag) || std::isnan(imag)) {
+      s << "+";
+    }
+  }
+  s << (std::isnan(imag) ? std::abs(imag) : imag) << "j";
+  if (print_real) {
+    s << ")";
+  }
   return PyUnicode_FromString(s.str().c_str());
 }
 
-// Implementation of str() for PyCustomFloat.
+// Implementation of str() for PyCustomComplex.
 template <typename T>
-PyObject* PyCustomFloat_Str(PyObject* self) {
-  T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  float f = static_cast<float>(x);
-  std::ostringstream s;
-  s << (std::isnan(f) ? std::abs(f) : f);
-  return PyUnicode_FromString(s.str().c_str());
+PyObject* PyCustomComplex_Str(PyObject* self) {
+  return PyCustomComplex_Repr<T>(self);
 }
+
+#ifndef PyHASH_IMAG  // Made public without _ Python 3.13
+#define PyHASH_IMAG 1000003UL
+#endif
 
 // _Py_HashDouble changed its prototype for Python 3.10 so we use an overload to
 // handle the two possibilities.
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
-inline Py_hash_t HashImpl(Py_hash_t (*hash_double)(PyObject*, double),
-                          PyObject* self, double value) {
-  return hash_double(self, value);
+inline Py_hash_t ComplexHashImpl(Py_hash_t (*hash_double)(PyObject*, double),
+                                 PyObject* self, std::complex<double> value) {
+  Py_hash_t hashreal = hash_double(self, value.real());
+  if (hashreal == -1) {
+    return -1;
+  }
+  Py_hash_t hashimag = hash_double(self, value.imag());
+  if (hashimag == -1) {
+    return -1;
+  }
+  Py_hash_t combined =
+      static_cast<Py_hash_t>(static_cast<Py_uhash_t>(hashreal) +
+                             PyHASH_IMAG * static_cast<Py_uhash_t>(hashimag));
+  if (combined == -1) {
+    return -2;
+  }
+  return combined;
 }
 
 // NOLINTNEXTLINE(clang-diagnostic-unused-function)
-inline Py_hash_t HashImpl(Py_hash_t (*hash_double)(double), PyObject* self,
-                          double value) {
-  return hash_double(value);
+inline Py_hash_t ComplexHashImpl(Py_hash_t (*hash_double)(double),
+                                 PyObject* self, std::complex<double> value) {
+  Py_hash_t hashreal = hash_double(value.real());
+  if (hashreal == -1) {
+    return -1;
+  }
+  Py_hash_t hashimag = hash_double(value.imag());
+  if (hashimag == -1) {
+    return -1;
+  }
+  Py_hash_t combined =
+      static_cast<Py_hash_t>(static_cast<Py_uhash_t>(hashreal) +
+                             PyHASH_IMAG * static_cast<Py_uhash_t>(hashimag));
+  if (combined == -1) {
+    return -2;
+  }
+  return combined;
 }
 
-// Hash function for PyCustomFloat.
+// Hash function for PyCustomComplex.
 template <typename T>
-Py_hash_t PyCustomFloat_Hash(PyObject* self) {
-  T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  return HashImpl(&_Py_HashDouble, self, static_cast<double>(x));
+Py_hash_t PyCustomComplex_Hash(PyObject* self) {
+  T x = reinterpret_cast<PyCustomComplex<T>*>(self)->value;
+  return ComplexHashImpl(&_Py_HashDouble, self, to_system(x));
 }
 
 template <typename T>
-PyType_Slot CustomFloatType<T>::type_slots[] = {
-    {Py_tp_new, reinterpret_cast<void*>(PyCustomFloat_New<T>)},
-    {Py_tp_repr, reinterpret_cast<void*>(PyCustomFloat_Repr<T>)},
-    {Py_tp_hash, reinterpret_cast<void*>(PyCustomFloat_Hash<T>)},
-    {Py_tp_str, reinterpret_cast<void*>(PyCustomFloat_Str<T>)},
+PyObject* PyCustomComplex_Real(PyObject* self, PyObject*) {
+  T x = reinterpret_cast<PyCustomComplex<T>*>(self)->value;
+  return PyCustomFloat_FromT(x.real()).release();
+}
+template <typename T>
+PyObject* PyCustomComplex_Imag(PyObject* self, PyObject*) {
+  T x = reinterpret_cast<PyCustomComplex<T>*>(self)->value;
+  return PyCustomFloat_FromT(x.imag()).release();
+}
+
+// We need explicit specializations for complex32 to create the NumPy
+// owned scalars. (At least unless we define `PyCustomFloat_FromT` for it.)
+template <>
+PyObject* PyCustomComplex_Real<complex32>(PyObject* self, PyObject*) {
+  half val = reinterpret_cast<PyCustomComplex<complex32>*>(self)->value.real();
+
+  PyArray_Descr* descr = PyArray_DescrFromType(NPY_FLOAT16);
+  auto scalar = make_safe(PyArray_Scalar(&val, descr, NULL));
+  Py_DECREF(descr);
+  return scalar.release();
+}
+template <>
+PyObject* PyCustomComplex_Imag<complex32>(PyObject* self, PyObject*) {
+  half val = reinterpret_cast<PyCustomComplex<complex32>*>(self)->value.imag();
+
+  PyArray_Descr* descr = PyArray_DescrFromType(NPY_FLOAT16);
+  auto scalar = make_safe(PyArray_Scalar(&val, descr, NULL));
+  Py_DECREF(descr);
+  return scalar.release();
+}
+
+template <typename T>
+PyMethodDef CustomComplexType<T>::methods[] = {
+    {"__complex__", reinterpret_cast<PyCFunction>(PyCustomComplex_Complex<T>),
+     METH_NOARGS, "Convert to Python complex"},
+    {NULL, NULL, 0, NULL}};
+
+template <typename T>
+PyGetSetDef CustomComplexType<T>::getset[] = {
+    {"real", reinterpret_cast<getter>(PyCustomComplex_Real<T>), NULL, NULL,
+     NULL},
+    {"imag", reinterpret_cast<getter>(PyCustomComplex_Imag<T>), NULL, NULL,
+     NULL},
+    {NULL, NULL, NULL, NULL, NULL}};
+
+template <typename T>
+PyType_Slot CustomComplexType<T>::type_slots[] = {
+    {Py_tp_new, reinterpret_cast<void*>(PyCustomComplex_New<T>)},
+    {Py_tp_repr, reinterpret_cast<void*>(PyCustomComplex_Repr<T>)},
+    {Py_tp_hash, reinterpret_cast<void*>(PyCustomComplex_Hash<T>)},
+    {Py_tp_str, reinterpret_cast<void*>(PyCustomComplex_Str<T>)},
     {Py_tp_doc,
      reinterpret_cast<void*>(const_cast<char*>(TypeDescriptor<T>::kTpDoc))},
-    {Py_tp_richcompare, reinterpret_cast<void*>(PyCustomFloat_RichCompare<T>)},
-    {Py_nb_add, reinterpret_cast<void*>(PyCustomFloat_Add<T>)},
-    {Py_nb_subtract, reinterpret_cast<void*>(PyCustomFloat_Subtract<T>)},
-    {Py_nb_multiply, reinterpret_cast<void*>(PyCustomFloat_Multiply<T>)},
-    {Py_nb_negative, reinterpret_cast<void*>(PyCustomFloat_Negative<T>)},
-    {Py_nb_int, reinterpret_cast<void*>(PyCustomFloat_Int<T>)},
-    {Py_nb_float, reinterpret_cast<void*>(PyCustomFloat_Float<T>)},
-    {Py_nb_true_divide, reinterpret_cast<void*>(PyCustomFloat_TrueDivide<T>)},
+    {Py_tp_richcompare,
+     reinterpret_cast<void*>(PyCustomComplex_RichCompare<T>)},
+    {Py_nb_add, reinterpret_cast<void*>(PyCustomComplex_Add<T>)},
+    {Py_nb_subtract, reinterpret_cast<void*>(PyCustomComplex_Subtract<T>)},
+    {Py_nb_multiply, reinterpret_cast<void*>(PyCustomComplex_Multiply<T>)},
+    {Py_nb_negative, reinterpret_cast<void*>(PyCustomComplex_Negative<T>)},
+    {Py_nb_int, reinterpret_cast<void*>(PyCustomComplex_Int<T>)},
+    {Py_nb_float, reinterpret_cast<void*>(PyCustomComplex_Float<T>)},
+    {Py_tp_methods, reinterpret_cast<void*>(CustomComplexType<T>::methods)},
+    {Py_tp_getset, reinterpret_cast<void*>(CustomComplexType<T>::getset)},
     {0, nullptr},
 };
 
 template <typename T>
-PyType_Spec CustomFloatType<T>::type_spec = {
+PyType_Spec CustomComplexType<T>::type_spec = {
     /*.name=*/TypeDescriptor<T>::kQualifiedTypeName,
-    /*.basicsize=*/static_cast<int>(sizeof(PyCustomFloat<T>)),
+    /*.basicsize=*/static_cast<int>(sizeof(PyCustomComplex<T>)),
     /*.itemsize=*/0,
     /*.flags=*/Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    /*.slots=*/CustomFloatType<T>::type_slots,
+    /*.slots=*/CustomComplexType<T>::type_slots,
 };
 
 // Numpy support
 template <typename T>
-PyArray_ArrFuncs CustomFloatType<T>::arr_funcs;
+PyArray_ArrFuncs CustomComplexType<T>::arr_funcs;
 
 template <typename T>
-PyArray_DescrProto GetCustomFloatDescrProto() {
+PyArray_DescrProto GetCustomComplexDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
@@ -400,7 +540,7 @@ PyArray_DescrProto GetCustomFloatDescrProto() {
       /*subarray=*/nullptr,
       /*fields=*/nullptr,
       /*names=*/nullptr,
-      /*f=*/&CustomFloatType<T>::arr_funcs,
+      /*f=*/&CustomComplexType<T>::arr_funcs,
       /*metadata=*/nullptr,
       /*c_metadata=*/nullptr,
       /*hash=*/-1,  // -1 means "not computed yet".
@@ -410,16 +550,16 @@ PyArray_DescrProto GetCustomFloatDescrProto() {
 // Implementations of NumPy array methods.
 
 template <typename T>
-PyObject* NPyCustomFloat_GetItem(void* data, void* arr) {
+PyObject* NPyCustomComplex_GetItem(void* data, void* arr) {
   T x;
   memcpy(&x, data, sizeof(T));
-  return PyFloat_FromDouble(static_cast<float>(x));
+  return PyComplex_FromCComplex(to_python(static_cast<std::complex<float>>(x)));
 }
 
 template <typename T>
-int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
+int NPyCustomComplex_SetItem(PyObject* item, void* data, void* arr) {
   T x;
-  if (!CastToCustomFloat<T>(item, &x)) {
+  if (!CastToCustomComplex<T>(item, &x)) {
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;
@@ -429,36 +569,23 @@ int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
 }
 
 template <typename T>
-int NPyCustomFloat_Compare(const void* a, const void* b, void* arr) {
-  T x;
-  memcpy(&x, a, sizeof(T));
-
-  T y;
-  memcpy(&y, b, sizeof(T));
-  float fy(y);
-  float fx(x);
-
-  if (fx < fy) {
-    return -1;
+int NPyCustomComplex_Compare(const void* a, const void* b, void* arr) {
+  using real_type = typename T::value_type;
+  // TODO: If float ocmpare supports byte-swapping this'll be wrong.
+  int res = NPyCustomFloat_Compare<real_type>(a, b, arr);
+  if (res != 0) {
+    return res;
   }
-  if (fy < fx) {
-    return 1;
-  }
-  // NaNs sort to the end.
-  if (!Eigen::numext::isnan(fx) && Eigen::numext::isnan(fy)) {
-    return -1;
-  }
-  if (Eigen::numext::isnan(fx) && !Eigen::numext::isnan(fy)) {
-    return 1;
-  }
-  return 0;
+  a = reinterpret_cast<const char*>(a) + sizeof(real_type);
+  b = reinterpret_cast<const char*>(b) + sizeof(real_type);
+  return NPyCustomFloat_Compare<real_type>(a, b, arr);
 }
 
 template <typename T>
-void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
-                              npy_intp sstride, npy_intp n, int swap,
-                              void* arr) {
-  static_assert(sizeof(T) == sizeof(int16_t) || sizeof(T) == sizeof(int8_t),
+void NPyCustomComplex_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
+                                npy_intp sstride, npy_intp n, int swap,
+                                void* arr) {
+  static_assert(sizeof(T) == sizeof(int32_t) || sizeof(T) == sizeof(int16_t),
                 "Not supported");
   char* dst = reinterpret_cast<char*>(dstv);
   char* src = reinterpret_cast<char*>(srcv);
@@ -470,6 +597,13 @@ void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
         memcpy(r, src + sstride * i, sizeof(T));
         ByteSwap16(r);
       }
+    }
+    if (swap && sizeof(T) == sizeof(int32_t)) {
+      for (npy_intp i = 0; i < n; i++) {
+        char* r = dst + dstride * i;
+        memcpy(r, src + sstride * i, sizeof(T));
+        ByteSwap32(r);
+      }
     } else if (dstride == sizeof(T) && sstride == sizeof(T)) {
       memcpy(dst, src, n * sizeof(T));
     } else {
@@ -477,9 +611,14 @@ void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
         memcpy(dst + dstride * i, src + sstride * i, sizeof(T));
       }
     }
-  } else {
+  } else if (swap) {
     // In-place swap when src is NULL
-    if (swap && sizeof(T) == sizeof(int16_t)) {
+    if (sizeof(T) == sizeof(int16_t)) {
+      for (npy_intp i = 0; i < n; i++) {
+        char* r = dst + dstride * i;
+        ByteSwap16(r);
+      }
+    } else if (sizeof(T) == sizeof(int32_t)) {
       for (npy_intp i = 0; i < n; i++) {
         char* r = dst + dstride * i;
         ByteSwap16(r);
@@ -489,47 +628,42 @@ void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
 }
 
 template <typename T>
-void NPyCustomFloat_CopySwap(void* dst, void* src, int swap, void* arr) {
-  static_assert(sizeof(T) == sizeof(int16_t) || sizeof(T) == sizeof(int8_t),
+void NPyCustomComplex_CopySwap(void* dst, void* src, int swap, void* arr) {
+  static_assert(sizeof(T) == sizeof(int32_t) || sizeof(T) == sizeof(int16_t),
                 "Not supported");
 
   if (src) {
     memcpy(dst, src, sizeof(T));
   }
+  if (!swap) {
+    return;
+  }
 
-  if (swap && sizeof(T) == sizeof(int16_t)) {
+  if (sizeof(T) == sizeof(int16_t)) {
     ByteSwap16(dst);
+  } else if (sizeof(T) == sizeof(int32_t)) {
+    ByteSwap32(dst);
   }
 }
 
 template <typename T>
-npy_bool NPyCustomFloat_NonZero(void* data, void* arr) {
+npy_bool NPyCustomComplex_NonZero(void* data, void* arr) {
   T x;
   memcpy(&x, data, sizeof(x));
   return x != static_cast<T>(0);
 }
 
 template <typename T>
-int NPyCustomFloat_Fill(void* buffer_raw, npy_intp length, void* ignored) {
-  T* const buffer = reinterpret_cast<T*>(buffer_raw);
-  const float start(buffer[0]);
-  const float delta = static_cast<float>(buffer[1]) - start;
-  for (npy_intp i = 2; i < length; ++i) {
-    buffer[i] = static_cast<T>(start + i * delta);
-  }
-  return 0;
-}
-
-template <typename T>
-void NPyCustomFloat_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2,
-                            void* op, npy_intp n, void* arr) {
+void NPyCustomComplex_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2,
+                              void* op, npy_intp n, void* arr) {
   char* c1 = reinterpret_cast<char*>(ip1);
   char* c2 = reinterpret_cast<char*>(ip2);
-  float acc = 0.0f;
+  std::complex<float> acc = 0.0f;
   for (npy_intp i = 0; i < n; ++i) {
     T* const b1 = reinterpret_cast<T*>(c1);
     T* const b2 = reinterpret_cast<T*>(c2);
-    acc += static_cast<float>(*b1) * static_cast<float>(*b2);
+    acc += static_cast<std::complex<float>>(*b1) *
+           static_cast<std::complex<float>>(*b2);
     c1 += is1;
     c2 += is2;
   }
@@ -538,172 +672,130 @@ void NPyCustomFloat_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2,
 }
 
 template <typename T>
-int NPyCustomFloat_CompareFunc(const void* v1, const void* v2, void* arr) {
+int NPyCustomComplex_CompareFunc(const void* v1, const void* v2, void* arr) {
   T b1 = *reinterpret_cast<const T*>(v1);
   T b2 = *reinterpret_cast<const T*>(v2);
-  if (b1 < b2) {
+  if (b1.real() < b2.real()) {
     return -1;
   }
-  if (b1 > b2) {
+  if (b1.real() > b2.real()) {
+    return 1;
+  }
+  if (b1.imag() < b2.imag()) {
+    return -1;
+  }
+  if (b1.imag() > b2.imag()) {
     return 1;
   }
   return 0;
 }
 
-template <typename T>
-int NPyCustomFloat_ArgMaxFunc(void* data, npy_intp n, npy_intp* max_ind,
-                              void* arr) {
-  const T* bdata = reinterpret_cast<const T*>(data);
-  // Start with a max_val of NaN, this results in the first iteration preferring
-  // bdata[0].
-  float max_val = std::numeric_limits<float>::quiet_NaN();
-  for (npy_intp i = 0; i < n; ++i) {
-    // This condition is chosen so that NaNs are always considered "max".
-    if (!(static_cast<float>(bdata[i]) <= max_val)) {
-      max_val = static_cast<float>(bdata[i]);
-      *max_ind = i;
-      // NumPy stops at the first NaN.
-      if (Eigen::numext::isnan(max_val)) {
-        break;
-      }
-    }
-  }
-  return 0;
-}
-
-template <typename T>
-int NPyCustomFloat_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind,
-                              void* arr) {
-  const T* bdata = reinterpret_cast<const T*>(data);
-  float min_val = std::numeric_limits<float>::quiet_NaN();
-  // Start with a min_val of NaN, this results in the first iteration preferring
-  // bdata[0].
-  for (npy_intp i = 0; i < n; ++i) {
-    // This condition is chosen so that NaNs are always considered "min".
-    if (!(static_cast<float>(bdata[i]) >= min_val)) {
-      min_val = static_cast<float>(bdata[i]);
-      *min_ind = i;
-      // NumPy stops at the first NaN.
-      if (Eigen::numext::isnan(min_val)) {
-        break;
-      }
-    }
-  }
-  return 0;
-}
-
-template <typename T>
-float CastToFloat(T value) {
-  if constexpr (is_complex_v<T>) {
-    return CastToFloat(value.real());
-  } else {
-    return static_cast<float>(value);
-  }
-}
-
 // Performs a NumPy array cast from type 'From' to 'To'.
 template <typename From, typename To>
-void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-             void* toarr) {
+void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
+              void* toarr) {
   const auto* from =
       reinterpret_cast<typename TypeDescriptor<From>::T*>(from_void);
   auto* to = reinterpret_cast<typename TypeDescriptor<To>::T*>(to_void);
   for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<typename TypeDescriptor<To>::T>(
-        static_cast<To>(CastToFloat(from[i])));
+    // TODO(seberg): Casts from complex to float are dubious anyway, maybe error
+    // if imaginary (rather than warn?)
+    if constexpr (is_complex_v<From> && is_complex_v<To>) {
+      to[i] = static_cast<std::complex<float>>(from[i]);
+    } else if constexpr (is_complex_v<From> && !is_complex_v<To>) {
+      if (GiveComplexWarning() < 0) {
+        return;
+      }
+      to[i] = static_cast<typename TypeDescriptor<To>::T>(
+          static_cast<float>(from[i].real()));
+    } else if constexpr (!is_complex_v<From> && is_complex_v<To>) {
+      to[i] = static_cast<typename TypeDescriptor<To>::T>(
+          static_cast<float>(from[i]));
+    } else {
+      to[i] = static_cast<typename TypeDescriptor<To>::T>(
+          static_cast<std::complex<float>>(from[i]));
+    }
   }
 }
 
-// Registers a cast between T (a reduced float) and type 'OtherT'. 'numpy_type'
-// is the NumPy type corresponding to 'OtherT'.
+// Registers a cast between T (a reduced complex) and type 'OtherT'.
+// 'numpy_type' is the NumPy type corresponding to 'OtherT'.
 template <typename T, typename OtherT>
-bool RegisterCustomFloatCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
+bool RegisterCustomComplexCast(
+    int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
   PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
   if (PyArray_RegisterCastFunc(descr, TypeDescriptor<T>::Dtype(),
-                               NPyCast<OtherT, T>) < 0) {
+                               NPyCCast<OtherT, T>) < 0) {
     return false;
   }
-  if (PyArray_RegisterCastFunc(CustomFloatType<T>::npy_descr, numpy_type,
-                               NPyCast<T, OtherT>) < 0) {
+  if (PyArray_RegisterCastFunc(CustomComplexType<T>::npy_descr, numpy_type,
+                               NPyCCast<T, OtherT>) < 0) {
     return false;
   }
   return true;
 }
 
 template <typename T>
-bool RegisterFloatCasts() {
-  if (!RegisterCustomFloatCast<T, half>(NPY_HALF)) {
+bool RegisterComplexCasts() {
+  if (!RegisterCustomComplexCast<T, half>(NPY_HALF)) {
     return false;
   }
 
-  if (!RegisterCustomFloatCast<T, float>(NPY_FLOAT)) {
+  if (!RegisterCustomComplexCast<T, float>(NPY_FLOAT)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, double>(NPY_DOUBLE)) {
+  if (!RegisterCustomComplexCast<T, double>(NPY_DOUBLE)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, long double>(NPY_LONGDOUBLE)) {
+  if (!RegisterCustomComplexCast<T, long double>(NPY_LONGDOUBLE)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, bool>(NPY_BOOL)) {
+  if (!RegisterCustomComplexCast<T, bool>(NPY_BOOL)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, unsigned char>(NPY_UBYTE)) {
+  if (!RegisterCustomComplexCast<T, unsigned char>(NPY_UBYTE)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, unsigned short>(NPY_USHORT)) {  // NOLINT
+  if (!RegisterCustomComplexCast<T, unsigned short>(NPY_USHORT)) {  // NOLINT
     return false;
   }
-  if (!RegisterCustomFloatCast<T, unsigned int>(NPY_UINT)) {
+  if (!RegisterCustomComplexCast<T, unsigned int>(NPY_UINT)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, unsigned long>(NPY_ULONG)) {  // NOLINT
+  if (!RegisterCustomComplexCast<T, unsigned long>(NPY_ULONG)) {  // NOLINT
     return false;
   }
-  if (!RegisterCustomFloatCast<T, unsigned long long>(  // NOLINT
+  if (!RegisterCustomComplexCast<T, unsigned long long>(  // NOLINT
           NPY_ULONGLONG)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, signed char>(NPY_BYTE)) {
+  if (!RegisterCustomComplexCast<T, signed char>(NPY_BYTE)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, short>(NPY_SHORT)) {  // NOLINT
+  if (!RegisterCustomComplexCast<T, short>(NPY_SHORT)) {  // NOLINT
     return false;
   }
-  if (!RegisterCustomFloatCast<T, int>(NPY_INT)) {
+  if (!RegisterCustomComplexCast<T, int>(NPY_INT)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, long>(NPY_LONG)) {  // NOLINT
+  if (!RegisterCustomComplexCast<T, long>(NPY_LONG)) {  // NOLINT
     return false;
   }
-  if (!RegisterCustomFloatCast<T, long long>(NPY_LONGLONG)) {  // NOLINT
+  if (!RegisterCustomComplexCast<T, long long>(NPY_LONGLONG)) {  // NOLINT
     return false;
   }
-  // Following the numpy convention. imag part is dropped when converting to
-  // float.
-  if (!RegisterCustomFloatCast<T, std::complex<float>>(NPY_CFLOAT)) {
+  if (!RegisterCustomComplexCast<T, std::complex<float>>(NPY_CFLOAT)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, std::complex<double>>(NPY_CDOUBLE)) {
+  if (!RegisterCustomComplexCast<T, std::complex<double>>(NPY_CDOUBLE)) {
     return false;
   }
-  if (!RegisterCustomFloatCast<T, std::complex<long double>>(NPY_CLONGDOUBLE)) {
+  if (!RegisterCustomComplexCast<T, std::complex<long double>>(
+          NPY_CLONGDOUBLE)) {
     return false;
   }
 
   // Safe casts from T to other types
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_FLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_DOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_LONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
   if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CFLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
@@ -735,7 +827,7 @@ bool RegisterFloatCasts() {
 }
 
 template <typename T>
-bool RegisterFloatUFuncs(PyObject* numpy) {
+bool RegisterComplexUFuncs(PyObject* numpy) {
   bool ok =
       RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>, T>(numpy, "add") &&
       RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>, T>(numpy,
@@ -744,29 +836,16 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
                                                             "multiply") &&
       RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>, T>(numpy,
                                                               "divide") &&
-      RegisterUFunc<UFunc<ufuncs::LogAddExp<T>, T, T, T>, T>(numpy,
-                                                             "logaddexp") &&
-      RegisterUFunc<UFunc<ufuncs::LogAddExp2<T>, T, T, T>, T>(numpy,
-                                                              "logaddexp2") &&
       RegisterUFunc<UFunc<ufuncs::Negative<T>, T, T>, T>(numpy, "negative") &&
       RegisterUFunc<UFunc<ufuncs::Positive<T>, T, T>, T>(numpy, "positive") &&
       RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>, T>(numpy,
                                                               "true_divide") &&
-      RegisterUFunc<UFunc<ufuncs::FloorDivide<T>, T, T, T>, T>(
-          numpy, "floor_divide") &&
       RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy, "power") &&
-      RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy,
-                                                             "remainder") &&
-      RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy, "mod") &&
-      RegisterUFunc<UFunc<ufuncs::Fmod<T>, T, T, T>, T>(numpy, "fmod") &&
-      RegisterUFunc<UFunc2<ufuncs::Divmod<T>, T, T, T, T>, T>(numpy,
-                                                              "divmod") &&
-      RegisterUFunc<UFunc<ufuncs::Abs<T>, T, T>, T>(numpy, "absolute") &&
-      RegisterUFunc<UFunc<ufuncs::Abs<T>, T, T>, T>(numpy, "fabs") &&
+      RegisterUFunc<UFunc<ufuncs::Abs<T>, typename T::value_type, T>, T>(
+          numpy, "absolute") &&
       RegisterUFunc<UFunc<ufuncs::Rint<T>, T, T>, T>(numpy, "rint") &&
+      // NumPy defines the complex signum as z/|z|.
       RegisterUFunc<UFunc<ufuncs::Sign<T>, T, T>, T>(numpy, "sign") &&
-      RegisterUFunc<UFunc<ufuncs::Heaviside<T>, T, T, T>, T>(numpy,
-                                                             "heaviside") &&
       RegisterUFunc<UFunc<ufuncs::Conjugate<T>, T, T>, T>(numpy, "conjugate") &&
       RegisterUFunc<UFunc<ufuncs::Exp<T>, T, T>, T>(numpy, "exp") &&
       RegisterUFunc<UFunc<ufuncs::Exp2<T>, T, T>, T>(numpy, "exp2") &&
@@ -777,7 +856,6 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
       RegisterUFunc<UFunc<ufuncs::Log1p<T>, T, T>, T>(numpy, "log1p") &&
       RegisterUFunc<UFunc<ufuncs::Sqrt<T>, T, T>, T>(numpy, "sqrt") &&
       RegisterUFunc<UFunc<ufuncs::Square<T>, T, T>, T>(numpy, "square") &&
-      RegisterUFunc<UFunc<ufuncs::Cbrt<T>, T, T>, T>(numpy, "cbrt") &&
       RegisterUFunc<UFunc<ufuncs::Reciprocal<T>, T, T>, T>(numpy,
                                                            "reciprocal") &&
 
@@ -788,16 +866,12 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
       RegisterUFunc<UFunc<ufuncs::Arcsin<T>, T, T>, T>(numpy, "arcsin") &&
       RegisterUFunc<UFunc<ufuncs::Arccos<T>, T, T>, T>(numpy, "arccos") &&
       RegisterUFunc<UFunc<ufuncs::Arctan<T>, T, T>, T>(numpy, "arctan") &&
-      RegisterUFunc<UFunc<ufuncs::Arctan2<T>, T, T, T>, T>(numpy, "arctan2") &&
-      RegisterUFunc<UFunc<ufuncs::Hypot<T>, T, T, T>, T>(numpy, "hypot") &&
       RegisterUFunc<UFunc<ufuncs::Sinh<T>, T, T>, T>(numpy, "sinh") &&
       RegisterUFunc<UFunc<ufuncs::Cosh<T>, T, T>, T>(numpy, "cosh") &&
       RegisterUFunc<UFunc<ufuncs::Tanh<T>, T, T>, T>(numpy, "tanh") &&
       RegisterUFunc<UFunc<ufuncs::Arcsinh<T>, T, T>, T>(numpy, "arcsinh") &&
       RegisterUFunc<UFunc<ufuncs::Arccosh<T>, T, T>, T>(numpy, "arccosh") &&
       RegisterUFunc<UFunc<ufuncs::Arctanh<T>, T, T>, T>(numpy, "arctanh") &&
-      RegisterUFunc<UFunc<ufuncs::Deg2rad<T>, T, T>, T>(numpy, "deg2rad") &&
-      RegisterUFunc<UFunc<ufuncs::Rad2deg<T>, T, T>, T>(numpy, "rad2deg") &&
 
       // Comparison functions
       RegisterUFunc<UFunc<ufuncs::Eq<T>, bool, T, T>, T>(numpy, "equal") &&
@@ -824,25 +898,13 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
       RegisterUFunc<UFunc<ufuncs::IsFinite<T>, bool, T>, T>(numpy,
                                                             "isfinite") &&
       RegisterUFunc<UFunc<ufuncs::IsInf<T>, bool, T>, T>(numpy, "isinf") &&
-      RegisterUFunc<UFunc<ufuncs::IsNan<T>, bool, T>, T>(numpy, "isnan") &&
-      RegisterUFunc<UFunc<ufuncs::SignBit<T>, bool, T>, T>(numpy, "signbit") &&
-      RegisterUFunc<UFunc<ufuncs::CopySign<T>, T, T, T>, T>(numpy,
-                                                            "copysign") &&
-      RegisterUFunc<UFunc2<ufuncs::Modf<T>, T, T, T>, T>(numpy, "modf") &&
-      RegisterUFunc<UFunc<ufuncs::Ldexp<T>, T, T, int>, T>(numpy, "ldexp") &&
-      RegisterUFunc<UFunc2<ufuncs::Frexp<T>, T, int, T>, T>(numpy, "frexp") &&
-      RegisterUFunc<UFunc<ufuncs::Floor<T>, T, T>, T>(numpy, "floor") &&
-      RegisterUFunc<UFunc<ufuncs::Ceil<T>, T, T>, T>(numpy, "ceil") &&
-      RegisterUFunc<UFunc<ufuncs::Trunc<T>, T, T>, T>(numpy, "trunc") &&
-      RegisterUFunc<UFunc<ufuncs::NextAfter<T>, T, T, T>, T>(numpy,
-                                                             "nextafter") &&
-      RegisterUFunc<UFunc<ufuncs::Spacing<T>, T, T>, T>(numpy, "spacing");
+      RegisterUFunc<UFunc<ufuncs::IsNan<T>, bool, T>, T>(numpy, "isnan");
 
   return ok;
 }
 
 template <typename T>
-bool RegisterFloatDtype(PyObject* numpy) {
+bool RegisterComplexDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
   // the base type directly when dropping Python 3.9 support.
   // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
@@ -851,7 +913,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
   Safe_PyObjectPtr bases(
       PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
   PyObject* type =
-      PyType_FromSpecWithBases(&CustomFloatType<T>::type_spec, bases.get());
+      PyType_FromSpecWithBases(&CustomComplexType<T>::type_spec, bases.get());
   if (!type) {
     return false;
   }
@@ -866,27 +928,27 @@ bool RegisterFloatDtype(PyObject* numpy) {
   }
 
   // Initializes the NumPy descriptor.
-  PyArray_ArrFuncs& arr_funcs = CustomFloatType<T>::arr_funcs;
+  PyArray_ArrFuncs& arr_funcs = CustomComplexType<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
-  arr_funcs.getitem = NPyCustomFloat_GetItem<T>;
-  arr_funcs.setitem = NPyCustomFloat_SetItem<T>;
-  arr_funcs.compare = NPyCustomFloat_Compare<T>;
-  arr_funcs.copyswapn = NPyCustomFloat_CopySwapN<T>;
-  arr_funcs.copyswap = NPyCustomFloat_CopySwap<T>;
-  arr_funcs.nonzero = NPyCustomFloat_NonZero<T>;
-  arr_funcs.fill = NPyCustomFloat_Fill<T>;
-  arr_funcs.dotfunc = NPyCustomFloat_DotFunc<T>;
-  arr_funcs.compare = NPyCustomFloat_CompareFunc<T>;
-  arr_funcs.argmax = NPyCustomFloat_ArgMaxFunc<T>;
-  arr_funcs.argmin = NPyCustomFloat_ArgMinFunc<T>;
+  arr_funcs.getitem = NPyCustomComplex_GetItem<T>;
+  arr_funcs.setitem = NPyCustomComplex_SetItem<T>;
+  arr_funcs.compare = NPyCustomComplex_Compare<T>;
+  arr_funcs.copyswapn = NPyCustomComplex_CopySwapN<T>;
+  arr_funcs.copyswap = NPyCustomComplex_CopySwap<T>;
+  arr_funcs.nonzero = NPyCustomComplex_NonZero<T>;
+  arr_funcs.fill = nullptr;  // NPyCustomComplex_Fill<T>;
+  arr_funcs.dotfunc = NPyCustomComplex_DotFunc<T>;
+  arr_funcs.compare = NPyCustomComplex_CompareFunc<T>;
+  arr_funcs.argmax = nullptr;  // NumPy defines them, but it's shaky
+  arr_funcs.argmin = nullptr;
 
   // This is messy, but that's because the NumPy 2.0 API transition is messy.
   // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
   // RegisterDataType alive, because it stores its pointer.
   // After 2.0, the proto and descriptor types diverge, and NumPy allocates
   // and manages the lifetime of the descriptor itself.
-  PyArray_DescrProto& descr_proto = CustomFloatType<T>::npy_descr_proto;
-  descr_proto = GetCustomFloatDescrProto<T>();
+  PyArray_DescrProto& descr_proto = CustomComplexType<T>::npy_descr_proto;
+  descr_proto = GetCustomComplexDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
@@ -897,7 +959,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
 
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.
-  CustomFloatType<T>::npy_descr =
+  CustomComplexType<T>::npy_descr =
       PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
 
   Safe_PyObjectPtr typeDict_obj =
@@ -913,11 +975,11 @@ bool RegisterFloatDtype(PyObject* numpy) {
   // Support dtype(type_name)
   if (PyObject_SetAttrString(
           TypeDescriptor<T>::type_ptr, "dtype",
-          reinterpret_cast<PyObject*>(CustomFloatType<T>::npy_descr)) < 0) {
+          reinterpret_cast<PyObject*>(CustomComplexType<T>::npy_descr)) < 0) {
     return false;
   }
 
-  return RegisterFloatCasts<T>() && RegisterFloatUFuncs<T>(numpy);
+  return RegisterComplexCasts<T>() && RegisterComplexUFuncs<T>(numpy);
 }
 
 }  // namespace ml_dtypes
@@ -926,4 +988,4 @@ bool RegisterFloatDtype(PyObject* numpy) {
 #undef PyArray_DescrProto
 #endif
 
-#endif  // ML_DTYPES_CUSTOM_FLOAT_H_
+#endif  // ML_DTYPES_CUSTOM_COMPLEX_H_
