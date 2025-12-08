@@ -30,6 +30,7 @@ limitations under the License.
 #include <vector>   // NOLINT
 
 #include "ml_dtypes/_src/common.h"  // NOLINT
+#include "ml_dtypes/include/float8.h"
 
 // Some versions of MSVC define a "copysign" macro which wreaks havoc.
 #if defined(_MSC_VER) && defined(copysign)
@@ -299,6 +300,11 @@ std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
   constexpr bool has_nan = std::numeric_limits<T>::has_quiet_NaN;
   const BitsType<T> x_abs_bits =
       Eigen::numext::bit_cast<BitsType<T>>(Eigen::numext::abs(x));
+  if constexpr (std::is_same_v<T, float8_e4m3b11fnuz>) {
+    return {// Do not interpret NaN as a negative value.
+            x_bits == BitsType<T>(0x80) ? BitsType<T>(0) : x_bits & kSignMask,
+            x_abs_bits};
+  }
   return {has_nan ? x_bits & kSignMask : x_bits ^ x_abs_bits, x_abs_bits};
 }
 
