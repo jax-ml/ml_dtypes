@@ -86,7 +86,7 @@ jobs:
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           # unpacks all CIBW artifacts into dist/
           pattern: cibw-*
@@ -106,7 +106,7 @@ jobs:
     # Only publish release to PyPI when a github release is created.
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53  # v6.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           # unpacks all CIBW artifacts into dist/
           pattern: cibw-*
