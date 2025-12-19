@@ -1422,8 +1422,9 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
                            : Eigen::NumTraits<To>::infinity();
     }
     if (Eigen::numext::isnan(from)) {
-      return from_sign_bit ? -Eigen::NumTraits<To>::quiet_NaN()
-                           : Eigen::NumTraits<To>::quiet_NaN();
+      return from_sign_bit && !std::is_same_v<From, float8_e4m3b11fnuz>
+                 ? -Eigen::NumTraits<To>::quiet_NaN()
+                 : Eigen::NumTraits<To>::quiet_NaN();
     }
     // Dealing with zero, when `From` has one.
     if (from_bits == 0 && kFromHasZero) {
