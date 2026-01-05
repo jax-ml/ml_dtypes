@@ -20,6 +20,7 @@ limitations under the License.
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -317,6 +318,35 @@ TEST(Float8E8m0fnuTest, NumericLimits) {
   EXPECT_EQ(limits::has_infinity, false);
   EXPECT_EQ(limits::has_quiet_NaN, true);
   EXPECT_EQ(limits::has_signaling_NaN, false);
+}
+
+TEST(Float8E8m0fnuTest, NegativeInput) {
+  using Float8 = float8_e8m0fnu;
+  std::vector<float> inputs = {
+      -std::fabs(std::numeric_limits<float>::quiet_NaN()),
+      -std::numeric_limits<float>::infinity(),
+      std::numeric_limits<float>::lowest(),
+      -1.0f,
+      -0.5f,
+      -std::numeric_limits<float>::min(),
+      -std::numeric_limits<float>::denorm_min(),
+      -0.0f,
+  };
+  for (float input : inputs) {
+    Float8 f8 = Float8::template ConvertFrom</*kSaturate=*/false,
+                                             /*kTruncate=*/false>(input);
+    EXPECT_TRUE(Eigen::numext::isnan(f8));
+  }
+  for (float input : inputs) {
+    Float8 f8 = Float8::template ConvertFrom</*kSaturate=*/true,
+                                             /*kTruncate=*/false>(input);
+    if (std::isfinite(input)) {
+      EXPECT_EQ(f8, std::numeric_limits<Float8>::lowest())
+          << "input: " << input << " f8: " << f8;
+    } else {
+      EXPECT_TRUE(Eigen::numext::isnan(f8));
+    }
+  }
 }
 
 TYPED_TEST(Float8Test, FromRep) {
