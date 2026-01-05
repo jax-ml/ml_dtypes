@@ -80,6 +80,23 @@ class IinfoTest(parameterized.TestCase):
     with self.assertRaises(ValueError):
       ml_dtypes.iinfo(bool)
 
+  @parameterized.named_parameters(
+      {"testcase_name": f"_{dtype.__name__}", "dtype": np.dtype(dtype)}
+      for dtype in [
+          ml_dtypes.int2,
+          ml_dtypes.int4,
+          np.int8,
+          ml_dtypes.uint2,
+          ml_dtypes.uint4,
+          np.uint8,
+      ]
+  )
+  def testFinfoFromArray(self, dtype):
+    # Because of cacheing, passing the array and passing the dtype should
+    # return the same object.
+    arr = np.zeros(1, dtype=dtype)
+    self.assertEqual(ml_dtypes.iinfo(arr).dtype, dtype)
+
 
 if __name__ == "__main__":
   absltest.main()

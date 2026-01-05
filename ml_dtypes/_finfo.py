@@ -702,6 +702,11 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
   }
 
   def __new__(cls, dtype):
+    # Check for dtype attribute in order to handle finfo(arr), as required by
+    # the Python Array API standard.
+    if hasattr(dtype, "dtype") and isinstance(dtype.dtype, np.dtype):
+      dtype = dtype.dtype
+
     if isinstance(dtype, str):
       key = cls._finfo_name_map.get(dtype)
     elif isinstance(dtype, np.dtype):

@@ -34,6 +34,11 @@ class iinfo:  # pylint: disable=invalid-name,missing-class-docstring
   dtype: np.dtype
 
   def __init__(self, int_type):
+    # Check for dtype attribute in order to handle finfo(arr), as required by
+    # the Python Array API standard.
+    if hasattr(int_type, "dtype") and isinstance(int_type.dtype, np.dtype):
+      int_type = int_type.dtype
+
     if int_type == _int2_dtype:
       self.dtype = _int2_dtype
       self.kind = "i"

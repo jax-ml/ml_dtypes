@@ -149,6 +149,16 @@ class FinfoTest(parameterized.TestCase):
           2**info.nmant,
       )
 
+  @parameterized.named_parameters(
+      {"testcase_name": f"_{dtype.__name__}", "dtype": np.dtype(dtype)}
+      for dtype in ALL_DTYPES
+  )
+  def testFinfoFromArray(self, dtype):
+    # Because of cacheing, passing the array and passing the dtype should
+    # return the same object.
+    arr = np.zeros(1, dtype=dtype)
+    self.assertEqual(ml_dtypes.finfo(arr).dtype, dtype)
+
 
 if __name__ == "__main__":
   absltest.main()
