@@ -24,10 +24,15 @@ limitations under the License.
 #include <Python.h>
 
 #include <complex>  //NOLINT
+#include <memory>
 
 #include "Eigen/Core"
 
 namespace ml_dtypes {
+
+using half = Eigen::half;
+using bfloat16 = Eigen::bfloat16;
+
 
 inline void ByteSwap16(void* value) {
   char* p = reinterpret_cast<char*>(value);
@@ -124,17 +129,6 @@ template <>
 struct TypeDescriptor<bool> {
   typedef unsigned char T;
   static int Dtype() { return NPY_BOOL; }
-};
-
-struct half : Eigen::half {
-  using Eigen::half::half;
-
-  // Allow implicit conversions from float, Eigen forbids it due to it being
-  // lossy. This is mainly to make the complex implementation work a bit
-  // simpler.
-  half(float d) : Eigen::half(static_cast<float>(d)) {}
-  half(int i) : half(static_cast<float>(i)) {}
-  half(double d) : half(static_cast<float>(d)) {}
 };
 
 template <>

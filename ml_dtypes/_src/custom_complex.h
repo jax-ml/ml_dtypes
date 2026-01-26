@@ -37,6 +37,7 @@ limitations under the License.
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"  // NOLINT
 #include "ml_dtypes/_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/include/complex_types.h"
 
 #undef copysign  // TODO(ddunleavy): temporary fix for Windows bazel build
                  // Possible this has to do with numpy.h being included before
@@ -116,7 +117,7 @@ inline const std::complex<double> to_cpp(const Py_complex& p) {
 }
 
 inline const Py_complex to_python(const std::complex<double> p) {
-  return *reinterpret_cast<const Py_complex*>(&p);
+  return Py_complex{p.real(), p.imag()};
 }
 
 // Converts a Python object to a reduced float value. Returns true on success,
@@ -701,19 +702,19 @@ void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
     // TODO(seberg): Casts from complex to float are dubious anyway, maybe error
     // if imaginary (rather than warn?)
     if constexpr (is_complex_v<From> && is_complex_v<To>) {
-      to[i] = static_cast<std::complex<float>>(from[i]);
+      auto via = static_cast<std::complex<float>>(from[i]);
+      to[i] = static_cast<typename TypeDescriptor<To>::T>(via);
     } else if constexpr (is_complex_v<From> && !is_complex_v<To>) {
       if (GiveComplexWarning() < 0) {
         return;
       }
-      to[i] = static_cast<typename TypeDescriptor<To>::T>(
-          static_cast<float>(from[i].real()));
+      auto via = static_cast<float>(from[i].real());
+      to[i] = static_cast<typename TypeDescriptor<To>::T>(via);
     } else if constexpr (!is_complex_v<From> && is_complex_v<To>) {
-      to[i] = static_cast<typename TypeDescriptor<To>::T>(
-          static_cast<float>(from[i]));
+      auto via = static_cast<float>(from[i]);
+      to[i] = static_cast<typename TypeDescriptor<To>::T>(via);
     } else {
-      to[i] = static_cast<typename TypeDescriptor<To>::T>(
-          static_cast<std::complex<float>>(from[i]));
+      static_assert(0);
     }
   }
 }

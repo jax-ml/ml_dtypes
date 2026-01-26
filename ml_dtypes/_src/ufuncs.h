@@ -275,7 +275,8 @@ struct Abs {
   }
   template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
   typename U::value_type operator()(T a) {
-    return std::abs(to_system(a));
+    using real_type = typename U::value_type;
+    return real_type(std::abs(to_system(a)));
   }
 };
 template <typename T>
@@ -354,7 +355,7 @@ struct Exp2 {
     constexpr float LOGE2 = 0.6931471805599453f;
     auto x = to_system(a) * LOGE2;
     auto res = std::exp(x);
-    return res;
+    return T(res);
   }
 };
 template <typename T>
@@ -457,7 +458,7 @@ struct Log2 {
   T operator()(T a) {
     auto x = to_system(a);
     constexpr float LOG2E = 1.442695040888963407359924681001892137f;
-    return std::log(x) * LOG2E;
+    return T(std::log(x) * LOG2E);
   }
 };
 template <typename T>

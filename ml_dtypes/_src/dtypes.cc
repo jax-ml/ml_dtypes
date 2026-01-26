@@ -35,7 +35,6 @@ limitations under the License.
 #include "ml_dtypes/include/float8.h"
 #include "ml_dtypes/include/intn.h"
 #include "ml_dtypes/include/mxfloat.h"
-#include "ml_dtypes/include/other_inexact.h"
 #include "ml_dtypes/_src/custom_float.h"
 #include "ml_dtypes/_src/custom_complex.h"
 
