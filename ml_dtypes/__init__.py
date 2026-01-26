@@ -78,6 +78,8 @@ int2: Type[_np.generic]
 int4: Type[_np.generic]
 uint2: Type[_np.generic]
 uint4: Type[_np.generic]
+bcomplex32: Type[_np.generic]
+complex32: Type[_np.generic]
 
 del Type
 

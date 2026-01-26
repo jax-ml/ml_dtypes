@@ -705,7 +705,7 @@ void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
       auto via = static_cast<std::complex<float>>(from[i]);
       to[i] = static_cast<typename TypeDescriptor<To>::T>(via);
     } else if constexpr (is_complex_v<From> && !is_complex_v<To>) {
-      if (GiveComplexWarning() < 0) {
+      if (GiveComplexWarningNoGIL() < 0) {
         return;
       }
       auto via = static_cast<float>(from[i].real());

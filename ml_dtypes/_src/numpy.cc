@@ -31,4 +31,11 @@ int GiveComplexWarning() {
       "Casting complex values to real discards the imaginary part", 1);
 }
 
+int GiveComplexWarningNoGIL() {
+  PyGILState_STATE state = PyGILState_Ensure();
+  int res = GiveComplexWarning();
+  PyGILState_Release(state);
+  return res;
+}
+
 }  // namespace ml_dtypes

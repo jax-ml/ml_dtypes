@@ -26,7 +26,6 @@ limitations under the License.
 
 namespace ml_dtypes {
 
-
 struct bcomplex32 : std::complex<bfloat16> {
   using std::complex<bfloat16>::complex;
 
@@ -36,8 +35,7 @@ struct bcomplex32 : std::complex<bfloat16> {
   bcomplex32(const bfloat16& r) : bcomplex32(r, bfloat16{0}) {}
 
   template <typename T>
-  explicit bcomplex32(const T& r)
-      : bcomplex32(bfloat16{r}, bfloat16{0}) {}
+  explicit bcomplex32(const T& r) : bcomplex32(bfloat16{r}, bfloat16{0}) {}
 
   template <typename T>
   explicit bcomplex32(const T& r, const T& c)
@@ -89,12 +87,10 @@ struct complex32 : std::complex<half> {
   complex32(const half& r) : complex32(r, half{0}) {}
 
   template <typename T>
-  explicit complex32(const T& r)
-      : complex32(half{r}, half{0}) {}
+  explicit complex32(const T& r) : complex32(half{r}, half{0}) {}
 
   template <typename T>
-  explicit complex32(const T& r, const T& c)
-      : complex32(half{r}, half{c}) {}
+  explicit complex32(const T& r, const T& c) : complex32(half{r}, half{c}) {}
 
   template <typename T>
   explicit complex32(const std::complex<T>& z)

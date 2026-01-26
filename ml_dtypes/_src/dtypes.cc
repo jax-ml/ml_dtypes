@@ -351,7 +351,7 @@ void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
   auto* to = static_cast<To*>(to_void);
 
   if constexpr (is_complex_v<From> && !is_complex_v<To>) {
-    if (GiveComplexWarning() < 0) {
+    if (GiveComplexWarningNoGIL() < 0) {
       return;
     }
     for (npy_intp i = 0; i < n; ++i) {
@@ -441,15 +441,16 @@ bool Initialize() {
     return false;
   }
 
-  // TODO: Do we need NumPy 1.x support, then this is wrong.
-  Safe_PyObjectPtr exceptions =
-      make_safe(PyObject_GetAttrString(numpy.get(), "exceptions"));
-  if (!exceptions) {
-    return false;
+  Safe_PyObjectPtr exceptions;
+  if (PyObject_HasAttrString(numpy.get(), "exceptions")) {
+    exceptions = make_safe(PyObject_GetAttrString(numpy.get(), "exceptions"));
+    if (!exceptions) {
+      return false;
+    }
+  } else {
+    exceptions = make_safe(numpy.get());  // main module holds the objects.
   }
-  ComplexWarning =
-      make_safe(PyObject_GetAttrString(exceptions.get(), "ComplexWarning"))
-          .get();
+  ComplexWarning = PyObject_GetAttrString(exceptions.get(), "ComplexWarning");
   if (!ComplexWarning) {
     return false;
   }

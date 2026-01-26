@@ -33,7 +33,6 @@ namespace ml_dtypes {
 using half = Eigen::half;
 using bfloat16 = Eigen::bfloat16;
 
-
 inline void ByteSwap16(void* value) {
   char* p = reinterpret_cast<char*>(value);
   std::swap(p[0], p[1]);

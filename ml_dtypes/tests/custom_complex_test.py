@@ -22,6 +22,9 @@ import numpy as np
 import pytest
 
 
+ComplexWarning = getattr(np, "exceptions", np).ComplexWarning
+
+
 COMPLEX_SCTYPES = [ml_dtypes.complex32, ml_dtypes.bcomplex32]
 
 # Test values that should round trip
@@ -99,9 +102,9 @@ def test_constructor(sctype):
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 def test_float_and_int_conversion(sctype):
   z = sctype(1.5)
-  with pytest.warns(np.exceptions.ComplexWarning):
+  with pytest.warns(ComplexWarning):
     assert float(z) == 1.5
-  with pytest.warns(np.exceptions.ComplexWarning):
+  with pytest.warns(ComplexWarning):
     assert int(z) == 1
 
 
@@ -238,10 +241,11 @@ def test_cast_from_float(sctype, from_dtype):
 )
 def test_cast_to_float(sctype, to_dtype):
   """Test casting from complex to real (should take real part)."""
-  x = np.array([1 + 2j, 3 + 4j], dtype=sctype)
-  with pytest.warns(np.exceptions.ComplexWarning):
+  # Make large, so that NumPy may release the GIL.
+  x = np.array([1 + 2j, 3 + 4j] * 500, dtype=sctype)
+  with pytest.warns(ComplexWarning):
     y = x.astype(to_dtype)
-  np.testing.assert_array_equal(y, [1.0, 3.0])
+  np.testing.assert_array_equal(y, [1.0, 3.0] * 500)
 
 
 # ==========================
@@ -319,7 +323,13 @@ def test_unimplemented_binary_ufuncs(sctype, func):
         # Rounding
         np.rint,
         # Sign
-        np.sign,
+        pytest.param(
+            np.sign,
+            marks=pytest.mark.xfail(
+                condition=np.__version__.startswith("1."),
+                reason="definition fixed 2.0",
+            ),
+        ),
         # Trigonometric
         np.sin,
         np.cos,
