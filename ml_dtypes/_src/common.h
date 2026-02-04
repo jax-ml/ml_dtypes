@@ -24,10 +24,25 @@ limitations under the License.
 #include <Python.h>
 
 #include <complex>  //NOLINT
+#include <memory>  //NOLINT
 
 #include "Eigen/Core"
 
 namespace ml_dtypes {
+
+using half = Eigen::half;
+using bfloat16 = Eigen::bfloat16;
+
+inline void ByteSwap16(void* value) {
+  char* p = reinterpret_cast<char*>(value);
+  std::swap(p[0], p[1]);
+}
+
+inline void ByteSwap32(void* value) {
+  char* p = reinterpret_cast<char*>(value);
+  std::swap(p[0], p[3]);
+  std::swap(p[1], p[2]);
+}
 
 struct PyDecrefDeleter {
   void operator()(PyObject* p) const { Py_DECREF(p); }
@@ -116,8 +131,8 @@ struct TypeDescriptor<bool> {
 };
 
 template <>
-struct TypeDescriptor<Eigen::half> {
-  typedef Eigen::half T;
+struct TypeDescriptor<ml_dtypes::half> {
+  typedef ml_dtypes::half T;
   static int Dtype() { return NPY_HALF; }
 };
 

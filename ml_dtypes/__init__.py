@@ -17,6 +17,8 @@ __all__ = [
     "__version__",
     "bfloat16",
     "finfo",
+    "bcomplex32",
+    "complex32",
     "float4_e2m1fn",
     "float6_e2m3fn",
     "float6_e3m2fn",
@@ -39,7 +41,9 @@ from typing import Type
 
 from ml_dtypes._finfo import finfo
 from ml_dtypes._iinfo import iinfo
+from ml_dtypes._ml_dtypes_ext import bcomplex32
 from ml_dtypes._ml_dtypes_ext import bfloat16
+from ml_dtypes._ml_dtypes_ext import complex32
 from ml_dtypes._ml_dtypes_ext import float4_e2m1fn
 from ml_dtypes._ml_dtypes_ext import float6_e2m3fn
 from ml_dtypes._ml_dtypes_ext import float6_e3m2fn
@@ -55,23 +59,73 @@ from ml_dtypes._ml_dtypes_ext import int2
 from ml_dtypes._ml_dtypes_ext import int4
 from ml_dtypes._ml_dtypes_ext import uint2
 from ml_dtypes._ml_dtypes_ext import uint4
-import numpy as np
+import numpy as _np
 
-bfloat16: Type[np.generic]
-float4_e2m1fn: Type[np.generic]
-float6_e2m3fn: Type[np.generic]
-float6_e3m2fn: Type[np.generic]
-float8_e3m4: Type[np.generic]
-float8_e4m3: Type[np.generic]
-float8_e4m3b11fnuz: Type[np.generic]
-float8_e4m3fn: Type[np.generic]
-float8_e4m3fnuz: Type[np.generic]
-float8_e5m2: Type[np.generic]
-float8_e5m2fnuz: Type[np.generic]
-float8_e8m0fnu: Type[np.generic]
-int2: Type[np.generic]
-int4: Type[np.generic]
-uint2: Type[np.generic]
-uint4: Type[np.generic]
+bfloat16: Type[_np.generic]
+float4_e2m1fn: Type[_np.generic]
+float6_e2m3fn: Type[_np.generic]
+float6_e3m2fn: Type[_np.generic]
+float8_e3m4: Type[_np.generic]
+float8_e4m3: Type[_np.generic]
+float8_e4m3b11fnuz: Type[_np.generic]
+float8_e4m3fn: Type[_np.generic]
+float8_e4m3fnuz: Type[_np.generic]
+float8_e5m2: Type[_np.generic]
+float8_e5m2fnuz: Type[_np.generic]
+float8_e8m0fnu: Type[_np.generic]
+int2: Type[_np.generic]
+int4: Type[_np.generic]
+uint2: Type[_np.generic]
+uint4: Type[_np.generic]
+bcomplex32: Type[_np.generic]
+complex32: Type[_np.generic]
 
-del np, Type
+del Type
+
+
+def real(x: _np.ndarray) -> _np.ndarray:
+  """Return the real part of a complex array.
+
+  This is a helper that uses `x.real` except for NumPy arrays of
+  bcomplex32 or complex32. NumPy cannot correctly understand that these
+  are complex dtypes as of NumPy 2.4 at least.
+
+  Args:
+    x: The input array.
+
+  Returns:
+    The real part of the input array.
+  """
+  if isinstance(x, _np.ndarray):
+    # Use a view. We add an axes to ensure it is contiguous.
+    if x.dtype.type is bcomplex32:
+      return x[..., None].view(bfloat16)[..., 0]
+    elif x.dtype.type is complex32:
+      return x[..., None].view(_np.float16)[..., 0]
+
+  # Otherwise, assume everything is OK with just using the normal `.real`
+  return x.real
+
+
+def imag(x: _np.ndarray) -> _np.ndarray:
+  """Return the imaginary part of a complex array.
+
+  This is a helper that uses `x.imag` except for NumPy arrays of
+  bcomplex32 or complex32. NumPy cannot correctly understand that these
+  are complex dtypes as of NumPy 2.4 at least.
+
+  Args:
+    x: The input array.
+
+  Returns:
+    The imaginary part of the input array.
+  """
+  if isinstance(x, _np.ndarray):
+    # Use a view. We add an axes to ensure it is contiguous.
+    if x.dtype.type is bcomplex32:
+      return x[..., None].view(bfloat16)[..., 1]
+    elif x.dtype.type is complex32:
+      return x[..., None].view(_np.float16)[..., 1]
+
+  # Otherwise, assume everything is OK with just using the normal `.imag`
+  return x.imag

@@ -170,7 +170,7 @@ bool CastToIntN(PyObject* arg, T* output) {
     return true;
   };
   if (PyArray_IsScalar(arg, Half)) {
-    return floating_conversion(Eigen::half{});
+    return floating_conversion(half{});
   }
   if (PyArray_IsScalar(arg, Float)) {
     return floating_conversion(float{});
@@ -627,7 +627,7 @@ bool RegisterCustomIntCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
 
 template <typename T>
 bool RegisterIntNCasts() {
-  if (!RegisterCustomIntCast<T, Eigen::half>(NPY_HALF)) {
+  if (!RegisterCustomIntCast<T, half>(NPY_HALF)) {
     return false;
   }
   if (!RegisterCustomIntCast<T, float>(NPY_FLOAT)) {

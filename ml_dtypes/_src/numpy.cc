@@ -23,4 +23,19 @@ namespace ml_dtypes {
 
 void ImportNumpy() { import_array1(); }
 
+NPY_VISIBILITY_HIDDEN PyObject* ComplexWarning = nullptr;
+
+int GiveComplexWarning() {
+  return PyErr_WarnEx(
+      ComplexWarning,
+      "Casting complex values to real discards the imaginary part", 1);
+}
+
+int GiveComplexWarningNoGIL() {
+  PyGILState_STATE state = PyGILState_Ensure();
+  int res = GiveComplexWarning();
+  PyGILState_Release(state);
+  return res;
+}
+
 }  // namespace ml_dtypes

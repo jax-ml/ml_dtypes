@@ -46,6 +46,10 @@ namespace ml_dtypes {
 // module initialization function.
 void ImportNumpy();
 
+extern PyObject* ComplexWarning;
+int GiveComplexWarning();
+int GiveComplexWarningNoGIL();
+
 }  // namespace ml_dtypes
 
 #endif  // ML_DTYPES__NUMPY_H_

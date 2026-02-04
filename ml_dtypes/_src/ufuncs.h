@@ -38,6 +38,26 @@ limitations under the License.
 
 namespace ml_dtypes {
 
+template <typename T, std::enable_if_t<!is_complex_v<T>, bool> = false>
+inline float to_system(const T& value) {
+  return static_cast<float>(value);
+}
+template <typename T, std::enable_if_t<is_complex_v<T>, bool> = false>
+inline std::complex<float> to_system(const T& value) {
+  return static_cast<std::complex<float>>(value);
+}
+
+// isnan definition that works for all of our float and complex types.
+template <typename T, std::enable_if_t<!is_complex_v<T>, bool> = false>
+inline bool my_isnan(const T& value) {
+  return Eigen::numext::isnan(value);
+}
+template <typename T, std::enable_if_t<is_complex_v<T>, bool> = false>
+inline bool my_isnan(const T& value) {
+  return Eigen::numext::isnan(value.real()) ||
+         Eigen::numext::isnan(value.imag());
+}
+
 template <typename Functor, typename OutType, typename... InTypes>
 struct UFunc {
   static std::vector<int> Types() {
@@ -182,7 +202,7 @@ template <typename T>
 struct Divmod {
   std::pair<T, T> operator()(T a, T b) {
     float c, d;
-    std::tie(c, d) = divmod_impl(static_cast<float>(a), static_cast<float>(b));
+    std::tie(c, d) = divmod_impl(to_system(a), to_system(b));
     return {T(c), T(d)};
   }
 };
@@ -205,7 +225,7 @@ struct FloorDivide {
   template <typename U = T,
             std::enable_if_t<TypeDescriptor<U>::is_floating, bool> = true>
   T operator()(T a, T b) {
-    return T(divmod_impl(static_cast<float>(a), static_cast<float>(b)).first);
+    return T(divmod_impl(to_system(a), to_system(b)).first);
   }
 };
 template <typename T>
@@ -227,15 +247,13 @@ struct Remainder {
   template <typename U = T,
             std::enable_if_t<TypeDescriptor<U>::is_floating, bool> = true>
   T operator()(T a, T b) {
-    return T(divmod_impl(static_cast<float>(a), static_cast<float>(b)).second);
+    return T(divmod_impl(to_system(a), to_system(b)).second);
   }
 };
 
 template <typename T>
 struct Fmod {
-  T operator()(T a, T b) {
-    return T(std::fmod(static_cast<float>(a), static_cast<float>(b)));
-  }
+  T operator()(T a, T b) { return T(std::fmod(to_system(a), to_system(b))); }
 };
 template <typename T>
 struct Negative {
@@ -247,21 +265,27 @@ struct Positive {
 };
 template <typename T>
 struct Power {
-  T operator()(T a, T b) {
-    return T(std::pow(static_cast<float>(a), static_cast<float>(b)));
-  }
+  T operator()(T a, T b) { return T(std::pow(to_system(a), to_system(b))); }
 };
 template <typename T>
 struct Abs {
-  T operator()(T a) { return Eigen::numext::abs(a); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return Eigen::numext::abs(a);
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  typename U::value_type operator()(T a) {
+    using real_type = typename U::value_type;
+    return real_type(std::abs(to_system(a)));
+  }
 };
 template <typename T>
 struct Cbrt {
-  T operator()(T a) { return T(std::cbrt(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::cbrt(to_system(a))); }
 };
 template <typename T>
 struct Ceil {
-  T operator()(T a) { return T(std::ceil(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::ceil(to_system(a))); }
 };
 
 // Helper struct for getting a bit representation provided a byte size.
@@ -318,25 +342,46 @@ struct CopySign {
 
 template <typename T>
 struct Exp {
-  T operator()(T a) { return T(std::exp(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::exp(to_system(a))); }
 };
 template <typename T>
 struct Exp2 {
-  T operator()(T a) { return T(std::exp2(static_cast<float>(a))); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return T(std::exp2(to_system(a)));
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    constexpr float LOGE2 = 0.6931471805599453f;
+    auto x = to_system(a) * LOGE2;
+    auto res = std::exp(x);
+    return T(res);
+  }
 };
 template <typename T>
 struct Expm1 {
-  T operator()(T a) { return T(std::expm1(static_cast<float>(a))); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return T(std::expm1(to_system(a)));
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T x_) {
+    auto x = to_system(x_);
+    auto a = std::sin(x.imag() / 2);
+    auto res_real = std::expm1(x.real()) * std::cos(x.imag()) - 2 * a * a;
+    auto res_imag = std::exp(x.real()) * std::sin(x.imag());
+    return T(res_real, res_imag);
+  }
 };
 template <typename T>
 struct Floor {
-  T operator()(T a) { return T(std::floor(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::floor(to_system(a))); }
 };
 template <typename T>
 struct Frexp {
   std::pair<T, int> operator()(T a) {
     int exp;
-    float f = std::frexp(static_cast<float>(a), &exp);
+    float f = std::frexp(to_system(a), &exp);
     return {T(f), exp};
   }
 };
@@ -354,49 +399,92 @@ struct Heaviside {
     return sign_x ? T(0.0f) : T(1.0f);
   }
 };
+
 template <typename T>
 struct Conjugate {
-  T operator()(T a) { return a; }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return a;
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  U operator()(U a) {
+    return U{a.real(), -a.imag()};
+  }
 };
+
 template <typename T>
 struct IsFinite {
-  bool operator()(T a) { return Eigen::numext::isfinite(a); }
-};
-template <typename T>
-struct IsInf {
-  bool operator()(T a) { return Eigen::numext::isinf(a); }
-};
-template <typename T>
-struct IsNan {
-  bool operator()(T a) { return Eigen::numext::isnan(a); }
-};
-template <typename T>
-struct Ldexp {
-  T operator()(T a, int exp) {
-    return T(std::ldexp(static_cast<float>(a), exp));
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  bool operator()(U a) {
+    return Eigen::numext::isfinite(a);
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  bool operator()(U a) {
+    return Eigen::numext::isfinite(a.real()) &&
+           Eigen::numext::isfinite(a.imag());
   }
 };
 template <typename T>
+struct IsInf {
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  bool operator()(U a) {
+    return Eigen::numext::isinf(a);
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  bool operator()(T a) {
+    return Eigen::numext::isinf(a.real()) || Eigen::numext::isinf(a.imag());
+  }
+};
+template <typename T>
+struct IsNan {
+  bool operator()(T a) { return my_isnan(a); }
+};
+
+template <typename T>
+struct Ldexp {
+  T operator()(T a, int exp) { return T(std::ldexp(to_system(a), exp)); }
+};
+template <typename T>
 struct Log {
-  T operator()(T a) { return T(std::log(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::log(to_system(a))); }
 };
 template <typename T>
 struct Log2 {
-  T operator()(T a) { return T(std::log2(static_cast<float>(a))); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return T(std::log2(to_system(a)));
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    auto x = to_system(a);
+    constexpr float LOG2E = 1.442695040888963407359924681001892137f;
+    return T(std::log(x) * LOG2E);
+  }
 };
 template <typename T>
 struct Log10 {
-  T operator()(T a) { return T(std::log10(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::log10(to_system(a))); }
 };
 template <typename T>
 struct Log1p {
-  T operator()(T a) { return T(std::log1p(static_cast<float>(a))); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return T(std::log1p(to_system(a)));
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    auto x = to_system(a);
+    auto l = std::abs(x + 1.0f);
+    auto res_imag = std::atan2(x.imag(), x.real() + 1);
+    auto res_real = std::log(l);
+    return T(res_real, res_imag);
+  }
 };
 template <typename T>
 struct LogAddExp {
   T operator()(T bx, T by) {
-    float x = static_cast<float>(bx);
-    float y = static_cast<float>(by);
+    auto x = to_system(bx);
+    auto y = to_system(by);
     if (x == y) {
       // Handles infinities of the same sign.
       return T(x + std::log(2.0f));
@@ -413,8 +501,8 @@ struct LogAddExp {
 template <typename T>
 struct LogAddExp2 {
   T operator()(T bx, T by) {
-    float x = static_cast<float>(bx);
-    float y = static_cast<float>(by);
+    float x = to_system(bx);
+    float y = to_system(by);
     if (x == y) {
       // Handles infinities of the same sign.
       return T(x + 1.0f);
@@ -432,21 +520,30 @@ template <typename T>
 struct Modf {
   std::pair<T, T> operator()(T a) {
     float integral;
-    float f = std::modf(static_cast<float>(a), &integral);
+    float f = std::modf(to_system(a), &integral);
     return {T(f), T(integral)};
   }
 };
 
 template <typename T>
 struct Reciprocal {
-  T operator()(T a) { return T(1.f / static_cast<float>(a)); }
+  T operator()(T a) { return T(1.f / to_system(a)); }
 };
 template <typename T>
 struct Rint {
-  T operator()(T a) { return T(std::rint(static_cast<float>(a))); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return T(std::rint(to_system(a)));
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    return T(std::rint(to_system(a.real())), std::rint(to_system(a.imag())));
+  }
 };
+
 template <typename T>
 struct Sign {
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
   T operator()(T a) {
     if (Eigen::numext::isnan(a)) {
       return a;
@@ -456,6 +553,32 @@ struct Sign {
       return a;
     }
     return sign_a ? T(-1) : T(1);
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a) {
+    // The complex signum is defined via z/|z|, the implementation below
+    // is adopted from NumPy.
+    auto c = to_system(a);
+    auto abs =
+        std::hypot(c.real(), c.imag());  // NumPy uses hypot which is the same.
+    constexpr auto nan = std::numeric_limits<float>::quiet_NaN();
+    if (std::isnan(abs)) {
+      return T(nan, nan);
+    }
+    if (std::isinf(abs)) {
+      if (std::isinf(c.real())) {
+        if (std::isinf(c.imag())) {
+          return T(nan, nan);
+        } else {
+          return T(c.real() > 0. ? 1. : -1., 0.);
+        }
+      } else {
+        return T{0., c.imag() > 0 ? 1. : -1.};
+      }
+    } else if (abs == 0) {
+      return T{0., 0.};
+    }
+    return T{c.real() / abs, c.imag() / abs};
   }
 };
 template <typename T>
@@ -467,93 +590,89 @@ struct SignBit {
 };
 template <typename T>
 struct Sqrt {
-  T operator()(T a) { return T(std::sqrt(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::sqrt(to_system(a))); }
 };
 template <typename T>
 struct Square {
   T operator()(T a) {
-    float f(a);
+    auto f = to_system(a);
     return T(f * f);
   }
 };
 template <typename T>
 struct Trunc {
-  T operator()(T a) { return T(std::trunc(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::trunc(to_system(a))); }
 };
 
 // Trigonometric functions
 template <typename T>
 struct Sin {
-  T operator()(T a) { return T(std::sin(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::sin(to_system(a))); }
 };
 template <typename T>
 struct Cos {
-  T operator()(T a) { return T(std::cos(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::cos(to_system(a))); }
 };
 template <typename T>
 struct Tan {
-  T operator()(T a) { return T(std::tan(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::tan(to_system(a))); }
 };
 template <typename T>
 struct Arcsin {
-  T operator()(T a) { return T(std::asin(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::asin(to_system(a))); }
 };
 template <typename T>
 struct Arccos {
-  T operator()(T a) { return T(std::acos(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::acos(to_system(a))); }
 };
 template <typename T>
 struct Arctan {
-  T operator()(T a) { return T(std::atan(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::atan(to_system(a))); }
 };
 template <typename T>
 struct Arctan2 {
-  T operator()(T a, T b) {
-    return T(std::atan2(static_cast<float>(a), static_cast<float>(b)));
-  }
+  T operator()(T a, T b) { return T(std::atan2(to_system(a), to_system(b))); }
 };
 template <typename T>
 struct Hypot {
-  T operator()(T a, T b) {
-    return T(std::hypot(static_cast<float>(a), static_cast<float>(b)));
-  }
+  T operator()(T a, T b) { return T(std::hypot(to_system(a), to_system(b))); }
 };
 template <typename T>
 struct Sinh {
-  T operator()(T a) { return T(std::sinh(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::sinh(to_system(a))); }
 };
 template <typename T>
 struct Cosh {
-  T operator()(T a) { return T(std::cosh(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::cosh(to_system(a))); }
 };
 template <typename T>
 struct Tanh {
-  T operator()(T a) { return T(std::tanh(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::tanh(to_system(a))); }
 };
 template <typename T>
 struct Arcsinh {
-  T operator()(T a) { return T(std::asinh(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::asinh(to_system(a))); }
 };
 template <typename T>
 struct Arccosh {
-  T operator()(T a) { return T(std::acosh(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::acosh(to_system(a))); }
 };
 template <typename T>
 struct Arctanh {
-  T operator()(T a) { return T(std::atanh(static_cast<float>(a))); }
+  T operator()(T a) { return T(std::atanh(to_system(a))); }
 };
 template <typename T>
 struct Deg2rad {
   T operator()(T a) {
     static constexpr float radians_per_degree = M_PI / 180.0f;
-    return T(static_cast<float>(a) * radians_per_degree);
+    return T(to_system(a) * radians_per_degree);
   }
 };
 template <typename T>
 struct Rad2deg {
   T operator()(T a) {
     static constexpr float degrees_per_radian = 180.0f / M_PI;
-    return T(static_cast<float>(a) * degrees_per_radian);
+    return T(to_system(a) * degrees_per_radian);
   }
 };
 
@@ -583,31 +702,19 @@ struct Ge {
 };
 template <typename T>
 struct Maximum {
-  T operator()(T a, T b) {
-    float fa(a), fb(b);
-    return Eigen::numext::isnan(fa) || fa > fb ? a : b;
-  }
+  T operator()(T a, T b) { return my_isnan(a) || a > b ? a : b; }
 };
 template <typename T>
 struct Minimum {
-  T operator()(T a, T b) {
-    float fa(a), fb(b);
-    return Eigen::numext::isnan(fa) || fa < fb ? a : b;
-  }
+  T operator()(T a, T b) { return my_isnan(a) || a < b ? a : b; }
 };
 template <typename T>
 struct Fmax {
-  T operator()(T a, T b) {
-    float fa(a), fb(b);
-    return Eigen::numext::isnan(fb) || fa > fb ? a : b;
-  }
+  T operator()(T a, T b) { return my_isnan(b) || a > b ? a : b; }
 };
 template <typename T>
 struct Fmin {
-  T operator()(T a, T b) {
-    float fa(a), fb(b);
-    return Eigen::numext::isnan(fb) || fa < fb ? a : b;
-  }
+  T operator()(T a, T b) { return my_isnan(b) || a < b ? a : b; }
 };
 
 template <typename T>
