@@ -28,6 +28,9 @@
   * `int4`
   * `uint2`
   * `uint4`
+- 16-bit complex floating point numbers. (See below below for important limitations.)
+  * `complex32` (matching `numpy.float16`)
+  * `bcomplex32` (matching `numpy.bfloat16`)
 
 See below for specifications of these number formats.
 
@@ -183,6 +186,16 @@ engineering project. These types therefore use an unpacked representation, where
 each element of the array is padded up to a byte in memory. The lower two or four
 bits of each byte contain the representation of the number, whereas the remaining
 upper bits are ignored.
+
+## `complex32` and `bcomplex32`
+
+Complex types corresponding to `numpy.float16` and `ml_dtypes.bfloat16` respectively.
+
+Because NumPy currently only recognizes built-in complex types the array
+attributes `arr.imag` and `arr.real` will give incorrect results
+(`.imag` returns an array of complex zeros and `.real` the original values unchanged).
+To mitigate this issue we provide `ml_dtypes.imag()` and `ml_dtypes.real()`.
+Similarly, other functions may fail to apply the correct complex behavior.
 
 ## Quirks of low-precision Arithmetic
 
