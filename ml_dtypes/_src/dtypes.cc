@@ -243,6 +243,38 @@ struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
 };
 
 template <>
+struct TypeDescriptor<int1> : IntNTypeDescriptor<int1> {
+  typedef int1 T;
+  typedef int8_t builtin_type;
+  static constexpr bool is_floating = false;
+  static constexpr bool is_integral = true;
+  static constexpr const char* kTypeName = "int1";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.int1";
+  static constexpr const char* kTpDoc = "int1 integer values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'e';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
+struct TypeDescriptor<uint1> : IntNTypeDescriptor<uint1> {
+  typedef uint1 T;
+  typedef uint8_t builtin_type;
+  static constexpr bool is_floating = false;
+  static constexpr bool is_integral = true;
+  static constexpr const char* kTypeName = "uint1";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint1";
+  static constexpr const char* kTpDoc = "uint1 integer values";
+  static constexpr char kNpyDescrKind = 'V';
+  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
+  // character is unique.
+  static constexpr char kNpyDescrType = 'E';
+  static constexpr char kNpyDescrByteorder = '=';
+};
+
+template <>
 struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
   typedef int2 T;
   typedef int8_t builtin_type;
@@ -472,7 +504,9 @@ bool Initialize() {
     return false;
   }
 
-  if (!RegisterIntNDtype<int2>(numpy.get()) ||
+  if (!RegisterIntNDtype<int1>(numpy.get()) ||
+      !RegisterIntNDtype<uint1>(numpy.get()) ||
+      !RegisterIntNDtype<int2>(numpy.get()) ||
       !RegisterIntNDtype<uint2>(numpy.get()) ||
       !RegisterIntNDtype<int4>(numpy.get()) ||
       !RegisterIntNDtype<uint4>(numpy.get())) {
@@ -492,10 +526,22 @@ bool Initialize() {
   // Only registering to/from BF16 and FP32 for float8_e8m0fnu.
   success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bfloat16, float>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();
+  success &= RegisterOneWayCustomCast<int1, int2, int4>();
+  success &= RegisterOneWayCustomCast<uint1, uint2, uint4>();
+  success &= RegisterOneWayCustomCast<int1, int4, int8_t>();
+  success &= RegisterOneWayCustomCast<uint1, uint4, uint8_t>();
   success &= RegisterOneWayCustomCast<int2, int4, int8_t>();
   success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
 
   // Int -> float casts.
+  success &= RegisterTwoWayFloatCasts<
+      int1, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
+      float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+      float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
+  success &= RegisterTwoWayFloatCasts<
+      uint1, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
+      float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
+      float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
   success &= RegisterTwoWayFloatCasts<
       int2, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
       float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
@@ -556,8 +602,10 @@ extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
       !InitModuleType<bfloat16>(m.get(), "bfloat16") ||
       !InitModuleType<bcomplex32>(m.get(), "bcomplex32") ||
       !InitModuleType<complex32>(m.get(), "complex32") ||
+      !InitModuleType<int1>(m.get(), "int1") ||
       !InitModuleType<int2>(m.get(), "int2") ||
       !InitModuleType<int4>(m.get(), "int4") ||
+      !InitModuleType<uint1>(m.get(), "uint1") ||
       !InitModuleType<uint2>(m.get(), "uint2") ||
       !InitModuleType<uint4>(m.get(), "uint4")) {
     return nullptr;

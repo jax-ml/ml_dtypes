@@ -31,8 +31,10 @@ __all__ = [
     "float8_e5m2fnuz",
     "float8_e8m0fnu",
     "iinfo",
+    "int1",
     "int2",
     "int4",
+    "uint1",
     "uint2",
     "uint4",
 ]
@@ -55,8 +57,10 @@ from ml_dtypes._ml_dtypes_ext import float8_e4m3fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e5m2
 from ml_dtypes._ml_dtypes_ext import float8_e5m2fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e8m0fnu
+from ml_dtypes._ml_dtypes_ext import int1
 from ml_dtypes._ml_dtypes_ext import int2
 from ml_dtypes._ml_dtypes_ext import int4
+from ml_dtypes._ml_dtypes_ext import uint1
 from ml_dtypes._ml_dtypes_ext import uint2
 from ml_dtypes._ml_dtypes_ext import uint4
 import numpy as _np
@@ -73,8 +77,10 @@ float8_e4m3fnuz: Type[_np.generic]
 float8_e5m2: Type[_np.generic]
 float8_e5m2fnuz: Type[_np.generic]
 float8_e8m0fnu: Type[_np.generic]
+int1: Type[_np.generic]
 int2: Type[_np.generic]
 int4: Type[_np.generic]
+uint1: Type[_np.generic]
 uint2: Type[_np.generic]
 uint4: Type[_np.generic]
 bcomplex32: Type[_np.generic]

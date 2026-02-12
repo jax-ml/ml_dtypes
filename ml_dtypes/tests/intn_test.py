@@ -28,16 +28,20 @@ import ml_dtypes
 from multi_thread_utils import multi_threaded
 import numpy as np
 
+int1 = ml_dtypes.int1
 int2 = ml_dtypes.int2
 int4 = ml_dtypes.int4
+uint1 = ml_dtypes.uint1
 uint2 = ml_dtypes.uint2
 uint4 = ml_dtypes.uint4
 
-INTN_TYPES = [int2, int4, uint2, uint4]
+INTN_TYPES = [int1, int2, int4, uint1, uint2, uint4]
 
 VALUES = {
+    int1: list(range(-1, 1)),
     int2: list(range(-2, 2)),
     int4: list(range(-8, 8)),
+    uint1: list(range(0, 2)),
     uint2: list(range(0, 4)),
     uint4: list(range(0, 16)),
 }
@@ -121,8 +125,9 @@ class ScalarTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testItem(self, scalar_type):
-    self.assertIsInstance(scalar_type(1).item(), int)
-    self.assertEqual(scalar_type(1).item(), 1)
+    v = -1 if scalar_type == int1 else 1
+    self.assertIsInstance(scalar_type(v).item(), int)
+    self.assertEqual(scalar_type(v).item(), v)
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testHash(self, scalar_type):
@@ -205,8 +210,21 @@ class ScalarTest(parameterized.TestCase):
   @parameterized.product(a=INTN_TYPES, b=CAST_DTYPES)
   def testCanCast(self, a, b):
     allowed_casts = [
+        (np.bool_, int1),
         (np.bool_, int2),
         (np.bool_, int4),
+        (int1, int1),
+        (int1, int2),
+        (int1, int4),
+        (int1, np.int8),
+        (int1, np.int16),
+        (int1, np.int32),
+        (int1, np.int64),
+        (int1, np.float16),
+        (int1, np.float32),
+        (int1, np.float64),
+        (int1, np.complex64),
+        (int1, np.complex128),
         (int2, int2),
         (int2, np.int8),
         (int2, np.int16),
@@ -228,8 +246,25 @@ class ScalarTest(parameterized.TestCase):
         (int4, np.float64),
         (int4, np.complex64),
         (int4, np.complex128),
+        (np.bool_, uint1),
         (np.bool_, uint2),
         (np.bool_, uint4),
+        (uint1, uint1),
+        (uint1, uint2),
+        (uint1, uint4),
+        (uint1, np.int8),
+        (uint1, np.int16),
+        (uint1, np.int32),
+        (uint1, np.int64),
+        (uint1, np.uint8),
+        (uint1, np.uint16),
+        (uint1, np.uint32),
+        (uint1, np.uint64),
+        (uint1, np.float16),
+        (uint1, np.float32),
+        (uint1, np.float64),
+        (uint1, np.complex64),
+        (uint1, np.complex128),
         (uint2, uint2),
         (uint2, np.int8),
         (uint2, np.int16),
@@ -328,7 +363,13 @@ class ArrayTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testArray(self, scalar_type):
-    if scalar_type == int2:
+    if scalar_type == int1:
+      x = np.array([[-1, 0, -1, 0]], dtype=scalar_type)
+      self.assertEqual("[[-1 0 -1 0]]", str(x))
+    elif scalar_type == uint1:
+      x = np.array([[1, 1, 0, 1]], dtype=scalar_type)
+      self.assertEqual("[[1 1 0 1]]", str(x))
+    elif scalar_type == int2:
       x = np.array([[-2, 1, 0, 1]], dtype=scalar_type)
       self.assertEqual("[[-2 1 0 1]]", str(x))
     else:
@@ -413,7 +454,7 @@ class ArrayTest(parameterized.TestCase):
   # types, but I'm unable to figure out how to convince NumPy to treat custom
   # casts as unsafe.
   @parameterized.product(
-      types=[(int2, int4), (uint2, uint4)]
+      types=[(int2, int4), (uint2, uint4), (int1, int2), (uint1, uint2)]
       + [
           (a, b)
           for a in INTN_TYPES

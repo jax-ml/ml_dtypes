@@ -24,8 +24,10 @@
   * `float6_e2m3fn`
   * `float6_e3m2fn`
 - Narrow integer encodings:
+  * `int1`
   * `int2`
   * `int4`
+  * `uint1`
   * `uint2`
   * `uint4`
 
@@ -171,9 +173,9 @@ scale format E8M0, which has the following properties:
   * No zero and infinity
   * Single NaN value (0xFF).
 
-## `int2`, `int4`, `uint2` and `uint4`
+## `int1`, `uint1`, `int2`, `int4`, `uint2` and `uint4`
 
-2 and 4-bit integer types, where each element is represented unpacked (i.e.,
+1, 2 and 4-bit integer types, where each element is represented unpacked (i.e.,
 padded up to a byte in memory).
 
 NumPy does not support types smaller than a single byte: for example, the

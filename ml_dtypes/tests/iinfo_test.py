@@ -22,6 +22,28 @@ import numpy as np
 @multi_threaded(num_workers=3)
 class IinfoTest(parameterized.TestCase):
 
+  def testIinfoInt1(self):
+    info = ml_dtypes.iinfo(ml_dtypes.int1)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo("int1").dtype)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo(np.dtype("int1")).dtype)
+    self.assertEqual(info.min, -1)
+    self.assertEqual(info.max, 0)
+    self.assertEqual(info.dtype, np.dtype(ml_dtypes.int1))
+    self.assertEqual(info.bits, 1)
+    self.assertEqual(info.kind, "i")
+    self.assertEqual(str(info), "iinfo(min=-1, max=0, dtype=int1)")
+
+  def testIInfoUint1(self):
+    info = ml_dtypes.iinfo(ml_dtypes.uint1)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo("uint1").dtype)
+    self.assertEqual(info.dtype, ml_dtypes.iinfo(np.dtype("uint1")).dtype)
+    self.assertEqual(info.min, 0)
+    self.assertEqual(info.max, 1)
+    self.assertEqual(info.dtype, np.dtype(ml_dtypes.uint1))
+    self.assertEqual(info.bits, 1)
+    self.assertEqual(info.kind, "u")
+    self.assertEqual(str(info), "iinfo(min=0, max=1, dtype=uint1)")
+
   def testIinfoInt2(self):
     info = ml_dtypes.iinfo(ml_dtypes.int2)
     self.assertEqual(info.dtype, ml_dtypes.iinfo("int2").dtype)
@@ -83,9 +105,11 @@ class IinfoTest(parameterized.TestCase):
   @parameterized.named_parameters(
       {"testcase_name": f"_{dtype.__name__}", "dtype": np.dtype(dtype)}
       for dtype in [
+          ml_dtypes.int1,
           ml_dtypes.int2,
           ml_dtypes.int4,
           np.int8,
+          ml_dtypes.uint1,
           ml_dtypes.uint2,
           ml_dtypes.uint4,
           np.uint8,
