@@ -349,10 +349,8 @@ struct TypeDescriptor<bcomplex32> : CustomComplexType<bcomplex32> {
   static constexpr const char* kTpDoc =
       "complex bfloat16 floating-point values";
   // See also bfloat16, the kind argument is tricky to choose well.
-  static constexpr char kNpyDescrKind = 'W';  // TODO(seberg): better name?
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'P';  // TODO(seberg): better name?
+  static constexpr char kNpyDescrKind = 'V';
+  static constexpr char kNpyDescrType = 'K';
   static constexpr char kNpyDescrByteorder = '=';
 };
 
@@ -366,10 +364,10 @@ struct TypeDescriptor<complex32> : CustomComplexType<complex32> {
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.complex32";
   static constexpr const char* kTpDoc = "complex half floating-point values";
   // See also bfloat16. `E` type char is used for bfloat16 unfortunately.
-  static constexpr char kNpyDescrKind = 'W';  // TODO(seberg): better name?
+  static constexpr char kNpyDescrKind = 'c';  // TODO(seberg): better name?
   // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
   // character is unique.
-  static constexpr char kNpyDescrType = 'O';  // TODO(seberg): better name?
+  static constexpr char kNpyDescrType = 'J';
   static constexpr char kNpyDescrByteorder = '=';
 };
 
