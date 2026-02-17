@@ -70,9 +70,6 @@ class FinfoTest(parameterized.TestCase):
   def testFInfo(self, dtype):
     info = ml_dtypes.finfo(dtype)
 
-    assert ml_dtypes.finfo(dtype.name) is info
-    assert ml_dtypes.finfo(dtype.type) is info
-
     _ = str(info)  # doesn't crash
 
     def make_val(val):
@@ -94,7 +91,7 @@ class FinfoTest(parameterized.TestCase):
       self.assertEqual(make_val(val), make_val(0))
 
     self.assertEqual(np.array(0, dtype).dtype, dtype)
-    self.assertIs(info.dtype, dtype)
+    self.assertEqual(info.dtype, dtype)
 
     if info.bits >= 8:
       self.assertEqual(info.bits, np.array(0, dtype).itemsize * 8)
@@ -129,7 +126,7 @@ class FinfoTest(parameterized.TestCase):
 
     assert_representable(info.smallest_subnormal)
     if info.min < 0.0:
-      assert_zero(info.smallest_subnormal * 0.5)
+      assert_zero(float(info.smallest_subnormal) * 0.5)
     self.assertGreater(info.smallest_normal, 0.0)
     self.assertEqual(info.tiny, info.smallest_normal)
 

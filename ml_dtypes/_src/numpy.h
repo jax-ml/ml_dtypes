@@ -22,6 +22,7 @@ limitations under the License.
 
 // Disallow Numpy 2.0 deprecated symbols.
 #define NPY_NO_DEPRECATED_API NPY_2_0_API_VERSION
+#define NPY_TARGET_VERSION NPY_2_0_API_VERSION
 
 // We import_array and import_umath in the ml_dtypes init function only.
 #define PY_ARRAY_UNIQUE_SYMBOL _ml_dtypes_numpy_array_api

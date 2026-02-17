@@ -13,6 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+// Enable cmath defines on Windows
+#define _USE_MATH_DEFINES
+#define _SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING
+
 #include <Python.h>
 
 #include "ml_dtypes/_src/complex.h"
@@ -21,11 +25,14 @@ limitations under the License.
 #include "ml_dtypes/_src/numpy.h"
 
 namespace ml_dtypes {
-bool RegisterCustomCasts();
+bool RegisterNumPy1Casts();
 
 // Initializes the module.
 bool Initialize() {
   ml_dtypes::ImportNumpy();
+
+  const char* env_override = getenv("ML_DTYPES_USE_NEW_DTYPE_API");
+  bool use_new_dtype_api = env_override && (strcmp(env_override, "1") == 0);
 
   Safe_PyObjectPtr numpy_str = make_safe(PyUnicode_FromString("numpy"));
   if (!numpy_str) {
@@ -46,8 +53,33 @@ bool Initialize() {
     return false;
   }
 
-  return RegisterCustomFloats(numpy.get()) && RegisterCustomInts(numpy.get()) &&
-         RegisterCustomComplex(numpy.get()) && RegisterCustomCasts();
+  if (!RegisterFloatDtypes(numpy.get(), use_new_dtype_api)) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, "RegisterFloatDtypes failed");
+    }
+    return false;
+  }
+  if (!RegisterIntDtypes(numpy.get(), use_new_dtype_api)) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, "RegisterIntDtypes failed");
+    }
+    return false;
+  }
+  if (!RegisterComplexDtypes(numpy.get(), use_new_dtype_api)) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, "RegisterComplexDtypes failed");
+    }
+    return false;
+  }
+  if (!use_new_dtype_api) {
+    if (!RegisterNumPy1Casts()) {
+      if (!PyErr_Occurred()) {
+        PyErr_SetString(PyExc_RuntimeError, "RegisterNumPy1Casts failed");
+      }
+      return false;
+    }
+  }
+  return true;
 }
 
 static PyModuleDef module_def = {

@@ -32,12 +32,7 @@ struct CustomComplexTraits<bcomplex32> {
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.bcomplex32";
   static constexpr const char* kTpDoc =
       "complex bfloat16 floating-point values";
-  // See also bfloat16, the kind argument is tricky to choose well.
-  static constexpr char kNpyDescrKind = 'W';  // TODO(seberg): better name?
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'P';  // TODO(seberg): better name?
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'P';
 };
 
 template <>
@@ -45,12 +40,7 @@ struct CustomComplexTraits<complex32> {
   static constexpr const char* kTypeName = "complex32";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.complex32";
   static constexpr const char* kTpDoc = "complex half floating-point values";
-  // See also bfloat16. `E` type char is used for bfloat16 unfortunately.
-  static constexpr char kNpyDescrKind = 'W';  // TODO(seberg): better name?
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'O';  // TODO(seberg): better name?
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'O';
 };
 
 template <typename T, typename = void>
@@ -81,9 +71,10 @@ struct CustomComplexType {
   static PyType_Slot type_slots[];
   static PyMethodDef methods[];
   static PyGetSetDef getset[];
-  static PyArray_ArrFuncs arr_funcs;
-  static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
+  static PyArray_DTypeMeta* dtype_meta;
+  static PyArray_ArrFuncs numpy_1_arr_funcs;
+  static PyArray_DescrProto numpy_1_descr_proto;
 };
 
 template <typename T>
@@ -91,7 +82,7 @@ struct DtypeTraits<T, std::enable_if_t<is_custom_complex_v<T>>> {
   static int Dtype() { return CustomComplexType<T>::Dtype(); }
 };
 
-bool RegisterCustomComplex(PyObject* numpy);
+bool RegisterComplexDtypes(PyObject* numpy, bool use_new_dtype_api);
 
 }  // namespace ml_dtypes
 

@@ -42,6 +42,8 @@ class iinfo:  # pylint: disable=invalid-name,missing-class-docstring
     # the Python Array API standard.
     if hasattr(int_type, "dtype") and isinstance(int_type.dtype, np.dtype):
       int_type = int_type.dtype
+    if not isinstance(int_type, np.dtype):
+      int_type = np.dtype(int_type)
 
     if int_type == _int1_dtype:
       self.dtype = _int1_dtype

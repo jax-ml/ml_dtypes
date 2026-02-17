@@ -19,7 +19,9 @@
 import contextlib
 import copy
 import operator
+import os
 import pickle
+import unittest
 import warnings
 
 from absl.testing import absltest
@@ -69,6 +71,10 @@ def ignore_warning(**kw):
   with warnings.catch_warnings():
     warnings.filterwarnings("ignore", **kw)
     yield
+
+
+def _using_new_dtype_api():
+  return os.environ.get("ML_DTYPES_USE_NEW_DTYPE_API") == "1"
 
 
 # Tests for the Python scalar type
@@ -201,6 +207,7 @@ class ScalarTest(parameterized.TestCase):
           self.assertEqual(scalar_type(op(v, w)), out, msg=(v, w))
 
   CAST_DTYPES = [
+      np.bool_,
       np.float16,
       np.float32,
       np.float64,
@@ -309,6 +316,25 @@ class ScalarTest(parameterized.TestCase):
         (uint4, np.complex64),
         (uint4, np.complex128),
     ]
+    if _using_new_dtype_api():
+      extra_int_types = [
+          np.longlong,
+          np.ulonglong,
+          np.intc,
+          np.uintc,
+          np.int_,
+      ]
+      for a in INTN_TYPES:
+        for b in extra_int_types:
+          if b not in self.CAST_DTYPES:
+            continue
+          # Unsafe casts (signed -> unsigned, or plain unsafe) are not allowed in "safe" mode
+          if np.issubdtype(a, np.signedinteger) and not np.issubdtype(
+              b, np.signedinteger
+          ):
+            continue
+          allowed_casts.append((a, b))
+
     allowed_casts += [(a, b) for a in INTN_TYPES for b in FLOAT_TYPES]
     self.assertEqual(
         ((a, b) in allowed_casts), np.can_cast(a, b, casting="safe")
@@ -328,7 +354,26 @@ class ScalarTest(parameterized.TestCase):
     dt = np.dtype(scalar_type)
     self.assertIs(dt.type, scalar_type)
     self.assertEqual(dt.name, name)
-    self.assertEqual(repr(dt), f"dtype({name})")
+    expected_repr = (
+        f"dtype('{name}')" if _using_new_dtype_api() else f"dtype({name})"
+    )
+    self.assertEqual(repr(dt), expected_repr)
+
+  @unittest.skipUnless(
+      _using_new_dtype_api(),
+      "Requires new-style user DTypes on NumPy 2.5+",
+  )
+  @parameterized.product(scalar_type=INTN_TYPES)
+  def testSignedness(self, scalar_type):
+    dt = np.dtype(scalar_type)
+    if scalar_type in [int1, int2, int4]:
+      self.assertEqual(dt.kind, "i")
+      self.assertTrue(np.issubdtype(dt, np.signedinteger))
+      self.assertFalse(np.issubdtype(dt, np.unsignedinteger))
+    else:
+      self.assertEqual(dt.kind, "u")
+      self.assertFalse(np.issubdtype(dt, np.signedinteger))
+      self.assertTrue(np.issubdtype(dt, np.unsignedinteger))
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testCastFailure(self, scalar_type):
@@ -473,13 +518,17 @@ class ArrayTest(parameterized.TestCase):
   def testArray(self, scalar_type):
     if scalar_type == int1:
       x = np.array([[-1, 0, -1, 0]], dtype=scalar_type)
-      self.assertEqual("[[-1 0 -1 0]]", str(x))
+      expected = (
+          "[[-1  0 -1  0]]" if _using_new_dtype_api() else "[[-1 0 -1 0]]"
+      )
+      self.assertEqual(expected, str(x))
     elif scalar_type == uint1:
       x = np.array([[1, 1, 0, 1]], dtype=scalar_type)
       self.assertEqual("[[1 1 0 1]]", str(x))
     elif scalar_type == int2:
       x = np.array([[-2, 1, 0, 1]], dtype=scalar_type)
-      self.assertEqual("[[-2 1 0 1]]", str(x))
+      expected = "[[-2  1  0  1]]" if _using_new_dtype_api() else "[[-2 1 0 1]]"
+      self.assertEqual(expected, str(x))
     else:
       x = np.array([[1, 2, 3]], dtype=scalar_type)
       self.assertEqual("[[1 2 3]]", str(x))
@@ -525,6 +574,7 @@ class ArrayTest(parameterized.TestCase):
   @parameterized.product(
       scalar_type=INTN_TYPES,
       dtype=[
+          np.bool_,
           np.float16,
           np.float32,
           np.float64,
@@ -600,6 +650,34 @@ class ArrayTest(parameterized.TestCase):
         ufunc(x[:, None], x[None, :]).astype(scalar_type),
         ufunc(y[:, None], y[None, :]),
     )
+
+  @parameterized.product(
+      scalar_type=INTN_TYPES,
+      ufunc=[
+          np.logical_and,
+          np.logical_or,
+          np.logical_xor,
+      ],
+  )
+  def testLogicalUfuncReduce(self, scalar_type, ufunc):
+    x = np.array([True, False, True], dtype=scalar_type)
+    np.testing.assert_equal(
+        ufunc.reduce(x),
+        ufunc.reduce(x.astype(bool)),
+    )
+
+  @parameterized.parameters(INTN_TYPES)
+  def testAccumulateWithOutputDtype(self, scalar_type):
+    x = np.array([1, 2, 3], dtype=scalar_type)
+    res = np.multiply.accumulate(x, dtype=np.int32)
+    np.testing.assert_equal(res, np.multiply.accumulate(x.astype(np.int32)))
+
+  @parameterized.parameters(INTN_TYPES)
+  def testZeroSizeReduction(self, scalar_type):
+    x = np.array([], dtype=scalar_type)
+    for op, expected in [(np.add, 0), (np.multiply, 1)]:
+      with self.subTest(op.__name__):
+        np.testing.assert_equal(op.reduce(x), scalar_type(expected))
 
 
 if __name__ == "__main__":

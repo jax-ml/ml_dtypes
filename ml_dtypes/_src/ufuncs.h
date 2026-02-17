@@ -17,14 +17,21 @@ limitations under the License.
 #define ML_DTYPES_UFUNCS_H_
 
 #include <array>
+#include <bitset>
 #include <cmath>
 #include <complex>
 #include <cstddef>
 #include <limits>
+#include <set>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/complex.h"
+#include "ml_dtypes/_src/floats.h"
+#include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
 
 // Some versions of MSVC define a "copysign" macro which wreaks havoc.
@@ -46,16 +53,121 @@ inline std::complex<float> to_system(const T& value) {
 // isnan definition that works for all of our float and complex types.
 template <typename T, std::enable_if_t<!is_complex_v<T>, bool> = false>
 inline bool my_isnan(const T& value) {
-  return Eigen::numext::isnan(value);
+  if constexpr (std::is_integral_v<T> || is_intn_v<T>) {
+    return false;
+  } else {
+    return Eigen::numext::isnan(value);
+  }
 }
 template <typename T, std::enable_if_t<is_complex_v<T>, bool> = false>
 inline bool my_isnan(const T& value) {
-  return Eigen::numext::isnan(value.real()) ||
-         Eigen::numext::isnan(value.imag());
+  return my_isnan(value.real()) || my_isnan(value.imag());
 }
+
+// isfinite definition that works for all of our float and complex types.
+template <typename T, std::enable_if_t<!is_complex_v<T>, bool> = false>
+inline bool my_isfinite(const T& value) {
+  if constexpr (std::is_integral_v<T> || is_intn_v<T>) {
+    return true;
+  } else {
+    return Eigen::numext::isfinite(value);
+  }
+}
+template <typename T, std::enable_if_t<is_complex_v<T>, bool> = false>
+inline bool my_isfinite(const T& value) {
+  return my_isfinite(value.real()) && my_isfinite(value.imag());
+}
+
+// isinf definition that works for all of our float and complex types.
+template <typename T, std::enable_if_t<!is_complex_v<T>, bool> = false>
+inline bool my_isinf(const T& value) {
+  if constexpr (std::is_integral_v<T> || is_intn_v<T>) {
+    return false;
+  } else {
+    return Eigen::numext::isinf(value);
+  }
+}
+template <typename T, std::enable_if_t<is_complex_v<T>, bool> = false>
+inline bool my_isinf(const T& value) {
+  return my_isinf(value.real()) || my_isinf(value.imag());
+}
+
+struct UFuncLoop {
+  virtual ~UFuncLoop() = default;
+  virtual void Execute(char** args, npy_intp const* dimensions,
+                       npy_intp const* steps, void* data) = 0;
+};
+
+// Helper to get DTypeMeta for a type T
+template <typename T>
+PyArray_DTypeMeta* GetDTypeMeta(std::vector<PyObject*>& dtypes_to_decref) {
+  if constexpr (is_custom_float_v<T>) {
+    return CustomFloatType<T>::dtype_meta;
+  } else if constexpr (is_intn_v<T>) {
+    return CustomIntType<T>::dtype_meta;
+  } else if constexpr (is_custom_complex_v<T>) {
+    return CustomComplexType<T>::dtype_meta;
+  } else {
+    int type_num = DtypeTraits<T>::Dtype();
+    if (type_num != NPY_NOTYPE && type_num != -1) {
+      PyArray_Descr* descr = PyArray_DescrFromType(type_num);
+      if (descr) {
+        PyObject* dtype = reinterpret_cast<PyObject*>(Py_TYPE(descr));
+        Py_INCREF(dtype);
+        dtypes_to_decref.push_back(dtype);
+        Py_DECREF(descr);
+        return reinterpret_cast<PyArray_DTypeMeta*>(dtype);
+      }
+    }
+    return nullptr;
+  }
+}
+
+template <typename T, typename = void>
+struct is_logical_ufunc : std::false_type {};
+
+template <typename T>
+struct is_logical_ufunc<T, std::void_t<decltype(T::is_logical)>>
+    : std::integral_constant<bool, T::is_logical> {};
+
+template <typename Functor>
+inline constexpr bool is_logical_ufunc_v = is_logical_ufunc<Functor>::value;
+
+template <typename T, typename = void>
+struct is_reorderable_ufunc : std::false_type {};
+
+template <typename T>
+struct is_reorderable_ufunc<T, std::void_t<decltype(T::is_reorderable)>>
+    : std::integral_constant<bool, T::is_reorderable> {};
+
+template <typename Functor>
+inline constexpr bool is_reorderable_ufunc_v =
+    is_reorderable_ufunc<Functor>::value;
+
+template <typename T, typename = void>
+struct has_custom_promoter : std::false_type {};
+
+template <typename T>
+struct has_custom_promoter<T, std::void_t<decltype(&T::Promoter)>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool has_custom_promoter_v = has_custom_promoter<T>::value;
 
 template <typename Functor, typename OutType, typename... InTypes>
 struct UFunc {
+  using ReturnType = OutType;
+  using FunctorType = Functor;
+  static constexpr bool kIsLogical = is_logical_ufunc_v<Functor>;
+  static constexpr bool kIsReorderable = is_reorderable_ufunc_v<Functor>;
+  static constexpr bool kHasCustomPromoter = has_custom_promoter_v<Functor>;
+  static constexpr bool kIsHomogeneous =
+      (sizeof...(InTypes) <= 1) ||
+      (std::is_same_v<std::tuple_element_t<0, std::tuple<InTypes...>>,
+                      InTypes> &&
+       ...);
+  using InTypesTuple = std::tuple<InTypes...>;
+  using ResultTypesTuple = std::tuple<OutType>;
   static std::vector<int> Types() {
     return {DtypeTraits<InTypes>::Dtype()..., DtypeTraits<OutType>::Dtype()};
   }
@@ -79,11 +191,31 @@ struct UFunc {
     return CallImpl(std::index_sequence_for<InTypes...>(), args, dimensions,
                     steps, data);
   }
+  static int Call_Numpy2(PyArrayMethod_Context* context, char* const* args,
+                         const npy_intp* dimensions, const npy_intp* steps,
+                         NpyAuxData* data) {
+    CallImpl(std::index_sequence_for<InTypes...>(), const_cast<char**>(args),
+             dimensions, steps, nullptr);
+    return 0;
+  }
 };
 
 template <typename Functor, typename OutType, typename OutType2,
           typename... InTypes>
 struct UFunc2 {
+  using ReturnType = OutType;
+  using ReturnType2 = OutType2;
+  using FunctorType = Functor;
+  static constexpr bool kIsLogical = is_logical_ufunc_v<Functor>;
+  static constexpr bool kIsReorderable = is_reorderable_ufunc_v<Functor>;
+  static constexpr bool kHasCustomPromoter = has_custom_promoter_v<Functor>;
+  static constexpr bool kIsHomogeneous =
+      (sizeof...(InTypes) <= 1) ||
+      (std::is_same_v<std::tuple_element_t<0, std::tuple<InTypes...>>,
+                      InTypes> &&
+       ...);
+  using InTypesTuple = std::tuple<InTypes...>;
+  using ResultTypesTuple = std::tuple<OutType, OutType2>;
   static std::vector<int> Types() {
     return {
         DtypeTraits<InTypes>::Dtype()...,
@@ -114,36 +246,430 @@ struct UFunc2 {
     return CallImpl(std::index_sequence_for<InTypes...>(), args, dimensions,
                     steps, data);
   }
+  static int Call_Numpy2(PyArrayMethod_Context* context, char* const* args,
+                         const npy_intp* dimensions, const npy_intp* steps,
+                         NpyAuxData* data) {
+    CallImpl(std::index_sequence_for<InTypes...>(), const_cast<char**>(args),
+             dimensions, steps, nullptr);
+    return 0;
+  }
 };
 
-template <typename UFuncT, typename CustomT>
-bool RegisterUFunc(PyObject* numpy, const char* name) {
-  std::vector<int> types = UFuncT::Types();
-  PyUFuncGenericFunction fn =
-      reinterpret_cast<PyUFuncGenericFunction>(UFuncT::Call);
+inline int GetReductionInitial(PyArrayMethod_Context* context,
+                               npy_bool reduction_is_empty, void* initial) {
+  if (context->caller == nullptr ||
+      !PyObject_TypeCheck(context->caller, &PyUFunc_Type)) {
+    return 0;
+  }
+  auto* ufunc = reinterpret_cast<PyUFuncObject*>(context->caller);
+  PyObject* identity_obj = nullptr;
+  switch (ufunc->identity) {
+    case PyUFunc_Zero:
+      identity_obj = PyLong_FromLong(0);
+      break;
+    case PyUFunc_One:
+      identity_obj = PyLong_FromLong(1);
+      break;
+    case PyUFunc_MinusOne:
+      identity_obj = PyLong_FromLong(-1);
+      break;
+    case PyUFunc_IdentityValue:
+      identity_obj = ufunc->identity_value;
+      Py_XINCREF(identity_obj);
+      break;
+    default:
+      return 0;
+  }
+  if (identity_obj == nullptr || identity_obj == Py_None) {
+    Py_XDECREF(identity_obj);
+    return 0;
+  }
+  int res = PyArray_Pack(context->descriptors[0], initial, identity_obj);
+  Py_DECREF(identity_obj);
+  if (res < 0) {
+    return -1;
+  }
+  return 1;
+}
+
+template <typename T>
+PyArray_DTypeMeta* GetCustomDTypeMeta() {
+  if constexpr (is_custom_float_v<T>) {
+    return CustomFloatType<T>::dtype_meta;
+  } else if constexpr (is_intn_v<T>) {
+    return CustomIntType<T>::dtype_meta;
+  } else if constexpr (is_custom_complex_v<T>) {
+    return CustomComplexType<T>::dtype_meta;
+  } else {
+    return nullptr;
+  }
+}
+
+inline int DefaultHomogeneousPromoter(PyObject* ufunc,
+                                      PyArray_DTypeMeta* const op_dtypes[],
+                                      PyArray_DTypeMeta* const signature[],
+                                      PyArray_DTypeMeta* new_op_dtypes[]) {
+  PyUFuncObject* ufunc_obj = reinterpret_cast<PyUFuncObject*>(ufunc);
+  std::vector<PyArray_DTypeMeta*> non_null_dtypes;
+  non_null_dtypes.reserve(ufunc_obj->nin);
+  for (int i = 0; i < ufunc_obj->nin; ++i) {
+    if (op_dtypes[i] != nullptr) {
+      non_null_dtypes.push_back(op_dtypes[i]);
+    }
+  }
+  if (non_null_dtypes.empty()) {
+    return -1;
+  }
+  PyArray_DTypeMeta* common = nullptr;
+  if (signature != nullptr) {
+    for (int i = ufunc_obj->nin; i < ufunc_obj->nargs; ++i) {
+      if (signature[i] != nullptr) {
+        if (common == nullptr) {
+          Py_INCREF(signature[i]);
+          common = signature[i];
+        } else if (common != signature[i]) {
+          Py_CLEAR(common);
+          break;
+        }
+      }
+    }
+  }
+
+  if (common == nullptr) {
+    common = PyArray_PromoteDTypeSequence(non_null_dtypes.size(),
+                                          non_null_dtypes.data());
+    if (common == nullptr) {
+      if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+        PyErr_Clear();
+      }
+      return -1;
+    }
+  }
+
+  for (int i = 0; i < ufunc_obj->nargs; ++i) {
+    PyArray_DTypeMeta* tmp = common;
+    if (signature != nullptr && signature[i] != nullptr) {
+      tmp = signature[i];
+    }
+    Py_INCREF(tmp);
+    new_op_dtypes[i] = tmp;
+  }
+  Py_DECREF(common);
+  return 0;
+}
+
+inline int DefaultComparisonPromoter(PyObject* ufunc,
+                                     PyArray_DTypeMeta* const op_dtypes[],
+                                     PyArray_DTypeMeta* const signature[],
+                                     PyArray_DTypeMeta* new_op_dtypes[]) {
+  PyUFuncObject* ufunc_obj = reinterpret_cast<PyUFuncObject*>(ufunc);
+  std::vector<PyArray_DTypeMeta*> non_null_dtypes;
+  non_null_dtypes.reserve(ufunc_obj->nin);
+  for (int i = 0; i < ufunc_obj->nin; ++i) {
+    if (op_dtypes[i] != nullptr) {
+      non_null_dtypes.push_back(op_dtypes[i]);
+    }
+  }
+  if (non_null_dtypes.empty()) {
+    return -1;
+  }
+  PyArray_DTypeMeta* common = nullptr;
+  common = PyArray_PromoteDTypeSequence(non_null_dtypes.size(),
+                                        non_null_dtypes.data());
+  if (common == nullptr) {
+    if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+      PyErr_Clear();
+    }
+    return -1;
+  }
+
+  for (int i = 0; i < ufunc_obj->nin; ++i) {
+    PyArray_DTypeMeta* tmp = common;
+    if (signature != nullptr && signature[i] != nullptr) {
+      tmp = signature[i];
+    }
+    Py_INCREF(tmp);
+    new_op_dtypes[i] = tmp;
+  }
+  for (int i = ufunc_obj->nin; i < ufunc_obj->nargs; ++i) {
+    PyArray_DTypeMeta* tmp = &PyArray_BoolDType;
+    if (signature != nullptr && signature[i] != nullptr) {
+      tmp = signature[i];
+    }
+    Py_INCREF(tmp);
+    new_op_dtypes[i] = tmp;
+  }
+  Py_DECREF(common);
+  return 0;
+}
+
+template <typename T>
+struct type_identity {
+  using type = T;
+};
+
+inline Safe_PyObjectPtr GetUFunc(PyObject* numpy, const char* name) {
   Safe_PyObjectPtr ufunc_obj = make_safe(PyObject_GetAttrString(numpy, name));
+  if (ufunc_obj && PyObject_TypeCheck(ufunc_obj.get(), &PyUFunc_Type)) {
+    return ufunc_obj;
+  }
+  PyErr_Clear();
+  Safe_PyObjectPtr core = make_safe(PyObject_GetAttrString(numpy, "_core"));
+  if (core) {
+    Safe_PyObjectPtr umath =
+        make_safe(PyObject_GetAttrString(core.get(), "umath"));
+    if (umath) {
+      ufunc_obj = make_safe(PyObject_GetAttrString(umath.get(), name));
+      if (ufunc_obj && PyObject_TypeCheck(ufunc_obj.get(), &PyUFunc_Type)) {
+        return ufunc_obj;
+      }
+    }
+  }
   if (!ufunc_obj) {
+    PyErr_Format(PyExc_AttributeError, "Could not find ufunc '%s'", name);
+  } else if (!PyObject_TypeCheck(ufunc_obj.get(), &PyUFunc_Type)) {
+    PyErr_Format(PyExc_TypeError, "'%s' is not a ufunc", name);
+    return nullptr;
+  }
+  return ufunc_obj;
+}
+
+using PromoterFunc = int (*)(PyObject*, PyArray_DTypeMeta* const[],
+                             PyArray_DTypeMeta* const[], PyArray_DTypeMeta*[]);
+
+inline bool RegisterUFuncImpl(
+    PyObject* numpy, const char* name, bool use_new_dtype_api, int nin,
+    int nout, bool is_reorderable, bool is_logical, bool is_bool_output,
+    bool is_homogeneous, const std::vector<int>& types, int custom_type_num,
+    const std::vector<PyArray_DTypeMeta*>& spec_dtypes,
+    PyUFuncGenericFunction fn, PyArrayMethod_StridedLoop* loop_numpy2,
+    PromoterFunc custom_promoter = nullptr) {
+  Safe_PyObjectPtr ufunc_obj = GetUFunc(numpy, name);
+  if (!ufunc_obj) {
+    if (!use_new_dtype_api) {
+      PyErr_Clear();
+      return true;
+    }
     return false;
   }
   PyUFuncObject* ufunc = reinterpret_cast<PyUFuncObject*>(ufunc_obj.get());
-  if (static_cast<int>(types.size()) != ufunc->nargs) {
-    PyErr_Format(PyExc_AssertionError,
-                 "ufunc %s takes %d arguments, loop takes %lu", name,
-                 ufunc->nargs, types.size());
+
+  if (!use_new_dtype_api) {
+    if (static_cast<int>(types.size()) != ufunc->nargs) {
+      PyErr_Format(PyExc_AssertionError,
+                   "ufunc %s takes %d arguments, loop takes %lu", name,
+                   ufunc->nargs, types.size());
+      return false;
+    }
+    if (PyUFunc_RegisterLoopForType(ufunc, custom_type_num, fn,
+                                    const_cast<int*>(types.data()),
+                                    nullptr) < 0) {
+      return false;
+    }
+    return true;
+  }
+
+  const int expected_arity = ufunc->nin + ufunc->nout;
+  if (static_cast<int>(spec_dtypes.size()) != expected_arity) {
+    PyErr_Format(PyExc_RuntimeError,
+                 "RegisterUFunc(%s) failed: arity mismatch %d != %d", name,
+                 static_cast<int>(spec_dtypes.size()), expected_arity);
     return false;
   }
-  if (PyUFunc_RegisterLoopForType(ufunc, DtypeTraits<CustomT>::Dtype(), fn,
-                                  const_cast<int*>(types.data()),
-                                  nullptr) < 0) {
-    return false;
+
+  PyType_Slot slots[] = {
+      {NPY_METH_strided_loop, reinterpret_cast<void*>(loop_numpy2)},
+      {NPY_METH_get_reduction_initial,
+       reinterpret_cast<void*>(GetReductionInitial)},
+      {0, nullptr}};
+
+  PyArrayMethod_Spec spec;
+  memset(&spec, 0, sizeof(spec));
+  spec.name = name;
+  spec.nin = ufunc->nin;
+  spec.nout = ufunc->nout;
+  spec.flags = static_cast<NPY_ARRAYMETHOD_FLAGS>(
+      is_reorderable ? NPY_METH_IS_REORDERABLE : 0);
+  spec.dtypes = const_cast<PyArray_DTypeMeta**>(spec_dtypes.data());
+  spec.slots = slots;
+  static std::set<std::pair<PyUFuncObject*, std::vector<PyArray_DTypeMeta*>>>
+      registered_loops;
+  auto loop_key = std::make_pair(ufunc, spec_dtypes);
+  if (!registered_loops.count(loop_key)) {
+    registered_loops.insert(loop_key);
+    if (PyUFunc_AddLoopFromSpec(ufunc_obj.get(), &spec) < 0) {
+      return false;
+    }
   }
+
+  PyObject* dtype_meta_obj = nullptr;
+  for (size_t i = 0; i < types.size(); ++i) {
+    if (types[i] == custom_type_num) {
+      dtype_meta_obj = reinterpret_cast<PyObject*>(spec_dtypes[i]);
+      break;
+    }
+  }
+
+  static std::set<std::pair<PyUFuncObject*, PyObject*>> registered_promoters;
+  auto promoter_key = std::make_pair(ufunc, dtype_meta_obj);
+
+  if (!is_logical && is_homogeneous) {
+    if (dtype_meta_obj && ufunc->nin >= 2) {
+      if (!registered_promoters.count(promoter_key)) {
+        registered_promoters.insert(promoter_key);
+        int num_combinations = (1 << ufunc->nin) - 1;
+        std::vector<int> masks;
+        for (int mask = 1; mask <= num_combinations; ++mask) {
+          masks.push_back(mask);
+        }
+        std::sort(masks.begin(), masks.end(), [](int a, int b) {
+          auto count_a = std::bitset<32>(a).count();
+          auto count_b = std::bitset<32>(b).count();
+          return count_a != count_b ? count_a > count_b : a > b;
+        });
+        for (int mask : masks) {
+          PyObject* DType_tuple = PyTuple_New(ufunc->nargs);
+          for (int i = 0; i < ufunc->nin; ++i) {
+            if ((mask >> i) & 1) {
+              PyTuple_SET_ITEM(DType_tuple, i, dtype_meta_obj);
+              Py_INCREF(dtype_meta_obj);
+            } else {
+              PyTuple_SET_ITEM(DType_tuple, i, Py_None);
+              Py_INCREF(Py_None);
+            }
+          }
+          for (int i = ufunc->nin; i < ufunc->nargs; ++i) {
+            PyTuple_SET_ITEM(DType_tuple, i, Py_None);
+            Py_INCREF(Py_None);
+          }
+          void* promoter_fn =
+              is_bool_output
+                  ? reinterpret_cast<void*>(&DefaultComparisonPromoter)
+                  : reinterpret_cast<void*>(&DefaultHomogeneousPromoter);
+          PyObject* promoter =
+              PyCapsule_New(promoter_fn, "numpy._ufunc_promoter", nullptr);
+          if (PyUFunc_AddPromoter(ufunc_obj.get(), DType_tuple, promoter) < 0) {
+            Py_DECREF(DType_tuple);
+            Py_DECREF(promoter);
+            return false;
+          }
+          Py_DECREF(DType_tuple);
+          Py_DECREF(promoter);
+        }
+      }
+    }
+  }
+
+  if (custom_promoter != nullptr) {
+    if (dtype_meta_obj) {
+      if (!registered_promoters.count(promoter_key)) {
+        registered_promoters.insert(promoter_key);
+        PyObject* DType_tuple = PyTuple_New(ufunc->nargs);
+        PyTuple_SET_ITEM(DType_tuple, 0, dtype_meta_obj);
+        Py_INCREF(dtype_meta_obj);
+        for (int i = 1; i < ufunc->nargs; ++i) {
+          PyTuple_SET_ITEM(DType_tuple, i, Py_None);
+          Py_INCREF(Py_None);
+        }
+        PyObject* promoter =
+            PyCapsule_New(reinterpret_cast<void*>(custom_promoter),
+                          "numpy._ufunc_promoter", nullptr);
+        if (PyUFunc_AddPromoter(ufunc_obj.get(), DType_tuple, promoter) < 0) {
+          Py_DECREF(DType_tuple);
+          Py_DECREF(promoter);
+          return false;
+        }
+        Py_DECREF(DType_tuple);
+        Py_DECREF(promoter);
+      }
+    }
+  }
+
   return true;
+}
+
+template <typename UFuncT, typename CustomT>
+bool RegisterUFunc(PyObject* numpy, const char* name, bool use_new_dtype_api) {
+  constexpr bool is_bool_output =
+      std::is_same_v<typename UFuncT::ReturnType, bool>;
+  if (!use_new_dtype_api) {
+    return RegisterUFuncImpl(
+        numpy, name, /*use_new_dtype_api=*/false,
+        /*nin=*/UFuncT::kInputArity,
+        /*nout=*/std::tuple_size_v<typename UFuncT::ResultTypesTuple>,
+        /*is_reorderable=*/UFuncT::kIsReorderable,
+        /*is_logical=*/UFuncT::kIsLogical,
+        /*is_bool_output=*/is_bool_output,
+        /*is_homogeneous=*/UFuncT::kIsHomogeneous,
+        /*types=*/UFuncT::Types(),
+        /*custom_type_num=*/DtypeTraits<CustomT>::Dtype(),
+        /*spec_dtypes=*/{},
+        /*fn=*/reinterpret_cast<PyUFuncGenericFunction>(UFuncT::Call),
+        /*loop_numpy2=*/nullptr,
+        /*custom_promoter=*/nullptr);
+  }
+
+  std::vector<PyObject*> dtypes_to_decref;
+  std::vector<PyArray_DTypeMeta*> spec_dtypes;
+  spec_dtypes.reserve(UFuncT::kInputArity +
+                      std::tuple_size_v<typename UFuncT::ResultTypesTuple>);
+  bool ok = true;
+  auto add_meta = [&](auto tag) {
+    using T = typename decltype(tag)::type;
+    if (!ok) return;
+    auto* meta = GetDTypeMeta<T>(dtypes_to_decref);
+    if (!meta) {
+      ok = false;
+    } else {
+      spec_dtypes.push_back(meta);
+    }
+  };
+  std::apply(
+      [&](auto... args) { (add_meta(type_identity<decltype(args)>{}), ...); },
+      typename UFuncT::InTypesTuple{});
+  std::apply(
+      [&](auto... args) { (add_meta(type_identity<decltype(args)>{}), ...); },
+      typename UFuncT::ResultTypesTuple{});
+
+  if (!ok) {
+    for (auto* d : dtypes_to_decref) Py_XDECREF(d);
+    PyErr_Format(PyExc_RuntimeError,
+                 "RegisterUFunc(%s) failed: GetDTypeMeta returned nullptr",
+                 name);
+    return false;
+  }
+
+  PromoterFunc custom_promoter = nullptr;
+  if constexpr (UFuncT::kHasCustomPromoter) {
+    custom_promoter =
+        reinterpret_cast<PromoterFunc>(&UFuncT::FunctorType::Promoter);
+  }
+
+  bool result = RegisterUFuncImpl(
+      numpy, name, /*use_new_dtype_api=*/true,
+      /*nin=*/UFuncT::kInputArity,
+      /*nout=*/std::tuple_size_v<typename UFuncT::ResultTypesTuple>,
+      /*is_reorderable=*/UFuncT::kIsReorderable,
+      /*is_logical=*/UFuncT::kIsLogical,
+      /*is_bool_output=*/is_bool_output,
+      /*is_homogeneous=*/UFuncT::kIsHomogeneous,
+      /*types=*/UFuncT::Types(),
+      /*custom_type_num=*/DtypeTraits<CustomT>::Dtype(),
+      /*spec_dtypes=*/spec_dtypes,
+      /*fn=*/reinterpret_cast<PyUFuncGenericFunction>(UFuncT::Call),
+      /*loop_numpy2=*/
+      reinterpret_cast<PyArrayMethod_StridedLoop*>(UFuncT::Call_Numpy2),
+      /*custom_promoter=*/custom_promoter);
+
+  for (auto* d : dtypes_to_decref) Py_XDECREF(d);
+  return result;
 }
 
 namespace ufuncs {
 
 template <typename T>
 struct Add {
+  static constexpr bool is_reorderable = true;
   T operator()(T a, T b) { return a + b; }
 };
 template <typename T>
@@ -152,11 +678,32 @@ struct Subtract {
 };
 template <typename T>
 struct Multiply {
-  T operator()(T a, T b) { return a * b; }
+  static constexpr bool is_reorderable = true;
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a, T b) {
+    return a * b;
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a, T b) {
+    auto result = to_system(a) * to_system(b);
+    using ValueType = typename T::value_type;
+    return T(static_cast<ValueType>(result.real()),
+             static_cast<ValueType>(result.imag()));
+  }
 };
 template <typename T>
 struct TrueDivide {
-  T operator()(T a, T b) { return a / b; }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a, T b) {
+    return a / b;
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a, T b) {
+    auto result = to_system(a) / to_system(b);
+    using ValueType = typename T::value_type;
+    return T(static_cast<ValueType>(result.real()),
+             static_cast<ValueType>(result.imag()));
+  }
 };
 
 static std::pair<float, float> divmod_impl(float a, float b) {
@@ -411,23 +958,22 @@ template <typename T>
 struct IsFinite {
   template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
   bool operator()(U a) {
-    return Eigen::numext::isfinite(a);
+    return my_isfinite(a);
   }
   template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
   bool operator()(U a) {
-    return Eigen::numext::isfinite(a.real()) &&
-           Eigen::numext::isfinite(a.imag());
+    return my_isfinite(a.real()) && my_isfinite(a.imag());
   }
 };
 template <typename T>
 struct IsInf {
   template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
   bool operator()(U a) {
-    return Eigen::numext::isinf(a);
+    return my_isinf(a);
   }
   template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
   bool operator()(T a) {
-    return Eigen::numext::isinf(a.real()) || Eigen::numext::isinf(a.imag());
+    return my_isinf(a.real()) || my_isinf(a.imag());
   }
 };
 template <typename T>
@@ -437,7 +983,44 @@ struct IsNan {
 
 template <typename T>
 struct Ldexp {
-  T operator()(T a, int exp) { return T(std::ldexp(to_system(a), exp)); }
+  static int Promoter(PyObject* ufunc, PyArray_DTypeMeta* const op_dtypes[],
+                      PyArray_DTypeMeta* const signature[],
+                      PyArray_DTypeMeta* new_op_dtypes[]) {
+    PyArray_DTypeMeta* custom_dtype = GetCustomDTypeMeta<T>();
+    PyArray_DTypeMeta* int64_dtype = &PyArray_Int64DType;
+    PyArray_DTypeMeta* int32_dtype = &PyArray_Int32DType;
+
+    new_op_dtypes[0] = custom_dtype;
+    Py_INCREF(custom_dtype);
+
+    if (op_dtypes[1] == int32_dtype) {
+      new_op_dtypes[1] = int32_dtype;
+      Py_INCREF(int32_dtype);
+    } else {
+      new_op_dtypes[1] = int64_dtype;
+      Py_INCREF(int64_dtype);
+    }
+
+    if (signature != nullptr && signature[2] != nullptr) {
+      new_op_dtypes[2] = signature[2];
+      Py_INCREF(signature[2]);
+    } else {
+      new_op_dtypes[2] = custom_dtype;
+      Py_INCREF(custom_dtype);
+    }
+    return 0;
+  }
+
+  template <typename IntT,
+            std::enable_if_t<std::is_integral_v<IntT>, bool> = true>
+  T operator()(T a, IntT exp) {
+    if (exp > std::numeric_limits<int>::max()) {
+      exp = std::numeric_limits<int>::max();
+    } else if (exp < std::numeric_limits<int>::min()) {
+      exp = std::numeric_limits<int>::min();
+    }
+    return T(std::ldexp(to_system(a), static_cast<int>(exp)));
+  }
 };
 template <typename T>
 struct Log {
@@ -579,8 +1162,12 @@ struct Sign {
 template <typename T>
 struct SignBit {
   bool operator()(T a) {
-    auto [sign_a, abs_a] = SignAndMagnitude(a);
-    return sign_a;
+    if constexpr (std::is_integral_v<T> || is_intn_v<T>) {
+      return a < 0;
+    } else {
+      auto [sign_a, abs_a] = SignAndMagnitude(a);
+      return sign_a;
+    }
   }
 };
 template <typename T>
@@ -659,24 +1246,28 @@ struct Arctanh {
 template <typename T>
 struct Deg2rad {
   T operator()(T a) {
-    static constexpr float radians_per_degree = M_PI / 180.0f;
+    static constexpr float radians_per_degree =
+        static_cast<float>(M_PI) / 180.0f;
     return T(to_system(a) * radians_per_degree);
   }
 };
 template <typename T>
 struct Rad2deg {
   T operator()(T a) {
-    static constexpr float degrees_per_radian = 180.0f / M_PI;
+    static constexpr float degrees_per_radian =
+        180.0f / static_cast<float>(M_PI);
     return T(to_system(a) * degrees_per_radian);
   }
 };
 
 template <typename T>
 struct Eq {
+  static constexpr bool is_reorderable = true;
   npy_bool operator()(T a, T b) { return a == b; }
 };
 template <typename T>
 struct Ne {
+  static constexpr bool is_reorderable = true;
   npy_bool operator()(T a, T b) { return a != b; }
 };
 template <typename T>
@@ -697,18 +1288,28 @@ struct Ge {
 };
 template <typename T>
 struct Maximum {
+  static constexpr bool is_reorderable = true;
   T operator()(T a, T b) { return my_isnan(a) || a > b ? a : b; }
 };
 template <typename T>
 struct Minimum {
+  static constexpr bool is_reorderable = true;
   T operator()(T a, T b) { return my_isnan(a) || a < b ? a : b; }
 };
 template <typename T>
+struct Clip {
+  T operator()(T a, T min_val, T max_val) {
+    return Minimum<T>()(Maximum<T>()(a, min_val), max_val);
+  }
+};
+template <typename T>
 struct Fmax {
+  static constexpr bool is_reorderable = true;
   T operator()(T a, T b) { return my_isnan(b) || a > b ? a : b; }
 };
 template <typename T>
 struct Fmin {
+  static constexpr bool is_reorderable = true;
   T operator()(T a, T b) { return my_isnan(b) || a < b ? a : b; }
 };
 
@@ -718,18 +1319,24 @@ struct LogicalNot {
 };
 template <typename T>
 struct LogicalAnd {
+  static constexpr bool is_logical = true;
+  static constexpr bool is_reorderable = true;
   npy_bool operator()(T a, T b) {
     return static_cast<bool>(a) && static_cast<bool>(b);
   }
 };
 template <typename T>
 struct LogicalOr {
+  static constexpr bool is_logical = true;
+  static constexpr bool is_reorderable = true;
   npy_bool operator()(T a, T b) {
     return static_cast<bool>(a) || static_cast<bool>(b);
   }
 };
 template <typename T>
 struct LogicalXor {
+  static constexpr bool is_logical = true;
+  static constexpr bool is_reorderable = true;
   npy_bool operator()(T a, T b) {
     return static_cast<bool>(a) ^ static_cast<bool>(b);
   }
