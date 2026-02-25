@@ -51,8 +51,24 @@ struct bcomplex32 : std::complex<bfloat16> {
 
   operator bool() const { return real() != 0 || imag() != 0; }
 
+  bcomplex32 operator+(const bcomplex32& other) const {
+    return bcomplex32(std::complex<float>(*this) + std::complex<float>(other));
+  }
+
+  bcomplex32 operator-(const bcomplex32& other) const {
+    return bcomplex32(std::complex<float>(*this) - std::complex<float>(other));
+  }
+
+  bcomplex32 operator*(const bcomplex32& other) const {
+    return bcomplex32(std::complex<float>(*this) * std::complex<float>(other));
+  }
+
   bcomplex32 operator/(const bcomplex32& other) const {
     return bcomplex32(std::complex<float>(*this) / std::complex<float>(other));
+  }
+
+  bcomplex32 operator-() const {
+    return bcomplex32(-std::complex<float>(*this));
   }
 
   // Lexicographic comparison operators (real first, then imaginary)
@@ -102,9 +118,23 @@ struct complex32 : std::complex<half> {
 
   operator bool() const { return real() != 0 || imag() != 0; }
 
+  complex32 operator+(const complex32& other) const {
+    return complex32(std::complex<float>(*this) + std::complex<float>(other));
+  }
+
+  complex32 operator-(const complex32& other) const {
+    return complex32(std::complex<float>(*this) - std::complex<float>(other));
+  }
+
+  complex32 operator*(const complex32& other) const {
+    return complex32(std::complex<float>(*this) * std::complex<float>(other));
+  }
+
   complex32 operator/(const complex32& other) const {
     return complex32(std::complex<float>(*this) / std::complex<float>(other));
   }
+
+  complex32 operator-() const { return complex32(-std::complex<float>(*this)); }
 
   friend bool operator<(const complex32& a, const complex32& b) {
     return (a.real() < b.real() && !std::isnan(a.imag()) &&
