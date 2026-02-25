@@ -48,19 +48,18 @@ pyink-use-majority-quotes = true
 
 [build-system]
 requires = [
+    "scikit-build-core",
+    "cmake>=3.15",
     # We build against the most recent supported NumPy 2.0 release;
     # see https://github.com/numpy/numpy/issues/27265
     "numpy~=2.0",
-    "setuptools~=80.9.0",
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "scikit_build_core.build"
 
-[tool.setuptools]
-packages = ["ml_dtypes"]
-include-package-data = false
+[tool.scikit-build]
+wheel.packages = ["ml_dtypes"]
+sdist.exclude = ["third_party/eigen/.git*"]
 
-[tool.setuptools.dynamic]
-version = {attr = "ml_dtypes.__version__"}
-
-[tool.setuptools.package-data]
-ml_dtypes = ["py.typed"]
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "ml_dtypes/__init__.py"
