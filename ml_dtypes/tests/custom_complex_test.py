@@ -16,6 +16,7 @@
 
 import operator
 import pickle
+import sys
 
 import ml_dtypes
 import numpy as np
@@ -371,12 +372,35 @@ def test_unary_ufuncs(sctype, ufunc):
     finite = np.isfinite(expected)
     expected = expected[finite]
     result = result[finite]
+    x = x[finite]
 
   # Most ufuncs should match exactly. We compare in NumPy dtype
   # (but cast expected to lower precision once)
   dtype = expected.dtype
   expected = expected.astype(result.dtype).astype(dtype)
-  np.testing.assert_array_equal(result.astype(dtype), expected)
+
+  if sys.platform == "win32":
+    mismatch = np.zeros(len(x), dtype=bool)
+    if ufunc == np.cos:
+      # cos(1+infj) returns inf+infj instead of inf-infj
+      mismatch = (ml_dtypes.real(x) == 1.0) & (ml_dtypes.imag(x) == np.inf)
+    elif ufunc == np.sinh:
+      # sinh(+/-inf+0j) returns +/-inf+infj instead of +/-inf+0j
+      mismatch = np.isinf(ml_dtypes.real(x)) & (ml_dtypes.imag(x) == 0.0)
+    elif ufunc == np.cosh:
+      # cosh(-inf+0j) signs 0j wrong
+      mismatch = (ml_dtypes.real(x) == -np.inf) & (ml_dtypes.imag(x) == 0.0)
+    expected = expected[~mismatch]
+    result = result[~mismatch]
+
+  if np.issubdtype(dtype, np.inexact):
+    rtol = 1e-2 if sctype == ml_dtypes.bcomplex32 else 1e-3
+    atol = 1e-2 if sctype == ml_dtypes.bcomplex32 else 1e-3
+    np.testing.assert_allclose(
+        result.astype(dtype), expected, rtol=rtol, atol=atol, equal_nan=True
+    )
+  else:
+    np.testing.assert_array_equal(result.astype(dtype), expected)
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)

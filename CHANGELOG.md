@@ -24,6 +24,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 ## [Unreleased]
 
 * Drop support for Python 3.9, which reached end-of-life in October 2025.
+* Drop support for NumPy < 1.24.
 
 ## [0.5.4] - 2025-11-17
 

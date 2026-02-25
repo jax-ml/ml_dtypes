@@ -23,8 +23,8 @@ limitations under the License.
 
 #include <Python.h>
 
-#include <complex>  //NOLINT
-#include <memory>  //NOLINT
+#include <complex>  // NOLINT
+#include <memory>   // NOLINT
 
 #include "Eigen/Core"
 
