@@ -42,10 +42,6 @@ limitations under the License.
                  // Possible this has to do with numpy.h being included before
                  // system headers and in bfloat16.{cc,h}?
 
-#if NPY_ABI_VERSION < 0x02000000
-#define PyArray_DescrProto PyArray_Descr
-#endif
-
 namespace ml_dtypes {
 
 template <typename T>
@@ -63,9 +59,13 @@ struct CustomFloatType {
 
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
+  static PyArray_Descr* npy_descr;
+  static PyArray_DTypeMeta* dtype_meta;
+  // Temporarily disable array functions, descr, and proto for NumPy 2 testing
+#if 0
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_DescrProto npy_descr_proto;
-  static PyArray_Descr* npy_descr;
+#endif
 };
 
 template <typename T>
@@ -73,9 +73,13 @@ int CustomFloatType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomFloatType<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_DescrProto CustomFloatType<T>::npy_descr_proto;
-template <typename T>
 PyArray_Descr* CustomFloatType<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta* CustomFloatType<T>::dtype_meta = nullptr;
+#if 0
+template <typename T>
+PyArray_DescrProto CustomFloatType<T>::npy_descr_proto;
+#endif
 
 // Representation of a Python custom float object.
 template <typename T>
@@ -155,7 +159,9 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     Safe_PyObjectPtr ref;
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != TypeDescriptor<T>::Dtype()) {
-      ref = make_safe(PyArray_Cast(arr, TypeDescriptor<T>::Dtype()));
+      Py_INCREF(CustomFloatType<T>::npy_descr);
+      ref =
+          make_safe(PyArray_CastToType(arr, CustomFloatType<T>::npy_descr, 0));
       if (PyErr_Occurred()) {
         return false;
       }
@@ -261,7 +267,8 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != TypeDescriptor<T>::Dtype()) {
-      return PyArray_Cast(arr, TypeDescriptor<T>::Dtype());
+      Py_INCREF(CustomFloatType<T>::npy_descr);
+      return PyArray_CastToType(arr, CustomFloatType<T>::npy_descr, 0);
     } else {
       Py_INCREF(arg);
       return arg;
@@ -282,34 +289,103 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
 template <typename T>
 PyObject* PyCustomFloat_RichCompare(PyObject* a, PyObject* b, int op) {
   T x, y;
-  if (!SafeCastToCustomFloat<T>(a, &x) || !SafeCastToCustomFloat<T>(b, &y)) {
-    return PyGenericArrType_Type.tp_richcompare(a, b, op);
+  bool a_is_custom = SafeCastToCustomFloat<T>(a, &x);
+  bool b_is_custom = SafeCastToCustomFloat<T>(b, &y);
+  if (a_is_custom && b_is_custom) {
+    bool result;
+    switch (op) {
+      case Py_LT:
+        result = x < y;
+        break;
+      case Py_LE:
+        result = x <= y;
+        break;
+      case Py_EQ:
+        result = x == y;
+        break;
+      case Py_NE:
+        result = x != y;
+        break;
+      case Py_GT:
+        result = x > y;
+        break;
+      case Py_GE:
+        result = x >= y;
+        break;
+      default:
+        PyErr_SetString(PyExc_ValueError, "Invalid op type");
+        return nullptr;
+    }
+    PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
   }
-  bool result;
-  switch (op) {
-    case Py_LT:
-      result = x < y;
-      break;
-    case Py_LE:
-      result = x <= y;
-      break;
-    case Py_EQ:
-      result = x == y;
-      break;
-    case Py_NE:
-      result = x != y;
-      break;
-    case Py_GT:
-      result = x > y;
-      break;
-    case Py_GE:
-      result = x >= y;
-      break;
-    default:
-      PyErr_SetString(PyExc_ValueError, "Invalid op type");
-      return nullptr;
+
+  // Fallback to double comparison for float/int scalars.
+  // This avoids issues where NumPy might cast the operand to the custom type
+  // (potentially losing precision or saturating) before comparing.
+  // E.g. e8m0 has no zero, so 0.0 -> NaN (or min).
+  // e8m0(min) != 0.0 should be True, but if 0.0 -> e8m0(min), it becomes Eq.
+  double val_a, val_b;
+  bool a_is_double = false;
+  bool b_is_double = false;
+
+  if (a_is_custom) {
+    val_a = static_cast<double>(static_cast<float>(x));
+    a_is_double = true;
+  } else if (PyFloat_Check(a)) {
+    val_a = PyFloat_AsDouble(a);
+    a_is_double = true;
+  } else if (PyLong_Check(a)) {
+    val_a = PyLong_AsDouble(a);
+    if (PyErr_Occurred()) return nullptr;
+    a_is_double = true;
   }
-  PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
+
+  if (b_is_custom) {
+    val_b = static_cast<double>(static_cast<float>(y));
+    b_is_double = true;
+  } else if (PyFloat_Check(b)) {
+    val_b = PyFloat_AsDouble(b);
+    b_is_double = true;
+  } else if (PyLong_Check(b)) {
+    val_b = PyLong_AsDouble(b);
+    if (PyErr_Occurred()) return nullptr;
+    b_is_double = true;
+  }
+
+  if (a_is_double && b_is_double) {
+    if (std::isnan(val_a) || std::isnan(val_b)) {
+      if (op == Py_NE) {
+        PyArrayScalar_RETURN_BOOL_FROM_LONG(1);
+      }
+      PyArrayScalar_RETURN_BOOL_FROM_LONG(0);
+    }
+    bool result;
+    switch (op) {
+      case Py_LT:
+        result = val_a < val_b;
+        break;
+      case Py_LE:
+        result = val_a <= val_b;
+        break;
+      case Py_EQ:
+        result = val_a == val_b;
+        break;
+      case Py_NE:
+        result = val_a != val_b;
+        break;
+      case Py_GT:
+        result = val_a > val_b;
+        break;
+      case Py_GE:
+        result = val_a >= val_b;
+        break;
+      default:
+        return nullptr;
+    }
+    PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
+  }
+
+  return PyGenericArrType_Type.tp_richcompare(a, b, op);
 }
 
 // Implementation of repr() for PyCustomFloat.
@@ -382,6 +458,7 @@ PyType_Spec CustomFloatType<T>::type_spec = {
 };
 
 // Numpy support
+#if 0
 template <typename T>
 PyArray_ArrFuncs CustomFloatType<T>::arr_funcs;
 
@@ -406,6 +483,7 @@ PyArray_DescrProto GetCustomFloatDescrProto() {
       /*hash=*/-1,  // -1 means "not computed yet".
   };
 }
+#endif
 
 // Implementations of NumPy array methods.
 
@@ -468,7 +546,7 @@ void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
       for (npy_intp i = 0; i < n; i++) {
         char* r = dst + dstride * i;
         memcpy(r, src + sstride * i, sizeof(T));
-        ByteSwap16(r);
+        ml_dtypes::ByteSwap16(r);
       }
     } else if (dstride == sizeof(T) && sstride == sizeof(T)) {
       memcpy(dst, src, n * sizeof(T));
@@ -482,7 +560,7 @@ void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
     if (swap && sizeof(T) == sizeof(int16_t)) {
       for (npy_intp i = 0; i < n; i++) {
         char* r = dst + dstride * i;
-        ByteSwap16(r);
+        ml_dtypes::ByteSwap16(r);
       }
     }
   }
@@ -498,7 +576,7 @@ void NPyCustomFloat_CopySwap(void* dst, void* src, int swap, void* arr) {
   }
 
   if (swap && sizeof(T) == sizeof(int16_t)) {
-    ByteSwap16(dst);
+    ml_dtypes::ByteSwap16(dst);
   }
 }
 
@@ -594,7 +672,7 @@ int NPyCustomFloat_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind,
 
 template <typename T>
 float CastToFloat(T value) {
-  if constexpr (is_complex_v<T>) {
+  if constexpr (ml_dtypes::is_complex_v<T>) {
     return CastToFloat(value.real());
   } else {
     return static_cast<float>(value);
@@ -603,134 +681,157 @@ float CastToFloat(T value) {
 
 // Performs a NumPy array cast from type 'From' to 'To'.
 template <typename From, typename To>
-void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-             void* toarr) {
-  const auto* from =
-      reinterpret_cast<typename TypeDescriptor<From>::T*>(from_void);
-  auto* to = reinterpret_cast<typename TypeDescriptor<To>::T*>(to_void);
-  for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<typename TypeDescriptor<To>::T>(
-        static_cast<To>(CastToFloat(from[i])));
+int PyCustomFloatCastLoop(PyArrayMethod_Context* context, char* const data[],
+                          npy_intp const dimensions[], npy_intp const strides[],
+                          NpyAuxData* auxdata) {
+  npy_intp N = dimensions[0];
+  char* in = data[0];
+  char* out = data[1];
+  using FromT = typename ml_dtypes::TypeDescriptor<From>::T;
+  using ToT = typename ml_dtypes::TypeDescriptor<To>::T;
+  for (npy_intp i = 0; i < N; i++) {
+    FromT f;
+    memcpy(&f, in, sizeof(FromT));
+    ToT t =
+        static_cast<ToT>(static_cast<To>(CastToFloat(static_cast<From>(f))));
+    memcpy(out, &t, sizeof(ToT));
+    in += strides[0];
+    out += strides[1];
   }
+  return 0;
 }
 
-// Registers a cast between T (a reduced float) and type 'OtherT'. 'numpy_type'
-// is the NumPy type corresponding to 'OtherT'.
+template <typename From, typename To>
+struct CustomFloatCastSpec {
+  static PyType_Slot slots[3];
+  static PyArray_DTypeMeta* dtypes[2];
+  static PyArrayMethod_Spec spec;
+  // Initialize assigns the NumPy types for this Cast.
+  // 'from_type' and 'to_type' are the target TypeDescriptors. We use a boolean
+  // 'from_is_custom' to determine whether 'from_type' represents the new custom
+  // DType being initialized.
+  static bool Initialize(int from_type, int to_type, bool from_is_custom,
+                         bool to_is_custom) {
+    if (from_is_custom) {
+      dtypes[0] = nullptr;
+    } else {
+      PyArray_Descr* d = PyArray_DescrFromType(from_type);
+      if (!d) return false;
+      dtypes[0] = reinterpret_cast<PyArray_DTypeMeta*>(Py_TYPE(d));
+      Py_DECREF(d);
+    }
+    if (to_is_custom) {
+      dtypes[1] = nullptr;
+    } else {
+      PyArray_Descr* d = PyArray_DescrFromType(to_type);
+      if (!d) return false;
+      dtypes[1] = reinterpret_cast<PyArray_DTypeMeta*>(Py_TYPE(d));
+      Py_DECREF(d);
+    }
+    return true;
+  }
+};
+
+template <typename From, typename To>
+PyType_Slot CustomFloatCastSpec<From, To>::slots[3] = {
+    {NPY_METH_strided_loop,
+     reinterpret_cast<void*>(PyCustomFloatCastLoop<From, To>)},
+    {NPY_METH_unaligned_strided_loop,
+     reinterpret_cast<void*>(PyCustomFloatCastLoop<From, To>)},
+    {0, nullptr}};
+
+template <typename From, typename To>
+PyArray_DTypeMeta* CustomFloatCastSpec<From, To>::dtypes[2] = {nullptr,
+                                                               nullptr};
+
+template <typename From, typename To>
+PyArrayMethod_Spec CustomFloatCastSpec<From, To>::spec = {
+    /*name=*/"customfloat_cast",
+    /*nin=*/1,
+    /*nout=*/1,
+    /*casting=*/NPY_UNSAFE_CASTING,
+    /*flags=*/NPY_METH_SUPPORTS_UNALIGNED,
+    /*dtypes=*/dtypes,
+    /*slots=*/slots,
+};
+
+// Registers a cast between T (a reduced float) and type 'OtherT'.
 template <typename T, typename OtherT>
-bool RegisterCustomFloatCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
-  PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
-  if (PyArray_RegisterCastFunc(descr, TypeDescriptor<T>::Dtype(),
-                               NPyCast<OtherT, T>) < 0) {
+bool AddCustomFloatCast(int numpy_type, NPY_CASTING to_safety,
+                        NPY_CASTING from_safety,
+                        std::vector<PyArrayMethod_Spec*>& casts) {
+  if (!CustomFloatCastSpec<T, OtherT>::Initialize(
+          ml_dtypes::TypeDescriptor<T>::Dtype(), numpy_type,
+          /*from_is_custom=*/true, /*to_is_custom=*/false))
     return false;
-  }
-  if (PyArray_RegisterCastFunc(CustomFloatType<T>::npy_descr, numpy_type,
-                               NPyCast<T, OtherT>) < 0) {
+  CustomFloatCastSpec<T, OtherT>::spec.casting = to_safety;
+  casts.push_back(&CustomFloatCastSpec<T, OtherT>::spec);
+
+  if (!CustomFloatCastSpec<OtherT, T>::Initialize(
+          numpy_type, ml_dtypes::TypeDescriptor<T>::Dtype(),
+          /*from_is_custom=*/false, /*to_is_custom=*/true))
     return false;
-  }
+  CustomFloatCastSpec<OtherT, T>::spec.casting = from_safety;
+  casts.push_back(&CustomFloatCastSpec<OtherT, T>::spec);
   return true;
 }
 
 template <typename T>
-bool RegisterFloatCasts() {
-  if (!RegisterCustomFloatCast<T, half>(NPY_HALF)) {
+bool GetFloatCasts(std::vector<PyArrayMethod_Spec*>& casts) {
+  if (!AddCustomFloatCast<T, half>(NPY_HALF, NPY_SAME_KIND_CASTING,
+                                   NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-
-  if (!RegisterCustomFloatCast<T, float>(NPY_FLOAT)) {
+  if (!AddCustomFloatCast<T, float>(NPY_FLOAT, NPY_SAFE_CASTING,
+                                    NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, double>(NPY_DOUBLE)) {
+  if (!AddCustomFloatCast<T, double>(NPY_DOUBLE, NPY_SAFE_CASTING,
+                                     NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, long double>(NPY_LONGDOUBLE)) {
+  if (!AddCustomFloatCast<T, long double>(NPY_LONGDOUBLE, NPY_SAFE_CASTING,
+                                          NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, bool>(NPY_BOOL)) {
+  if (!AddCustomFloatCast<T, bool>(NPY_BOOL, NPY_UNSAFE_CASTING,
+                                   NPY_SAFE_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned char>(NPY_UBYTE)) {
+  if (!AddCustomFloatCast<T, unsigned char>(NPY_UBYTE, NPY_UNSAFE_CASTING,
+                                            NPY_SAFE_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned short>(NPY_USHORT)) {  // NOLINT
+  if (!AddCustomFloatCast<T, unsigned short>(NPY_USHORT, NPY_UNSAFE_CASTING,
+                                             NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned int>(NPY_UINT)) {
+  if (!AddCustomFloatCast<T, unsigned int>(NPY_UINT, NPY_UNSAFE_CASTING,
+                                           NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned long>(NPY_ULONG)) {  // NOLINT
+  if (!AddCustomFloatCast<T, unsigned long>(NPY_ULONG, NPY_UNSAFE_CASTING,
+                                            NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned long long>(  // NOLINT
-          NPY_ULONGLONG)) {
+  if (!AddCustomFloatCast<T, unsigned long long>(
+          NPY_ULONGLONG, NPY_UNSAFE_CASTING, NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, signed char>(NPY_BYTE)) {
+  if (!AddCustomFloatCast<T, signed char>(NPY_BYTE, NPY_UNSAFE_CASTING,
+                                          NPY_SAFE_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, short>(NPY_SHORT)) {  // NOLINT
+  if (!AddCustomFloatCast<T, short>(NPY_SHORT, NPY_UNSAFE_CASTING,
+                                    NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, int>(NPY_INT)) {
+  if (!AddCustomFloatCast<T, int>(NPY_INT, NPY_UNSAFE_CASTING,
+                                  NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, long>(NPY_LONG)) {  // NOLINT
+  if (!AddCustomFloatCast<T, long>(NPY_LONG, NPY_UNSAFE_CASTING,
+                                   NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, long long>(NPY_LONGLONG)) {  // NOLINT
+  if (!AddCustomFloatCast<T, long long>(NPY_LONGLONG, NPY_UNSAFE_CASTING,
+                                        NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  // Following the numpy convention. imag part is dropped when converting to
-  // float.
-  if (!RegisterCustomFloatCast<T, std::complex<float>>(NPY_CFLOAT)) {
+  if (!AddCustomFloatCast<T, std::complex<float>>(NPY_CFLOAT, NPY_SAFE_CASTING,
+                                                  NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, std::complex<double>>(NPY_CDOUBLE)) {
+  if (!AddCustomFloatCast<T, std::complex<double>>(
+          NPY_CDOUBLE, NPY_SAFE_CASTING, NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-  if (!RegisterCustomFloatCast<T, std::complex<long double>>(NPY_CLONGDOUBLE)) {
+  if (!AddCustomFloatCast<T, std::complex<long double>>(
+          NPY_CLONGDOUBLE, NPY_SAFE_CASTING, NPY_SAME_KIND_CASTING, casts))
     return false;
-  }
-
-  // Safe casts from T to other types
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_FLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_DOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_LONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CFLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CLONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  // Safe casts to T from other types
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
-                              TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_UBYTE),
-                              TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BYTE),
-                              TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
   return true;
 }
 
@@ -742,8 +843,6 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
                                                             "subtract") &&
       RegisterUFunc<UFunc<ufuncs::Multiply<T>, T, T, T>, T>(numpy,
                                                             "multiply") &&
-      RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>, T>(numpy,
-                                                              "divide") &&
       RegisterUFunc<UFunc<ufuncs::LogAddExp<T>, T, T, T>, T>(numpy,
                                                              "logaddexp") &&
       RegisterUFunc<UFunc<ufuncs::LogAddExp2<T>, T, T, T>, T>(numpy,
@@ -757,7 +856,6 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
       RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy, "power") &&
       RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy,
                                                              "remainder") &&
-      RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy, "mod") &&
       RegisterUFunc<UFunc<ufuncs::Fmod<T>, T, T, T>, T>(numpy, "fmod") &&
       RegisterUFunc<UFunc2<ufuncs::Divmod<T>, T, T, T, T>, T>(numpy,
                                                               "divmod") &&
@@ -840,9 +938,155 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
 
   return ok;
 }
+template <typename T>
+PyObject* PyCustomFloatDType_Repr(PyObject* self) {
+  std::string repr = std::string("dtype(") + TypeDescriptor<T>::kTypeName + ")";
+  return PyUnicode_FromString(repr.c_str());
+}
 
 template <typename T>
-bool RegisterFloatDtype(PyObject* numpy) {
+PyObject* PyCustomFloatDType_name_get(PyObject* self, void* closure) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
+template <typename T>
+PyArray_DTypeMeta* PyCustomFloatDType_CommonDType(PyArray_DTypeMeta* cls,
+                                                  PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  int next_largest_typenum = NPY_FLOAT32;
+  if constexpr (sizeof(T) == 1) {
+    next_largest_typenum = NPY_FLOAT16;
+  } else if constexpr (sizeof(T) == 2) {
+    next_largest_typenum = NPY_FLOAT32;
+  } else if constexpr (sizeof(T) == 4) {
+    next_largest_typenum = NPY_FLOAT64;
+  } else {
+    next_largest_typenum = NPY_LONGDOUBLE;
+  }
+
+  PyArray_Descr* descr1 = PyArray_DescrFromType(next_largest_typenum);
+  if (!descr1) {
+    PyErr_Clear();
+    Py_INCREF(Py_NotImplemented);
+    return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+  }
+
+  PyArray_DTypeMeta* dtype1 =
+      reinterpret_cast<PyArray_DTypeMeta*>(Py_TYPE(descr1));
+  PyArray_DTypeMeta* dtypes[2] = {dtype1, other};
+  PyArray_DTypeMeta* out_meta = PyArray_PromoteDTypeSequence(2, dtypes);
+  Py_DECREF(descr1);
+
+  if (!out_meta) {
+    PyErr_Clear();
+    Py_INCREF(Py_NotImplemented);
+    return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+  }
+
+  return out_meta;
+}
+
+template <typename T>
+PyObject* PyCustomFloatDType_Str(PyObject* self) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
+template <typename T>
+PyObject* PyCustomFloatDType_GetItem(PyArray_Descr* descr, char* data) {
+  T x;
+  memcpy(&x, data, sizeof(T));
+  return PyFloat_FromDouble(static_cast<float>(x));
+}
+
+template <typename T>
+int PyCustomFloatDType_SetItem(PyArray_Descr* descr, PyObject* item,
+                               char* data) {
+  T x;
+  if (!CastToCustomFloat<T>(item, &x)) {
+    PyErr_Format(PyExc_TypeError, "expected number, got %s",
+                 Py_TYPE(item)->tp_name);
+    return -1;
+  }
+  memcpy(data, &x, sizeof(T));
+  return 0;
+}
+
+static inline PyArray_Descr* PyCustomFloatDType_EnsureCanonical(
+    PyArray_Descr* dtype) {
+  Py_INCREF(dtype);
+  return dtype;
+}
+
+template <typename T>
+int PyCustomFloatDType_to_CustomFloatDType_resolve_descriptors(
+    struct PyArrayMethodObject_tag* method, PyArray_DTypeMeta* dtypes[2],
+    PyArray_Descr* given_descrs[2], PyArray_Descr* loop_descrs[2],
+    npy_intp* view_offset) {
+  loop_descrs[0] = given_descrs[0];
+  Py_INCREF(loop_descrs[0]);
+  if (given_descrs[1] == nullptr) {
+    loop_descrs[1] = given_descrs[0];
+  } else {
+    loop_descrs[1] = given_descrs[1];
+  }
+  Py_INCREF(loop_descrs[1]);
+  *view_offset = 0;
+  return NPY_NO_CASTING;
+}
+
+template <typename T>
+int PyCustomFloatDType_to_CustomFloatDType_CastLoop(
+    PyArrayMethod_Context* context, char* const data[],
+    npy_intp const dimensions[], npy_intp const strides[],
+    NpyAuxData* auxdata) {
+  npy_intp N = dimensions[0];
+  char* in = data[0];
+  char* out = data[1];
+  for (npy_intp i = 0; i < N; i++) {
+    memcpy(out, in, sizeof(T));
+    in += strides[0];
+    out += strides[1];
+  }
+  return 0;
+}
+
+template <typename T>
+static PyObject* PyCustomFloatDType_Reduce(PyObject* self) {
+  PyObject* type_obj = reinterpret_cast<PyObject*>(TypeDescriptor<T>::type_ptr);
+  PyObject* tuple = PyTuple_Pack(1, type_obj);
+  PyObject* numpy = PyImport_ImportModule("numpy");
+  PyObject* dtype_callable = PyObject_GetAttrString(numpy, "dtype");
+  PyObject* res = Py_BuildValue("(OO)", dtype_callable, tuple);
+  Py_DECREF(dtype_callable);
+  Py_DECREF(numpy);
+  Py_DECREF(tuple);
+  return res;
+}
+
+template <typename T>
+static PyObject* PyCustomFloatDType_New(PyTypeObject* type, PyObject* args,
+                                        PyObject* kwds) {
+  PyObject* obj = PyArrayDescr_Type.tp_new(type, args, kwds);
+  if (obj != nullptr) {
+    PyArray_Descr* descr = reinterpret_cast<PyArray_Descr*>(obj);
+    descr->elsize = sizeof(T);
+    descr->alignment = alignof(T);
+    descr->kind = TypeDescriptor<T>::kNpyDescrKind;
+    descr->type = TypeDescriptor<T>::kNpyDescrType;
+    descr->byteorder = TypeDescriptor<T>::kNpyDescrByteorder;
+    descr->flags = NPY_USE_SETITEM;
+  }
+  return obj;
+}
+
+template <typename T>
+bool RegisterFloatDtype(
+    PyObject* numpy,
+    void (*add_custom_casts)(std::vector<PyArrayMethod_Spec*>&) = nullptr) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
   // the base type directly when dropping Python 3.9 support.
   // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
@@ -866,6 +1110,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
   }
 
   // Initializes the NumPy descriptor.
+#if 0
   PyArray_ArrFuncs& arr_funcs = CustomFloatType<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
   arr_funcs.getitem = NPyCustomFloat_GetItem<T>;
@@ -899,6 +1144,134 @@ bool RegisterFloatDtype(PyObject* numpy) {
   // Implement a better module destructor to handle this.
   CustomFloatType<T>::npy_descr =
       PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
+#endif
+
+#ifndef NPY_DT_PyArray_ArrFuncs_copyswapn
+#define NPY_DT_PyArray_ArrFuncs_copyswapn (3 + (1 << 11))
+#endif
+
+#ifndef NPY_DT_PyArray_ArrFuncs_copyswap
+#define NPY_DT_PyArray_ArrFuncs_copyswap (4 + (1 << 11))
+#endif
+
+  static PyType_Slot slots[] = {
+      {NPY_DT_getitem, reinterpret_cast<void*>(PyCustomFloatDType_GetItem<T>)},
+      {NPY_DT_setitem, reinterpret_cast<void*>(PyCustomFloatDType_SetItem<T>)},
+      {NPY_DT_ensure_canonical,
+       reinterpret_cast<void*>(PyCustomFloatDType_EnsureCanonical)},
+      {NPY_DT_PyArray_ArrFuncs_copyswap,
+       reinterpret_cast<void*>(NPyCustomFloat_CopySwap<T>)},
+      {NPY_DT_PyArray_ArrFuncs_copyswapn,
+       reinterpret_cast<void*>(NPyCustomFloat_CopySwapN<T>)},
+      {NPY_DT_PyArray_ArrFuncs_compare,
+       reinterpret_cast<void*>(NPyCustomFloat_CompareFunc<T>)},
+      {NPY_DT_PyArray_ArrFuncs_nonzero,
+       reinterpret_cast<void*>(NPyCustomFloat_NonZero<T>)},
+      {NPY_DT_PyArray_ArrFuncs_fill,
+       reinterpret_cast<void*>(NPyCustomFloat_Fill<T>)},
+      {NPY_DT_PyArray_ArrFuncs_dotfunc,
+       reinterpret_cast<void*>(NPyCustomFloat_DotFunc<T>)},
+      {NPY_DT_PyArray_ArrFuncs_argmax,
+       reinterpret_cast<void*>(NPyCustomFloat_ArgMaxFunc<T>)},
+      {NPY_DT_PyArray_ArrFuncs_argmin,
+       reinterpret_cast<void*>(NPyCustomFloat_ArgMinFunc<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(PyCustomFloatDType_CommonDType<T>)},
+      {0, nullptr}};
+
+  static PyType_Slot cast_slots[] = {
+      {NPY_METH_resolve_descriptors,
+       reinterpret_cast<void*>(
+           PyCustomFloatDType_to_CustomFloatDType_resolve_descriptors<T>)},
+      {NPY_METH_unaligned_strided_loop,
+       reinterpret_cast<void*>(
+           PyCustomFloatDType_to_CustomFloatDType_CastLoop<T>)},
+      {NPY_METH_strided_loop,
+       reinterpret_cast<void*>(
+           PyCustomFloatDType_to_CustomFloatDType_CastLoop<T>)},
+      {0, nullptr}};
+
+  static PyArray_DTypeMeta* cast_dtypes[2] = {nullptr, nullptr};
+
+  static PyArrayMethod_Spec cast_spec = {
+      /*name=*/"customfloat_to_customfloat_cast",
+      /*nin=*/1,
+      /*nout=*/1,
+      /*casting=*/NPY_NO_CASTING,
+      /*flags=*/NPY_METH_SUPPORTS_UNALIGNED,
+      /*dtypes=*/cast_dtypes,
+      /*slots=*/cast_slots,
+  };
+
+  static std::vector<PyArrayMethod_Spec*> cast_specs;
+  static bool casts_initialized = [&]() {
+    cast_specs.push_back(&cast_spec);
+    bool ok = GetFloatCasts<T>(cast_specs);
+    if (ok && add_custom_casts) {
+      add_custom_casts(cast_specs);
+    }
+    cast_specs.push_back(nullptr);
+    return ok;
+  }();
+
+  if (!casts_initialized) return false;
+
+  static PyArrayDTypeMeta_Spec spec = {
+      /*typeobj=*/reinterpret_cast<PyTypeObject*>(type),
+      /*flags=*/0,
+      /*casts=*/cast_specs.data(),
+      /*slots=*/slots,
+      /*baseclass=*/nullptr};
+
+  if (!CustomFloatType<T>::dtype_meta) {
+    CustomFloatType<T>::dtype_meta = reinterpret_cast<PyArray_DTypeMeta*>(
+        PyMem_Calloc(1, sizeof(PyArray_DTypeMeta)));
+  }
+  PyArray_DTypeMeta* dtype_meta = CustomFloatType<T>::dtype_meta;
+  if (!dtype_meta) return false;
+
+  PyTypeObject* tm = reinterpret_cast<PyTypeObject*>(dtype_meta);
+  Py_SET_TYPE(tm, &PyArrayDTypeMeta_Type);
+  Py_SET_REFCNT(tm, 1);
+  tm->tp_name = TypeDescriptor<T>::kQualifiedTypeName;
+  tm->tp_basicsize = sizeof(PyArray_Descr);
+  tm->tp_base = &PyArrayDescr_Type;
+  tm->tp_new = PyCustomFloatDType_New<T>;
+  tm->tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
+  tm->tp_repr = PyCustomFloatDType_Repr<T>;
+  tm->tp_str = PyCustomFloatDType_Str<T>;
+
+  static PyGetSetDef dtype_getset[] = {
+      {const_cast<char*>("name"), PyCustomFloatDType_name_get<T>, nullptr,
+       nullptr, nullptr},
+      {nullptr, nullptr, nullptr, nullptr, nullptr}};
+  tm->tp_getset = dtype_getset;
+
+  static PyMethodDef dtype_methods[] = {
+      {const_cast<char*>("__reduce__"),
+       reinterpret_cast<PyCFunction>(PyCustomFloatDType_Reduce<T>), METH_NOARGS,
+       nullptr},
+      {nullptr, nullptr, 0, nullptr}};
+  tm->tp_methods = dtype_methods;
+
+  if (PyType_Ready(tm) < 0) {
+    return false;
+  }
+
+  if (PyArrayInitDTypeMeta_FromSpec(dtype_meta, &spec) < 0) {
+    return false;
+  }
+
+  TypeDescriptor<T>::npy_type = dtype_meta->type_num;
+
+  Safe_PyObjectPtr dtype_func =
+      make_safe(PyObject_GetAttrString(numpy, "dtype"));
+  if (!dtype_func) return false;
+  Safe_PyObjectPtr descr_obj = make_safe(PyObject_CallFunctionObjArgs(
+      dtype_func.get(), TypeDescriptor<T>::type_ptr, nullptr));
+  if (!descr_obj) return false;
+  CustomFloatType<T>::npy_descr =
+      reinterpret_cast<PyArray_Descr*>(descr_obj.release());
 
   Safe_PyObjectPtr typeDict_obj =
       make_safe(PyObject_GetAttrString(numpy, "sctypeDict"));
@@ -917,13 +1290,20 @@ bool RegisterFloatDtype(PyObject* numpy) {
     return false;
   }
 
-  return RegisterFloatCasts<T>() && RegisterFloatUFuncs<T>(numpy);
+  // RegisterFloatCasts<T>();
+  if (!RegisterFloatUFuncs<T>(numpy)) {
+    return false;
+  }
+  return true;
 }
 
 }  // namespace ml_dtypes
 
+// LEGACY
+#if 0
 #if NPY_ABI_VERSION < 0x02000000
 #undef PyArray_DescrProto
+#endif
 #endif
 
 #endif  // ML_DTYPES_CUSTOM_FLOAT_H_
