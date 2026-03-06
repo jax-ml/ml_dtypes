@@ -417,24 +417,28 @@ class CustomFloatTest(parameterized.TestCase):
   def testAddScalarTypePromotion(self, float_type):
     """Tests type promotion against Numpy scalar values."""
     types = [float_type, np.float16, np.float32, np.float64, np.longdouble]
+    size = np.dtype(float_type).itemsize
+    next_fp = {1: np.float16, 2: np.float32, 4: np.float64}.get(
+        size, np.float32
+    )
     for lhs_type in types:
       for rhs_type in types:
         expected_type = numpy_promote_types(
             lhs_type,
             rhs_type,
             float_type=float_type,
-            next_largest_fp_type=np.float32,
+            next_largest_fp_type=next_fp,
         )
         actual_type = type(lhs_type(3.5) + rhs_type(2.25))
         self.assertEqual(expected_type, actual_type)
 
   def testAddArrayTypePromotion(self, float_type):
-    self.assertEqual(
-        np.float32, type(float_type(3.5) + np.array(2.25, np.float32))
+    size = np.dtype(float_type).itemsize
+    next_fp = {1: np.float16, 2: np.float32, 4: np.float64}.get(
+        size, np.float32
     )
-    self.assertEqual(
-        np.float32, type(np.array(3.5, np.float32) + float_type(2.25))
-    )
+    self.assertEqual(next_fp, type(float_type(3.5) + np.array(2.25, next_fp)))
+    self.assertEqual(next_fp, type(np.array(3.5, next_fp) + float_type(2.25)))
 
   def testSub(self, float_type):
     for a, b in [
@@ -1064,7 +1068,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testLdexp(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
-    y = rng.randint(-50, 50, (1, 7)).astype(np.int32)
+    y = rng.randint(-50, 50, (1, 7)).astype(np.intc)
     self.assertEqual(np.ldexp(x, y).dtype, x.dtype)
     numpy_assert_allclose(
         np.ldexp(x, y).astype(np.float32),

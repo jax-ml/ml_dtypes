@@ -659,7 +659,7 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     obj.machep = 0
     obj.negep = -1
     obj.max = float8_e8m0fnu(max_)
-    obj.min = float8_e8m0fnu(tiny)
+    obj.min = float8_e8m0fnu(tiny)  # e8m0 has no zero, so min is tiny
     obj.nexp = 8
     obj.nmant = 0
     obj.iexp = obj.nexp
@@ -685,6 +685,10 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
     # pylint: enable=protected-access
     return obj
 
+  @staticmethod
+  def _complex32_finfo():
+    return np.finfo(np.float16)
+
   _finfo_type_map = {
       _bfloat16_dtype: _bfloat16_finfo,
       _float4_e2m1fn_dtype: _float4_e2m1fn_finfo,
@@ -699,6 +703,7 @@ class finfo(np.finfo):  # pylint: disable=invalid-name,missing-class-docstring
       _float8_e5m2fnuz_dtype: _float8_e5m2fnuz_finfo,
       _float8_e8m0fnu_dtype: _float8_e8m0fnu_finfo,
       _bcomplex32_dtype: _bfloat16_finfo,
+      _complex32_dtype: _complex32_finfo,
   }
   _finfo_name_map = {t.name: t for t in _finfo_type_map}
   _finfo_cache = {
