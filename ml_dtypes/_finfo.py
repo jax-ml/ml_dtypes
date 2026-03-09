@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pyrefly: ignore-errors
+
 """Overload of numpy.finfo to handle dtypes defined in ml_dtypes."""
 
 from ml_dtypes._ml_dtypes_ext import bcomplex32
