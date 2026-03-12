@@ -295,6 +295,18 @@ class ScalarTest(parameterized.TestCase):
         (uint4, np.complex64),
         (uint4, np.complex128),
     ]
+    extra_int_types = [np.longlong, np.ulonglong, np.intc, np.uintc, np.int_]
+    for a in INTN_TYPES:
+      for b in extra_int_types:
+        if b not in self.CAST_DTYPES:
+          continue
+        # Unsafe casts (signed -> unsigned, or plain unsafe) are not allowed in "safe" mode
+        if np.issubdtype(a, np.signedinteger) and not np.issubdtype(
+            b, np.signedinteger
+        ):
+          continue
+        allowed_casts.append((a, b))
+
     allowed_casts += [(a, b) for a in INTN_TYPES for b in FLOAT_TYPES]
     self.assertEqual(
         ((a, b) in allowed_casts), np.can_cast(a, b, casting="safe")
