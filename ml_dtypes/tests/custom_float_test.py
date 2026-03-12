@@ -900,20 +900,28 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       numpy_assert_allclose(z_np, z_tf, atol=2e-2, float_type=float_type)
 
   def testArange(self, float_type):
+    # TODO(phawkins): remove the casts to float32 once NumPy considers our float
+    # types to be numeric types.
     np.testing.assert_equal(
-        np.arange(1, 100, dtype=np.float32).astype(float_type),
-        np.arange(1, 100, dtype=float_type),
+        np.arange(1, 100, dtype=np.float32)
+        .astype(float_type)
+        .astype(np.float32),
+        np.arange(1, 100, dtype=float_type).astype(np.float32),
     )
     if float_type == float8_e8m0fnu:
       raise self.skipTest("Skip negative ranges for E8M0.")
 
     np.testing.assert_equal(
-        np.arange(-6, 6, 2, dtype=np.float32).astype(float_type),
-        np.arange(-6, 6, 2, dtype=float_type),
+        np.arange(-6, 6, 2, dtype=np.float32)
+        .astype(float_type)
+        .astype(np.float32),
+        np.arange(-6, 6, 2, dtype=float_type).astype(np.float32),
     )
     np.testing.assert_equal(
-        np.arange(-0.0, -2.0, -0.5, dtype=np.float32).astype(float_type),
-        np.arange(-0.0, -2.0, -0.5, dtype=float_type),
+        np.arange(-0.0, -2.0, -0.5, dtype=np.float32)
+        .astype(float_type)
+        .astype(np.float32),
+        np.arange(-0.0, -2.0, -0.5, dtype=float_type).astype(np.float32),
     )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
