@@ -361,13 +361,11 @@ PyObject* PyCustomFloat_Format(PyObject* self, PyObject* args) {
   }
 
   T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
-  float f = static_cast<float>(x);
-
   // Round to 6 significant digits to match PyCustomFloat_Str/Repr, which
   // use std::ostringstream with its default precision of 6. This avoids
   // exposing false precision from the float64 expansion.
   char buf[14];  // max %.6g output: "-9.98378e+38" + '\0' = 14
-  std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(f));
+  std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(x));
   double d = std::strtod(buf, nullptr);
 
   PyObject* float_obj = PyFloat_FromDouble(d);
