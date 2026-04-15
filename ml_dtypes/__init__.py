@@ -39,8 +39,6 @@ __all__ = [
     "uint4",
 ]
 
-from typing import Type
-
 from ml_dtypes._finfo import finfo
 from ml_dtypes._iinfo import iinfo
 from ml_dtypes._ml_dtypes_ext import bcomplex32
@@ -65,28 +63,26 @@ from ml_dtypes._ml_dtypes_ext import uint2
 from ml_dtypes._ml_dtypes_ext import uint4
 import numpy as _np
 
-bfloat16: Type[_np.generic]
-float4_e2m1fn: Type[_np.generic]
-float6_e2m3fn: Type[_np.generic]
-float6_e3m2fn: Type[_np.generic]
-float8_e3m4: Type[_np.generic]
-float8_e4m3: Type[_np.generic]
-float8_e4m3b11fnuz: Type[_np.generic]
-float8_e4m3fn: Type[_np.generic]
-float8_e4m3fnuz: Type[_np.generic]
-float8_e5m2: Type[_np.generic]
-float8_e5m2fnuz: Type[_np.generic]
-float8_e8m0fnu: Type[_np.generic]
-int1: Type[_np.generic]
-int2: Type[_np.generic]
-int4: Type[_np.generic]
-uint1: Type[_np.generic]
-uint2: Type[_np.generic]
-uint4: Type[_np.generic]
-bcomplex32: Type[_np.generic]
-complex32: Type[_np.generic]
-
-del Type
+bfloat16: type[_np.generic]
+float4_e2m1fn: type[_np.generic]
+float6_e2m3fn: type[_np.generic]
+float6_e3m2fn: type[_np.generic]
+float8_e3m4: type[_np.generic]
+float8_e4m3: type[_np.generic]
+float8_e4m3b11fnuz: type[_np.generic]
+float8_e4m3fn: type[_np.generic]
+float8_e4m3fnuz: type[_np.generic]
+float8_e5m2: type[_np.generic]
+float8_e5m2fnuz: type[_np.generic]
+float8_e8m0fnu: type[_np.generic]
+int1: type[_np.generic]
+int2: type[_np.generic]
+int4: type[_np.generic]
+uint1: type[_np.generic]
+uint2: type[_np.generic]
+uint4: type[_np.generic]
+bcomplex32: type[_np.generic]
+complex32: type[_np.generic]
 
 
 def real(x: _np.ndarray) -> _np.ndarray:
