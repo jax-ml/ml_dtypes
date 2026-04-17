@@ -656,6 +656,27 @@ class CustomFloatTest(parameterized.TestCase):
       # 8-bit types should be unchanged
       self.assertEqual(original_bytes, swapped.tobytes())
 
+  def testAstypeByteSwapped(self, float_type):
+    """Casting to a byte-swapped dtype goes through the within-dtype cast."""
+    dt = np.dtype(float_type)
+    swapped_dt = dt.newbyteorder("S")
+    # The swapped dtype is still the same custom type, just a different order.
+    self.assertIs(swapped_dt.type, float_type)
+
+    # Stick to 1-30 which is in the valid range for all dtypes (no NaN)
+    arr = np.arange(1, 31).astype(float_type)
+    swapped = arr.astype(swapped_dt)
+    self.assertIs(swapped.dtype.type, float_type)
+
+    # Casting preserves the logical values regardless of byte order.
+    np.testing.assert_array_equal(swapped.astype(float_type), arr)
+
+    if dt.itemsize > 1:
+      # The stored bytes really are swapped for multi-byte types.
+      self.assertEqual(swapped.tobytes(), arr.byteswap().tobytes())
+    else:
+      self.assertEqual(swapped.tobytes(), arr.tobytes())
+
 
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])
 

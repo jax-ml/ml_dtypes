@@ -25,8 +25,9 @@ limitations under the License.
 // clang-format on
 
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"  // NOLINT
-#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/_src/common.h"        // NOLINT
+#include "ml_dtypes/_src/dtype_common.h"  // NOLINT
+#include "ml_dtypes/_src/ufuncs.h"        // NOLINT
 #include "ml_dtypes/include/intn.h"
 
 #if NPY_ABI_VERSION < 0x02000000
@@ -56,6 +57,9 @@ struct IntNTypeDescriptor {
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
+
+  // New-style DType metaclass object.
+  static PyArray_DTypeMeta dtype_meta;
 };
 
 template <typename T>
@@ -66,6 +70,18 @@ template <typename T>
 PyArray_DescrProto IntNTypeDescriptor<T>::npy_descr_proto;
 template <typename T>
 PyArray_Descr* IntNTypeDescriptor<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta IntNTypeDescriptor<T>::dtype_meta = {};
+
+// True if `meta` is one of our custom integer DTypes.
+inline bool IsCustomIntDType(const PyArray_DTypeMeta* meta) {
+  return meta == &IntNTypeDescriptor<int1>::dtype_meta ||
+         meta == &IntNTypeDescriptor<uint1>::dtype_meta ||
+         meta == &IntNTypeDescriptor<int2>::dtype_meta ||
+         meta == &IntNTypeDescriptor<uint2>::dtype_meta ||
+         meta == &IntNTypeDescriptor<int4>::dtype_meta ||
+         meta == &IntNTypeDescriptor<uint4>::dtype_meta;
+}
 
 // Representation of a Python custom integer object.
 template <typename T>
@@ -774,6 +790,84 @@ bool RegisterIntNUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// ---------------------------------------------------------------------------
+// New-style DType slot functions for IntN types
+// ---------------------------------------------------------------------------
+
+template <typename T>
+static PyObject* NPyIntN_NewStyleGetItem(PyArray_Descr* /*descr*/, char* data) {
+  return NPyIntN_GetItem<T>(data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static int NPyIntN_NewStyleSetItem(PyArray_Descr* /*descr*/, PyObject* item,
+                                   char* data) {
+  return NPyIntN_SetItem<T>(item, data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static PyArray_Descr* NPyIntN_EnsureCanonical(PyArray_Descr* self) {
+  Py_INCREF(self);
+  return self;
+}
+
+template <typename T>
+static PyArray_Descr* NPyIntN_DefaultDescr(PyArray_DTypeMeta* cls) {
+  Py_INCREF(cls->singleton);
+  return cls->singleton;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
+                                              PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars (weak promotion).  A Python int defers to our
+  // integer type.  For a Python float/complex we must NOT collapse to a
+  // concrete float/complex here: returning the abstract DType unchanged keeps
+  // the scalar weak, so NumPy resolves it correctly in context.  Alone it
+  // becomes the default (float64 / complex128), e.g. result_type(int2, 1.0) ==
+  // float64; alongside a concrete float it stays weak, e.g.
+  // result_type(int2, 1.0, float32) == float32 (in any argument order).
+  if (other == &PyArray_PyLongDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if (other == &PyArray_PyFloatDType || other == &PyArray_PyComplexDType) {
+    Py_INCREF(other);
+    return other;
+  }
+
+  // Our intN types are smaller than every NumPy built-in except bool.
+  if (other->type_num == NPY_BOOL) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if (!PyTypeNum_ISUSERDEF(other->type_num)) {
+    Py_INCREF(other);
+    return other;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Another custom int: lower type_num defers (swapping will work).
+  if (IsCustomIntDType(other)) {
+    if (cls->type_num < other->type_num) {
+      Py_INCREF(Py_NotImplemented);
+      return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+    }
+    // No cross-custom-int safe casts are registered; int16 contains all.
+    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_Int16DType));
+    return &PyArray_Int16DType;
+  }
+
+  // Custom float or custom complex: swapping will work (NPyCustomFloat handles
+  // float+int, NPyCustomComplex handles complex+int).
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
 template <typename T>
 bool RegisterIntNDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
@@ -799,7 +893,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
     return false;
   }
 
-  // Initializes the NumPy descriptor.
+  // Initializes the NumPy ArrFuncs (used by legacy code paths after the swap).
   PyArray_ArrFuncs& arr_funcs = IntNTypeDescriptor<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
   arr_funcs.getitem = NPyIntN_GetItem<T>;
@@ -814,22 +908,38 @@ bool RegisterIntNDtype(PyObject* numpy) {
   arr_funcs.argmax = NPyIntN_ArgMaxFunc<T>;
   arr_funcs.argmin = NPyIntN_ArgMinFunc<T>;
 
-  // This is messy, but that's because the NumPy 2.0 API transition is messy.
-  // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
-  // RegisterDataType alive, because it stores its pointer.
-  // After 2.0, the proto and descriptor types diverge, and NumPy allocates
-  // and manages the lifetime of the descriptor itself.
+  // Prepare the legacy descriptor proto referenced by the DType spec below.
   PyArray_DescrProto& descr_proto = IntNTypeDescriptor<T>::npy_descr_proto;
   descr_proto = GetIntNDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
+  descr_proto.f = &arr_funcs;
 
-  TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (TypeDescriptor<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = IntNTypeDescriptor<T>::dtype_meta;
+  if (!InitDTypeMeta(&dm, TypeDescriptor<T>::kTypeName)) {
     return false;
   }
-  // TODO(phawkins): We intentionally leak the pointer to the descriptor.
-  // Implement a better module destructor to handle this.
+
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto,
+       reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem,
+       reinterpret_cast<void*>(NPyIntN_NewStyleGetItem<T>)},
+      {NPY_DT_setitem,
+       reinterpret_cast<void*>(NPyIntN_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical,
+       reinterpret_cast<void*>(NPyIntN_EnsureCanonical<T>)},
+      {NPY_DT_default_descr,
+       reinterpret_cast<void*>(NPyIntN_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
+      {0, nullptr}};
+  if (InitDTypeFromSlots<T>(&dm, reinterpret_cast<PyTypeObject*>(type),
+                            dtype_slots) < 0) {
+    return false;
+  }
+  TypeDescriptor<T>::npy_type = dm.type_num;
+
   IntNTypeDescriptor<T>::npy_descr =
       PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
 
