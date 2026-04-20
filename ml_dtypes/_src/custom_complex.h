@@ -920,6 +920,11 @@ static PyObject* NPyCustomComplex_DTypeRepr(PyObject* /*self*/) {
 }
 
 template <typename T>
+static PyObject* NPyCustomComplex_DTypeStr(PyObject* /*self*/) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
+template <typename T>
 static PyObject* NPyCustomComplex_NewStyleGetItem(PyArray_Descr* /*descr*/,
                                                   char* data) {
   return NPyCustomComplex_GetItem<T>(data, /*arr=*/nullptr);
@@ -941,6 +946,84 @@ template <typename T>
 static PyArray_Descr* NPyCustomComplex_DefaultDescr(PyArray_DTypeMeta* cls) {
   Py_INCREF(cls->singleton);
   return cls->singleton;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
+    PyArray_DTypeMeta* cls, PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type.
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType ||
+      other == &PyArray_PyComplexDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  switch (other->type_num) {
+    // bool, ints, half, float: wrap in the smallest complex that holds both.
+    // Our custom complex types all fit in cfloat.
+    case NPY_BOOL:
+    case NPY_BYTE: case NPY_SHORT: case NPY_INT:
+    case NPY_LONG: case NPY_LONGLONG:
+    case NPY_UBYTE: case NPY_USHORT: case NPY_UINT:
+    case NPY_ULONG: case NPY_ULONGLONG:
+    case NPY_HALF: case NPY_FLOAT:
+      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CFloatDType));
+      return &PyArray_CFloatDType;
+    case NPY_DOUBLE: case NPY_LONGDOUBLE:
+      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CDoubleDType));
+      return &PyArray_CDoubleDType;
+
+    // Built-in complex: our types are smaller, return other.
+    case NPY_CFLOAT: case NPY_CDOUBLE: case NPY_CLONGDOUBLE:
+      Py_INCREF(other);
+      return other;
+
+    default:
+      break;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Custom float or custom int: all fit in cfloat alongside our complex.
+  if (other == &CustomFloatType<bfloat16>::dtype_meta ||
+      other == &CustomFloatType<float8_e3m4>::dtype_meta ||
+      other == &CustomFloatType<float8_e4m3>::dtype_meta ||
+      other == &CustomFloatType<float8_e4m3b11fnuz>::dtype_meta ||
+      other == &CustomFloatType<float8_e4m3fn>::dtype_meta ||
+      other == &CustomFloatType<float8_e4m3fnuz>::dtype_meta ||
+      other == &CustomFloatType<float8_e5m2>::dtype_meta ||
+      other == &CustomFloatType<float8_e5m2fnuz>::dtype_meta ||
+      other == &CustomFloatType<float6_e2m3fn>::dtype_meta ||
+      other == &CustomFloatType<float6_e3m2fn>::dtype_meta ||
+      other == &CustomFloatType<float4_e2m1fn>::dtype_meta ||
+      other == &CustomFloatType<float8_e8m0fnu>::dtype_meta ||
+      other == &IntNTypeDescriptor<int1>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint1>::dtype_meta ||
+      other == &IntNTypeDescriptor<int2>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint2>::dtype_meta ||
+      other == &IntNTypeDescriptor<int4>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint4>::dtype_meta) {
+    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CFloatDType));
+    return &PyArray_CFloatDType;
+  }
+
+  // Another custom complex: both fit in cfloat.
+  if (other == &CustomComplexType<bcomplex32>::dtype_meta ||
+      other == &CustomComplexType<complex32>::dtype_meta) {
+    if (cls->type_num < other->type_num) {
+      Py_INCREF(Py_NotImplemented);
+      return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+    }
+    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CFloatDType));
+    return &PyArray_CFloatDType;
+  }
+
+  // Unknown user type: return NotImplemented.
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
 }
 
 template <typename T>
@@ -997,7 +1080,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
   tp->tp_base = &PyArrayDescr_Type;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
   tp->tp_repr = NPyCustomComplex_DTypeRepr<T>;
-  tp->tp_str = NPyCustomComplex_DTypeRepr<T>;
+  tp->tp_str = NPyCustomComplex_DTypeStr<T>;
   if (PyType_Ready(tp) < 0) {
     return false;
   }
@@ -1031,6 +1114,8 @@ bool RegisterComplexDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyCustomComplex_EnsureCanonical<T>)},
       {NPY_DT_default_descr,
        reinterpret_cast<void*>(NPyCustomComplex_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
       {NPY_DT_PyArray_ArrFuncs_getitem,
        reinterpret_cast<void*>(NPyCustomComplex_GetItem<T>)},
       {NPY_DT_PyArray_ArrFuncs_setitem,

@@ -790,6 +790,11 @@ static PyObject* NPyIntN_DTypeRepr(PyObject* /*self*/) {
 }
 
 template <typename T>
+static PyObject* NPyIntN_DTypeStr(PyObject* /*self*/) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
+template <typename T>
 static PyObject* NPyIntN_NewStyleGetItem(PyArray_Descr* /*descr*/, char* data) {
   return NPyIntN_GetItem<T>(data, /*arr=*/nullptr);
 }
@@ -810,6 +815,60 @@ template <typename T>
 static PyArray_Descr* NPyIntN_DefaultDescr(PyArray_DTypeMeta* cls) {
   Py_INCREF(cls->singleton);
   return cls->singleton;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
+                                              PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type.
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  else if (other == &PyArray_PyFloatDType) {
+    Py_INCREF(&PyArray_DoubleDType);
+    return &PyArray_DoubleDType;
+  }
+  else if (other == &PyArray_PyComplexDType) {
+    Py_INCREF(&PyArray_CDoubleDType);
+    return &PyArray_CDoubleDType;
+  }
+
+  // Our intN types are smaller than every NumPy built-in except bool.
+  if (other->type_num == NPY_BOOL) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if (!PyTypeNum_ISUSERDEF(other->type_num)) {
+    Py_INCREF(other);
+    return other;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Another custom int: lower type_num defers (swapping will work).
+  if (other == &IntNTypeDescriptor<int1>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint1>::dtype_meta ||
+      other == &IntNTypeDescriptor<int2>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint2>::dtype_meta ||
+      other == &IntNTypeDescriptor<int4>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint4>::dtype_meta) {
+    if (cls->type_num < other->type_num) {
+      Py_INCREF(Py_NotImplemented);
+      return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+    }
+    // No cross-custom-int safe casts are registered; int16 contains all.
+    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_Int16DType));
+    return &PyArray_Int16DType;
+  }
+
+  // Custom float or custom complex: swapping will work (NPyCustomFloat handles
+  // float+int, NPyCustomComplex handles complex+int).
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
 }
 
 template <typename T>
@@ -867,7 +926,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
   tp->tp_base = &PyArrayDescr_Type;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
   tp->tp_repr = NPyIntN_DTypeRepr<T>;
-  tp->tp_str = NPyIntN_DTypeRepr<T>;
+  tp->tp_str = NPyIntN_DTypeStr<T>;
   if (PyType_Ready(tp) < 0) {
     return false;
   }
@@ -901,6 +960,8 @@ bool RegisterIntNDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyIntN_EnsureCanonical<T>)},
       {NPY_DT_default_descr,
        reinterpret_cast<void*>(NPyIntN_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
       {NPY_DT_PyArray_ArrFuncs_getitem,
        reinterpret_cast<void*>(NPyIntN_GetItem<T>)},
       {NPY_DT_PyArray_ArrFuncs_setitem,

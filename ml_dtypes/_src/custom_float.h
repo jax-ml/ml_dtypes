@@ -859,6 +859,11 @@ static PyObject* NPyCustomFloat_DTypeRepr(PyObject* /*self*/) {
   return PyUnicode_FromFormat("dtype(%s)", TypeDescriptor<T>::kTypeName);
 }
 
+template <typename T>
+static PyObject* NPyCustomFloat_DTypeStr(PyObject* /*self*/) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
 // New-style getitem: (PyArray_Descr*, char*) -> PyObject*
 template <typename T>
 static PyObject* NPyCustomFloat_NewStyleGetItem(PyArray_Descr* /*descr*/,
@@ -887,6 +892,106 @@ template <typename T>
 static PyArray_Descr* NPyCustomFloat_DefaultDescr(PyArray_DTypeMeta* cls) {
   Py_INCREF(cls->singleton);
   return cls->singleton;
+}
+
+// True if every value of Src is exactly representable in Dst: Dst must have
+// at least as many mantissa bits (precision) and at least as much exponent
+// range as Src.
+template <typename Src, typename Dst>
+static constexpr bool CustomFloatSafeTo() {
+  return std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
+         std::numeric_limits<Dst>::max_exponent >=
+             std::numeric_limits<Src>::max_exponent;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
+                                                     PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type. (should add complex here)
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  constexpr bool is_bfloat16 = std::is_same_v<T, bfloat16>;
+
+  if (PyTypeNum_ISINTEGER(other->type_num)) {
+    if (is_bfloat16 && (other->type_num == NPY_BYTE || other->type_num == NPY_UBYTE)) {
+      Py_INCREF(cls);
+      return cls;
+    }
+    /* Our precision is irrelevant, the integer one is higher. */
+    return PyArray_CommonDType(&PyArray_PyFloatDType, other);
+  }
+
+  switch (other->type_num) {
+    case NPY_BOOL:
+      Py_INCREF(cls);
+      return cls;
+    case NPY_HALF:
+      if (is_bfloat16) {
+        Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType));
+        return &PyArray_FloatDType;
+      }
+      [[fallthrough]];
+    case NPY_FLOAT: case NPY_DOUBLE: case NPY_LONGDOUBLE:
+      [[fallthrough]];
+    case NPY_CFLOAT: case NPY_CDOUBLE: case NPY_CLONGDOUBLE:
+      Py_INCREF(other);
+      return other;
+    default:
+      break;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Another custom float: use compile-time safe-cast predicate to pick the
+  // wider type; fall back to float32 when neither contains the other.
+  // T is known at compile time so all CustomFloatSafeTo<T,U> calls fold away.
+#define TRY_CUSTOM_FLOAT(OtherT)                                           \
+  if (other == &CustomFloatType<OtherT>::dtype_meta) {                     \
+    if constexpr (CustomFloatSafeTo<T, OtherT>()) {                        \
+      Py_INCREF(other); return other;                                       \
+    } else if constexpr (CustomFloatSafeTo<OtherT, T>()) {                 \
+      Py_INCREF(cls); return cls;                                           \
+    } else {                                                                \
+      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType));          \
+      return &PyArray_FloatDType;                                           \
+    }                                                                       \
+  }
+  TRY_CUSTOM_FLOAT(bfloat16)
+  TRY_CUSTOM_FLOAT(float8_e3m4)
+  TRY_CUSTOM_FLOAT(float8_e4m3)
+  TRY_CUSTOM_FLOAT(float8_e4m3b11fnuz)
+  TRY_CUSTOM_FLOAT(float8_e4m3fn)
+  TRY_CUSTOM_FLOAT(float8_e4m3fnuz)
+  TRY_CUSTOM_FLOAT(float8_e5m2)
+  TRY_CUSTOM_FLOAT(float8_e5m2fnuz)
+  TRY_CUSTOM_FLOAT(float6_e2m3fn)
+  TRY_CUSTOM_FLOAT(float6_e3m2fn)
+  TRY_CUSTOM_FLOAT(float4_e2m1fn)
+  TRY_CUSTOM_FLOAT(float8_e8m0fnu)
+#undef TRY_CUSTOM_FLOAT
+
+  // Custom int: float dominates. NPyIntN_CommonDType returns NotImplemented
+  // for user types it can't see, so we handle this side explicitly.
+  if (other == &IntNTypeDescriptor<int1>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint1>::dtype_meta ||
+      other == &IntNTypeDescriptor<int2>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint2>::dtype_meta ||
+      other == &IntNTypeDescriptor<int4>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint4>::dtype_meta) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // Custom complex or unknown user type: swapping will work (NPyCustomComplex
+  // handles complex+float and returns the appropriate complex result).
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
 }
 
 template <typename T>
@@ -945,7 +1050,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
   tp->tp_base = &PyArrayDescr_Type;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
   tp->tp_repr = NPyCustomFloat_DTypeRepr<T>;
-  tp->tp_str = NPyCustomFloat_DTypeRepr<T>;
+  tp->tp_str = NPyCustomFloat_DTypeStr<T>;
   if (PyType_Ready(tp) < 0) {
     return false;
   }
@@ -979,6 +1084,8 @@ bool RegisterFloatDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyCustomFloat_EnsureCanonical<T>)},
       {NPY_DT_default_descr,
        reinterpret_cast<void*>(NPyCustomFloat_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyCustomFloat_CommonDType<T>)},
       {NPY_DT_PyArray_ArrFuncs_getitem,
        reinterpret_cast<void*>(NPyCustomFloat_GetItem<T>)},
       {NPY_DT_PyArray_ArrFuncs_setitem,
