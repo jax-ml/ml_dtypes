@@ -41,6 +41,13 @@ limitations under the License.
 #error "ml_dtypes dtype_compat.h requires NumPy >= 2.0"
 #endif
 
+#if NPY_TARGET_VERSION >= 0x15  // NUMPY_2_4_API_VERSION
+#define ARRFUNCS_OFFSET_FIX(v) (v)
+#else
+#define ARRFUNCS_OFFSET_FIX(v) \
+  (v) - (NPY_DT_PyArray_ArrFuncs_getitem) + 1 + (((PyArray_RUNTIME_VERSION >= 0x15) ? (1 << 11) : (1 << 10)))
+#endif
+
 namespace ml_dtypes {
 
 /*

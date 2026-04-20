@@ -66,8 +66,8 @@ def rt(a, b):
     (bf16,      np.float64, np.float64),
     (f8_e4m3fn, np.float64, np.float64),
     # ---- integers: PyArray_CommonDType decides ----
-    (bf16,      np.int8,  bf16),              # bfloat16 has enough precision for int8
-    (bf16,      np.int16, bf16),              # bfloat16 has enough precision for int16
+    (bf16,      np.int8,  bf16),              # bfloat16 has 8 sig bits, int8 needs 7 → bf16 wins
+    (bf16,      np.int16, np.float64),        # bfloat16 has 8 sig bits, int16 needs 15 → float64
     (f8_e4m3fn, np.int8,  np.float64),        # float8 can't represent all int8 values
     (f8_e4m3fn, np.int32, np.float64),        # float8 can't represent all int32 values
     # ---- complex: other always wins ----
@@ -100,7 +100,7 @@ def test_custom_float_vs_numpy(a, b, expected):
     # ---- incomparable: one has more exp, other more mantissa → float32 ----
     (bf16,      f8_e5m2,   bf16),             # f8_e5m2 fits in bf16 (bf16 > in all dims)
     (f8_e4m3fn, f8_e5m2,   np.float32),       # e4m3 has more mantissa, e5m2 has more exp
-    (f8_e4m3fn, f8_e4m3fnuz, np.float32),     # same bits, different special-value encoding
+    (f8_e4m3fn, f8_e4m3fnuz, f8_e4m3fn),      # same digits/max_exp → numeric_limits match; fn wins
     (f6_e2m3,   f6_e3m2,   np.float32),       # one has more mantissa, other more exp
 ])
 def test_custom_float_vs_custom_float(a, b, expected):
@@ -194,7 +194,7 @@ def test_custom_int_vs_custom_int(a, b, expected):
     (c32,  np.float32, np.complex64),
     # ---- float64+: need cdouble ----
     (bc32, np.float64,    np.complex128),
-    (bc32, np.longdouble, np.dtype("clongdouble")),
+    (bc32, np.longdouble, np.clongdouble),
     (c32,  np.float64,    np.complex128),
     # ---- built-in complex: other always wins ----
     (bc32, np.complex64,  np.complex64),

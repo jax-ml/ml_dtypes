@@ -973,10 +973,12 @@ static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
     case NPY_HALF: case NPY_FLOAT:
       Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CFloatDType));
       return &PyArray_CFloatDType;
-    case NPY_DOUBLE: case NPY_LONGDOUBLE:
+    case NPY_DOUBLE:
       Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CDoubleDType));
       return &PyArray_CDoubleDType;
-
+    case NPY_LONGDOUBLE:
+      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CLongDoubleDType));
+      return &PyArray_CLongDoubleDType;
     // Built-in complex: our types are smaller, return other.
     case NPY_CFLOAT: case NPY_CDOUBLE: case NPY_CLONGDOUBLE:
       Py_INCREF(other);
@@ -1116,15 +1118,15 @@ bool RegisterComplexDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyCustomComplex_DefaultDescr<T>)},
       {NPY_DT_common_dtype,
        reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
-      {NPY_DT_PyArray_ArrFuncs_getitem,
+      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_getitem),
        reinterpret_cast<void*>(NPyCustomComplex_GetItem<T>)},
-      {NPY_DT_PyArray_ArrFuncs_setitem,
+      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_setitem),
        reinterpret_cast<void*>(NPyCustomComplex_SetItem<T>)},
-      {NPY_DT_PyArray_ArrFuncs_nonzero,
+      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_nonzero),
        reinterpret_cast<void*>(NPyCustomComplex_NonZero<T>)},
-      {NPY_DT_PyArray_ArrFuncs_dotfunc,
+      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_dotfunc),
        reinterpret_cast<void*>(NPyCustomComplex_DotFunc<T>)},
-      {NPY_DT_PyArray_ArrFuncs_compare,
+      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_compare),
        reinterpret_cast<void*>(NPyCustomComplex_CompareFunc<T>)},
       {0, nullptr}};
   PyArrayDTypeMeta_Spec dtype_spec;
