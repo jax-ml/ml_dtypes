@@ -915,16 +915,6 @@ bool RegisterComplexUFuncs(PyObject* numpy) {
 // ---------------------------------------------------------------------------
 
 template <typename T>
-static PyObject* NPyCustomComplex_DTypeRepr(PyObject* /*self*/) {
-  return PyUnicode_FromFormat("dtype(%s)", TypeDescriptor<T>::kTypeName);
-}
-
-template <typename T>
-static PyObject* NPyCustomComplex_DTypeStr(PyObject* /*self*/) {
-  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
-}
-
-template <typename T>
 static PyObject* NPyCustomComplex_NewStyleGetItem(PyArray_Descr* /*descr*/,
                                                   char* data) {
   return NPyCustomComplex_GetItem<T>(data, /*arr=*/nullptr);
@@ -1081,8 +1071,6 @@ bool RegisterComplexDtype(PyObject* numpy) {
   tp->tp_name = TypeDescriptor<T>::kTypeName;
   tp->tp_base = &PyArrayDescr_Type;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
-  tp->tp_repr = NPyCustomComplex_DTypeRepr<T>;
-  tp->tp_str = NPyCustomComplex_DTypeStr<T>;
   if (PyType_Ready(tp) < 0) {
     return false;
   }
@@ -1108,6 +1096,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
 
   // Build the new-style DType spec.
   PyType_Slot dtype_slots[] = {
+      {300, reinterpret_cast<void*>(&descr_proto)},
       {NPY_DT_getitem,
        reinterpret_cast<void*>(NPyCustomComplex_NewStyleGetItem<T>)},
       {NPY_DT_setitem,
@@ -1136,8 +1125,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
   dtype_spec.slots = dtype_slots;
   dtype_spec.baseclass = nullptr;
 
-  if (PyArrayInitDTypeMeta_FromSpec_WithLegacy(&dm, &dtype_spec,
-                                               &descr_proto) < 0) {
+  if (PyArrayInitDTypeMeta_FromSpec(&dm, &dtype_spec) < 0) {
     return false;
   }
   TypeDescriptor<T>::npy_type = dm.type_num;

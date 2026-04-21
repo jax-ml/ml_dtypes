@@ -98,11 +98,19 @@ static inline int TrivialStridedCopyLoop(PyArrayMethod_Context *context,
  *
  * If proto is NULL the function just forwards to PyArrayInitDTypeMeta_FromSpec.
  */
-static inline int PyArrayInitDTypeMeta_FromSpec_WithLegacy(
-    PyArray_DTypeMeta *DType, PyArrayDTypeMeta_Spec *spec,
-    PyArray_DescrProto *proto) {
-  if (proto == nullptr) {
-    return PyArrayInitDTypeMeta_FromSpec(DType, spec);
+#if NPY_TARGET_VERSION < 0x16 && NPY_TARGET_VERSION >=0x00000012
+#define _PyArrayInitDTypeMeta_FromSpec \
+    (*(int (*)(PyArray_DTypeMeta *, PyArrayDTypeMeta_Spec *))PyArray_API[362])
+#undef PyArrayInitDTypeMeta_FromSpec
+
+static inline int PyArrayInitDTypeMeta_FromSpec(
+    PyArray_DTypeMeta *DType, PyArrayDTypeMeta_Spec *spec) {
+  PyArray_DescrProto *proto = nullptr;
+  if (spec->slots[0].slot == 300) {
+      proto = reinterpret_cast<PyArray_DescrProto *>(spec->slots[0].pfunc);
+  }
+  if (proto == nullptr || PyArray_RUNTIME_VERSION >= 0x16) {
+    return _PyArrayInitDTypeMeta_FromSpec(DType, spec);
   }
 
   /*
@@ -111,12 +119,9 @@ static inline int PyArrayInitDTypeMeta_FromSpec_WithLegacy(
    * pytype-to-DType dict (it bails out on NPY_DT_is_legacy for non-generic
    * types), regardless of whether the real scalar subclasses np.generic.
    */
-  PyTypeObject *real_typeobj = proto->typeobj;
-  proto->typeobj = &PyBaseObject_Type;
-
-  int typenum = PyArray_RegisterDataType(proto);
-
-  proto->typeobj = real_typeobj;
+  PyArray_DescrProto new_proto = *proto;
+  new_proto.typeobj = &PyBaseObject_Type;
+  int typenum = PyArray_RegisterDataType(&new_proto);
   if (typenum < 0) {
     return -1;
   }
@@ -125,7 +130,9 @@ static inline int PyArrayInitDTypeMeta_FromSpec_WithLegacy(
    * Step 2: Initialise the user's DType with new-style slots and casts.
    * type_num stays at -1 / 0 for now; we fix it in step 3.
    */
-  if (PyArrayInitDTypeMeta_FromSpec(DType, spec) < 0) {
+   PyArrayDTypeMeta_Spec new_spec = *spec;
+   new_spec.slots = &spec->slots[1];  // skip proto slot.
+   if (_PyArrayInitDTypeMeta_FromSpec(DType, &new_spec) < 0) {
     return -1;
   }
 
@@ -158,9 +165,9 @@ static inline int PyArrayInitDTypeMeta_FromSpec_WithLegacy(
 
   /* Fix the descriptor's scalar-type field (it was set to PyBaseObject_Type
    * in step 1 by PyArray_RegisterDataType copying proto->typeobj). */
-  Py_INCREF(real_typeobj);
+  Py_INCREF(proto->typeobj);
   Py_XDECREF(descr->typeobj);
-  descr->typeobj = real_typeobj;
+  descr->typeobj = proto->typeobj;
 
   /*
    * Patch copyswap/copyswapn into the new DType's legacy f-slots.
@@ -178,6 +185,7 @@ static inline int PyArrayInitDTypeMeta_FromSpec_WithLegacy(
 
   return 0;
 }
+#endif
 
 }  // namespace ml_dtypes
 
