@@ -354,6 +354,38 @@ Py_hash_t PyCustomFloat_Hash(PyObject* self) {
 }
 
 template <typename T>
+PyObject* PyCustomFloat_Format(PyObject* self, PyObject* args) {
+  PyObject* format_spec = nullptr;
+  if (!PyArg_ParseTuple(args, "U", &format_spec)) {
+    return nullptr;
+  }
+
+  T x = reinterpret_cast<PyCustomFloat<T>*>(self)->value;
+  // Round to 6 significant digits to match PyCustomFloat_Str/Repr, which
+  // use std::ostringstream with its default precision of 6. This avoids
+  // exposing false precision from the float64 expansion.
+  char buf[14];  // max %.6g output: "-9.98378e+38" + '\0' = 14
+  std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(x));
+  double d = std::strtod(buf, nullptr);
+
+  PyObject* float_obj = PyFloat_FromDouble(d);
+  if (!float_obj) {
+    return nullptr;
+  }
+
+  PyObject* result = PyObject_Format(float_obj, format_spec);
+  Py_DECREF(float_obj);
+  return result;
+}
+
+template <typename T>
+PyMethodDef CustomFloatType_methods[] = {
+    {"__format__", PyCustomFloat_Format<T>, METH_VARARGS,
+     "Format a custom float value."},
+    {nullptr, nullptr, 0, nullptr},
+};
+
+template <typename T>
 PyType_Slot CustomFloatType<T>::type_slots[] = {
     {Py_tp_new, reinterpret_cast<void*>(PyCustomFloat_New<T>)},
     {Py_tp_repr, reinterpret_cast<void*>(PyCustomFloat_Repr<T>)},
@@ -362,6 +394,7 @@ PyType_Slot CustomFloatType<T>::type_slots[] = {
     {Py_tp_doc,
      reinterpret_cast<void*>(const_cast<char*>(TypeDescriptor<T>::kTpDoc))},
     {Py_tp_richcompare, reinterpret_cast<void*>(PyCustomFloat_RichCompare<T>)},
+    {Py_tp_methods, reinterpret_cast<void*>(CustomFloatType_methods<T>)},
     {Py_nb_add, reinterpret_cast<void*>(PyCustomFloat_Add<T>)},
     {Py_nb_subtract, reinterpret_cast<void*>(PyCustomFloat_Subtract<T>)},
     {Py_nb_multiply, reinterpret_cast<void*>(PyCustomFloat_Multiply<T>)},
