@@ -37,6 +37,28 @@ limitations under the License.
 #include "numpy/arrayobject.h"
 #include "numpy/arrayscalars.h"
 #include "numpy/ufuncobject.h"
+#include "numpy/dtype_api.h"
+
+
+#ifndef PyUFunc_AddLoopsFromSpecs
+// Backport `PyUFunc_AddLoopsFromSpecs` for conditional use if we are
+// on NumPy 2.5+ at runtime.  (function available with 2.4, but not imag/real)
+#if NPY_API_VERSION < 0x15
+typedef struct {
+    const char *name;
+    PyArrayMethod_Spec *spec;
+} PyUFunc_LoopSlot;  // defined starting NumPy 2.4+
+#endif
+
+static inline int PyUFunc_AddLoopsFromSpecs(PyUFunc_LoopSlot *loop_specs) {
+    if (PyArray_RUNTIME_VERSION < 0x15) {
+        return 0;  // no-op as function is not available.
+    }
+    return (*(int (*)(PyUFunc_LoopSlot *))PyUFunc_API[47])(loop_specs);
+}
+
+#endif
+
 
 namespace ml_dtypes {
 
