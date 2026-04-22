@@ -130,6 +130,21 @@ def test_real_imag_arrays(sctype):
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.xfail(
+  np.lib.NumpyVersion(np.__version__) < "2.5.0.dev0",
+  reason="2.5 introduced real and imag helpers."
+)
+def test_real_imag_arrays(sctype):
+  # Test ml_dtypes.real() and ml_dtypes.imag() helpers.
+  arr = np.array([1 + 2j, 3 + 4j], dtype=sctype)
+  real_part = ml_dtypes.real(arr)
+  imag_part = ml_dtypes.imag(arr)
+  expected_dtype = ml_dtypes.finfo(sctype).dtype  # the real one
+  assert real_part.dtype == imag_part.dtype == expected_dtype
+  np.testing.assert_array_equal(real_part, [1.0, 3.0])
+  np.testing.assert_array_equal(imag_part, [2.0, 4.0])
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 @pytest.mark.parametrize("value", COMPLEX_VALUES)
 def test_str_repr(sctype, value):
   z = sctype(value)
