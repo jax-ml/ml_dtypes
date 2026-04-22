@@ -41,13 +41,6 @@ limitations under the License.
 #error "ml_dtypes dtype_compat.h requires NumPy >= 2.0"
 #endif
 
-#if NPY_TARGET_VERSION >= 0x15  // NUMPY_2_4_API_VERSION
-#define ARRFUNCS_OFFSET_FIX(v) (v)
-#else
-#define ARRFUNCS_OFFSET_FIX(v) \
-  (v) - (NPY_DT_PyArray_ArrFuncs_getitem) + 1 + (((PyArray_RUNTIME_VERSION >= 0x15) ? (1 << 11) : (1 << 10)))
-#endif
-
 namespace ml_dtypes {
 
 /*
@@ -71,121 +64,6 @@ static inline int TrivialStridedCopyLoop(PyArrayMethod_Context *context,
   }
   return 0;
 }
-
-/*
- * PyArrayInitDTypeMeta_FromSpec_WithLegacy
- *
- * Initialises a new-style user DType (via PyArrayInitDTypeMeta_FromSpec) while
- * also plumbing in legacy compatibility so that NumPy < 2.5 assigns a
- * type_num, singleton, and legacy flag.
- *
- * Algorithm (for NumPy 2.0 – 2.4):
- *
- *   Step 1 – Legacy registration (for type_num + singleton allocation):
- *     Temporarily replace proto->typeobj with &PyBaseObject_Type so that
- *     _PyArray_MapPyTypeToDType sees a non-generic type and hits the
- *     NPY_DT_is_legacy bail-out, meaning the auto-DTypeMeta created by
- *     PyArray_RegisterDataType is NOT inserted into the pytype-to-DType dict.
- *
- *   Step 2 – New-style init:
- *     PyArrayInitDTypeMeta_FromSpec sets up slots, casts, and the
- *     pytype-to-DType mapping for the real scalar type with no conflict.
- *
- *   Step 3 – Swap:
- *     Steal type_num + singleton from the old legacy registration and point
- *     the singleton at the user's new DType.  Set the legacy flag so NumPy
- *     uses legacy descriptor code paths where needed.
- *
- * If proto is NULL the function just forwards to PyArrayInitDTypeMeta_FromSpec.
- */
-#if NPY_TARGET_VERSION < 0x16 && NPY_TARGET_VERSION >=0x00000012
-#define _PyArrayInitDTypeMeta_FromSpec \
-    (*(int (*)(PyArray_DTypeMeta *, PyArrayDTypeMeta_Spec *))PyArray_API[362])
-#undef PyArrayInitDTypeMeta_FromSpec
-
-static inline int PyArrayInitDTypeMeta_FromSpec(
-    PyArray_DTypeMeta *DType, PyArrayDTypeMeta_Spec *spec) {
-  PyArray_DescrProto *proto = nullptr;
-  if (spec->slots[0].slot == 300) {
-      proto = reinterpret_cast<PyArray_DescrProto *>(spec->slots[0].pfunc);
-  }
-  if (proto == nullptr || PyArray_RUNTIME_VERSION >= 0x16) {
-    return _PyArrayInitDTypeMeta_FromSpec(DType, spec);
-  }
-
-  /*
-   * Step 1: Register old-style with a garbage typeobj so that
-   * _PyArray_MapPyTypeToDType does NOT add the auto-DTypeMeta to the
-   * pytype-to-DType dict (it bails out on NPY_DT_is_legacy for non-generic
-   * types), regardless of whether the real scalar subclasses np.generic.
-   */
-  PyArray_DescrProto new_proto = *proto;
-  new_proto.typeobj = &PyBaseObject_Type;
-  int typenum = PyArray_RegisterDataType(&new_proto);
-  if (typenum < 0) {
-    return -1;
-  }
-
-  /*
-   * Step 2: Initialise the user's DType with new-style slots and casts.
-   * type_num stays at -1 / 0 for now; we fix it in step 3.
-   */
-   PyArrayDTypeMeta_Spec new_spec = *spec;
-   new_spec.slots = &spec->slots[1];  // skip proto slot.
-   if (_PyArrayInitDTypeMeta_FromSpec(DType, &new_spec) < 0) {
-    return -1;
-  }
-
-  /*
-   * Step 3: Steal the singleton descriptor and type_num from the legacy
-   * registration.  Point the descriptor's Python type at the user's DType
-   * and fix up its typeobj field (which we temporarily set to PyBaseObject_Type
-   * in step 1).
-   */
-  PyArray_Descr *descr = PyArray_DescrFromType(typenum);
-  if (descr == nullptr) {
-    return -1;
-  }
-
-  /* Save the auto-DTypeMeta so we can decref it after the swap. */
-  PyObject *old_meta = reinterpret_cast<PyObject *>(Py_TYPE(descr));
-
-  DType->type_num = typenum;
-  /* PyArray_DescrFromType returns a new reference; transfer ownership. */
-  DType->singleton = descr;
-  /* Set the legacy flag (bit 0 == _NPY_DT_LEGACY_FLAG) so NumPy uses legacy
-   * code paths (copyswap, ArrFuncs, etc.) where the new-style API doesn't
-   * cover them yet. */
-  DType->flags |= 1;
-
-  /* Re-type the descriptor so it belongs to the user's DType class. */
-  Py_INCREF(reinterpret_cast<PyObject *>(DType));
-  Py_SET_TYPE(descr, reinterpret_cast<PyTypeObject *>(DType));
-  Py_DECREF(old_meta);
-
-  /* Fix the descriptor's scalar-type field (it was set to PyBaseObject_Type
-   * in step 1 by PyArray_RegisterDataType copying proto->typeobj). */
-  Py_INCREF(proto->typeobj);
-  Py_XDECREF(descr->typeobj);
-  descr->typeobj = proto->typeobj;
-
-  /*
-   * Patch copyswap/copyswapn into the new DType's legacy f-slots.
-   *
-   * copyswap and copyswapn are disabled as public NPY_DT_PyArray_ArrFuncs_*
-   * spec slots (commented out in dtype_api.h), so dtypemeta_initialize_struct_
-   * from_spec leaves them as stubs from default_funcs.  PyArray_Scalar and
-   * other legacy paths call copyswap directly, so we must fill it in.
-   */
-  if (proto->f != nullptr) {
-    PyArray_ArrFuncs *f = _PyDataType_GetArrFuncs(descr);
-    f->copyswap = proto->f->copyswap;
-    f->copyswapn = proto->f->copyswapn;
-  }
-
-  return 0;
-}
-#endif
 
 }  // namespace ml_dtypes
 

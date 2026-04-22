@@ -1019,6 +1019,15 @@ static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
 }
 
 template <typename T>
+static PyObject* NPyCustomComplex_DTypeRepr(PyObject* /*self*/) {
+  return PyUnicode_FromFormat("dtype(%s)", TypeDescriptor<T>::kTypeName);
+}
+template <typename T>
+static PyObject* NPyCustomComplex_DTypeStr(PyObject* /*self*/) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
+template <typename T>
 bool RegisterComplexDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
   // the base type directly when dropping Python 3.9 support.
@@ -1064,13 +1073,14 @@ bool RegisterComplexDtype(PyObject* numpy) {
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
   descr_proto.f = &arr_funcs;
 
-  // Set up the DTypeMeta.
   PyArray_DTypeMeta& dm = CustomComplexType<T>::dtype_meta;
   Py_SET_REFCNT(&dm, 1);
   auto* tp = reinterpret_cast<PyTypeObject*>(&dm);
   tp->tp_name = TypeDescriptor<T>::kTypeName;
   tp->tp_base = &PyArrayDescr_Type;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
+  tp->tp_repr = NPyCustomComplex_DTypeRepr<T>;
+  tp->tp_str  = NPyCustomComplex_DTypeStr<T>;
   if (PyType_Ready(tp) < 0) {
     return false;
   }
@@ -1096,7 +1106,8 @@ bool RegisterComplexDtype(PyObject* numpy) {
 
   // Build the new-style DType spec.
   PyType_Slot dtype_slots[] = {
-      {300, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_legacy_descriptor_proto,
+       reinterpret_cast<void*>(&descr_proto)},
       {NPY_DT_getitem,
        reinterpret_cast<void*>(NPyCustomComplex_NewStyleGetItem<T>)},
       {NPY_DT_setitem,
@@ -1107,15 +1118,15 @@ bool RegisterComplexDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyCustomComplex_DefaultDescr<T>)},
       {NPY_DT_common_dtype,
        reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_getitem),
+      {NPY_DT_PyArray_ArrFuncs_getitem,
        reinterpret_cast<void*>(NPyCustomComplex_GetItem<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_setitem),
+      {NPY_DT_PyArray_ArrFuncs_setitem,
        reinterpret_cast<void*>(NPyCustomComplex_SetItem<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_nonzero),
+      {NPY_DT_PyArray_ArrFuncs_nonzero,
        reinterpret_cast<void*>(NPyCustomComplex_NonZero<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_dotfunc),
+      {NPY_DT_PyArray_ArrFuncs_dotfunc,
        reinterpret_cast<void*>(NPyCustomComplex_DotFunc<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_compare),
+      {NPY_DT_PyArray_ArrFuncs_compare,
        reinterpret_cast<void*>(NPyCustomComplex_CompareFunc<T>)},
       {0, nullptr}};
   PyArrayDTypeMeta_Spec dtype_spec;

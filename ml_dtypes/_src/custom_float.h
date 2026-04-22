@@ -983,6 +983,15 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
 }
 
 template <typename T>
+static PyObject* NPyCustomFloat_DTypeRepr(PyObject* /*self*/) {
+  return PyUnicode_FromFormat("dtype(%s)", TypeDescriptor<T>::kTypeName);
+}
+template <typename T>
+static PyObject* NPyCustomFloat_DTypeStr(PyObject* /*self*/) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
+template <typename T>
 bool RegisterFloatDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
   // the base type directly when dropping Python 3.9 support.
@@ -1028,15 +1037,14 @@ bool RegisterFloatDtype(PyObject* numpy) {
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
   descr_proto.f = &arr_funcs;
 
-  // Set up the DTypeMeta.  It must subclass PyArrayDescr_Type and have a
-  // metaclass of PyArrayDTypeMeta_Type (inherited via PyType_Ready from
-  // PyArrayDescr_Type.ob_type).
   PyArray_DTypeMeta& dm = CustomFloatType<T>::dtype_meta;
   Py_SET_REFCNT(&dm, 1);
   auto* tp = reinterpret_cast<PyTypeObject*>(&dm);
   tp->tp_name = TypeDescriptor<T>::kTypeName;
   tp->tp_base = &PyArrayDescr_Type;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
+  tp->tp_repr = NPyCustomFloat_DTypeRepr<T>;
+  tp->tp_str  = NPyCustomFloat_DTypeStr<T>;
   if (PyType_Ready(tp) < 0) {
     return false;
   }
@@ -1062,7 +1070,8 @@ bool RegisterFloatDtype(PyObject* numpy) {
 
   // Build the new-style DType spec.
   PyType_Slot dtype_slots[] = {
-      {300, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_legacy_descriptor_proto,
+       reinterpret_cast<void*>(&descr_proto)},
       {NPY_DT_getitem,
        reinterpret_cast<void*>(NPyCustomFloat_NewStyleGetItem<T>)},
       {NPY_DT_setitem,
@@ -1073,21 +1082,21 @@ bool RegisterFloatDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyCustomFloat_DefaultDescr<T>)},
       {NPY_DT_common_dtype,
        reinterpret_cast<void*>(NPyCustomFloat_CommonDType<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_getitem),
+      {NPY_DT_PyArray_ArrFuncs_getitem,
        reinterpret_cast<void*>(NPyCustomFloat_GetItem<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_setitem),
+      {NPY_DT_PyArray_ArrFuncs_setitem,
        reinterpret_cast<void*>(NPyCustomFloat_SetItem<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_nonzero),
+      {NPY_DT_PyArray_ArrFuncs_nonzero,
        reinterpret_cast<void*>(NPyCustomFloat_NonZero<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_fill),
+      {NPY_DT_PyArray_ArrFuncs_fill,
        reinterpret_cast<void*>(NPyCustomFloat_Fill<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_dotfunc),
+      {NPY_DT_PyArray_ArrFuncs_dotfunc,
        reinterpret_cast<void*>(NPyCustomFloat_DotFunc<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_compare),
+      {NPY_DT_PyArray_ArrFuncs_compare,
        reinterpret_cast<void*>(NPyCustomFloat_CompareFunc<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_argmax),
+      {NPY_DT_PyArray_ArrFuncs_argmax,
        reinterpret_cast<void*>(NPyCustomFloat_ArgMaxFunc<T>)},
-      {ARRFUNCS_OFFSET_FIX(NPY_DT_PyArray_ArrFuncs_argmin),
+      {NPY_DT_PyArray_ArrFuncs_argmin,
        reinterpret_cast<void*>(NPyCustomFloat_ArgMinFunc<T>)},
       {0, nullptr}};
   PyArrayDTypeMeta_Spec dtype_spec;
