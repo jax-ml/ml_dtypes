@@ -25,8 +25,9 @@ limitations under the License.
 // clang-format on
 
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"  // NOLINT
-#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/_src/common.h"       // NOLINT
+#include "ml_dtypes/_src/dtype_compat.h" // NOLINT
+#include "ml_dtypes/_src/ufuncs.h"       // NOLINT
 #include "ml_dtypes/include/intn.h"
 
 #if NPY_ABI_VERSION < 0x02000000
@@ -56,6 +57,9 @@ struct IntNTypeDescriptor {
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
+
+  // New-style DType metaclass object.
+  static PyArray_DTypeMeta dtype_meta;
 };
 
 template <typename T>
@@ -66,6 +70,8 @@ template <typename T>
 PyArray_DescrProto IntNTypeDescriptor<T>::npy_descr_proto;
 template <typename T>
 PyArray_Descr* IntNTypeDescriptor<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta IntNTypeDescriptor<T>::dtype_meta = {};
 
 // Representation of a Python custom integer object.
 template <typename T>
@@ -774,6 +780,96 @@ bool RegisterIntNUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// ---------------------------------------------------------------------------
+// New-style DType slot functions for IntN types
+// ---------------------------------------------------------------------------
+
+template <typename T>
+static PyObject* NPyIntN_NewStyleGetItem(PyArray_Descr* /*descr*/, char* data) {
+  return NPyIntN_GetItem<T>(data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static int NPyIntN_NewStyleSetItem(PyArray_Descr* /*descr*/, PyObject* item,
+                                   char* data) {
+  return NPyIntN_SetItem<T>(item, data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static PyArray_Descr* NPyIntN_EnsureCanonical(PyArray_Descr* self) {
+  Py_INCREF(self);
+  return self;
+}
+
+template <typename T>
+static PyArray_Descr* NPyIntN_DefaultDescr(PyArray_DTypeMeta* cls) {
+  Py_INCREF(cls->singleton);
+  return cls->singleton;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
+                                              PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type.
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  else if (other == &PyArray_PyFloatDType) {
+    Py_INCREF(&PyArray_DoubleDType);
+    return &PyArray_DoubleDType;
+  }
+  else if (other == &PyArray_PyComplexDType) {
+    Py_INCREF(&PyArray_CDoubleDType);
+    return &PyArray_CDoubleDType;
+  }
+
+  // Our intN types are smaller than every NumPy built-in except bool.
+  if (other->type_num == NPY_BOOL) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if (!PyTypeNum_ISUSERDEF(other->type_num)) {
+    Py_INCREF(other);
+    return other;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Another custom int: lower type_num defers (swapping will work).
+  if (other == &IntNTypeDescriptor<int1>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint1>::dtype_meta ||
+      other == &IntNTypeDescriptor<int2>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint2>::dtype_meta ||
+      other == &IntNTypeDescriptor<int4>::dtype_meta ||
+      other == &IntNTypeDescriptor<uint4>::dtype_meta) {
+    if (cls->type_num < other->type_num) {
+      Py_INCREF(Py_NotImplemented);
+      return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+    }
+    // No cross-custom-int safe casts are registered; int16 contains all.
+    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_Int16DType));
+    return &PyArray_Int16DType;
+  }
+
+  // Custom float or custom complex: swapping will work (NPyCustomFloat handles
+  // float+int, NPyCustomComplex handles complex+int).
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
+template <typename T>
+static PyObject* NPyIntN_DTypeRepr(PyObject* /*self*/) {
+  return PyUnicode_FromFormat("dtype(%s)", TypeDescriptor<T>::kTypeName);
+}
+template <typename T>
+static PyObject* NPyIntN_DTypeStr(PyObject* /*self*/) {
+  return PyUnicode_FromString(TypeDescriptor<T>::kTypeName);
+}
+
 template <typename T>
 bool RegisterIntNDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
@@ -799,7 +895,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
     return false;
   }
 
-  // Initializes the NumPy descriptor.
+  // Initializes the NumPy ArrFuncs (used by legacy code paths after the swap).
   PyArray_ArrFuncs& arr_funcs = IntNTypeDescriptor<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
   arr_funcs.getitem = NPyIntN_GetItem<T>;
@@ -814,22 +910,87 @@ bool RegisterIntNDtype(PyObject* numpy) {
   arr_funcs.argmax = NPyIntN_ArgMaxFunc<T>;
   arr_funcs.argmin = NPyIntN_ArgMinFunc<T>;
 
-  // This is messy, but that's because the NumPy 2.0 API transition is messy.
-  // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
-  // RegisterDataType alive, because it stores its pointer.
-  // After 2.0, the proto and descriptor types diverge, and NumPy allocates
-  // and manages the lifetime of the descriptor itself.
+  // Prepare the legacy proto.
   PyArray_DescrProto& descr_proto = IntNTypeDescriptor<T>::npy_descr_proto;
   descr_proto = GetIntNDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
+  descr_proto.f = &arr_funcs;
 
-  TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (TypeDescriptor<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = IntNTypeDescriptor<T>::dtype_meta;
+  Py_SET_REFCNT(&dm, 1);
+  auto* tp = reinterpret_cast<PyTypeObject*>(&dm);
+  tp->tp_name = TypeDescriptor<T>::kTypeName;
+  tp->tp_base = &PyArrayDescr_Type;
+  tp->tp_flags = Py_TPFLAGS_DEFAULT;
+  tp->tp_repr = NPyIntN_DTypeRepr<T>;
+  tp->tp_str  = NPyIntN_DTypeStr<T>;
+  if (PyType_Ready(tp) < 0) {
     return false;
   }
-  // TODO(phawkins): We intentionally leak the pointer to the descriptor.
-  // Implement a better module destructor to handle this.
+
+  // Build the within-dtype self-cast spec.
+  PyArray_DTypeMeta* self_cast_dtypes[2] = {nullptr, nullptr};
+  PyType_Slot self_cast_slots[] = {
+      {NPY_METH_strided_loop,
+       reinterpret_cast<void*>(TrivialStridedCopyLoop)},
+      {NPY_METH_unaligned_strided_loop,
+       reinterpret_cast<void*>(TrivialStridedCopyLoop)},
+      {0, nullptr}};
+  PyArrayMethod_Spec self_cast_spec;
+  self_cast_spec.name = "copy";
+  self_cast_spec.nin = 1;
+  self_cast_spec.nout = 1;
+  self_cast_spec.casting = NPY_NO_CASTING;
+  self_cast_spec.flags = static_cast<NPY_ARRAYMETHOD_FLAGS>(
+      NPY_METH_SUPPORTS_UNALIGNED | NPY_METH_NO_FLOATINGPOINT_ERRORS);
+  self_cast_spec.dtypes = self_cast_dtypes;
+  self_cast_spec.slots = self_cast_slots;
+  PyArrayMethod_Spec* casts[] = {&self_cast_spec, nullptr};
+
+  // Build the new-style DType spec.
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto,
+       reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem,
+       reinterpret_cast<void*>(NPyIntN_NewStyleGetItem<T>)},
+      {NPY_DT_setitem,
+       reinterpret_cast<void*>(NPyIntN_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical,
+       reinterpret_cast<void*>(NPyIntN_EnsureCanonical<T>)},
+      {NPY_DT_default_descr,
+       reinterpret_cast<void*>(NPyIntN_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
+      {NPY_DT_PyArray_ArrFuncs_getitem,
+       reinterpret_cast<void*>(NPyIntN_GetItem<T>)},
+      {NPY_DT_PyArray_ArrFuncs_setitem,
+       reinterpret_cast<void*>(NPyIntN_SetItem<T>)},
+      {NPY_DT_PyArray_ArrFuncs_nonzero,
+       reinterpret_cast<void*>(NPyIntN_NonZero<T>)},
+      {NPY_DT_PyArray_ArrFuncs_fill,
+       reinterpret_cast<void*>(NPyIntN_Fill<T>)},
+      {NPY_DT_PyArray_ArrFuncs_dotfunc,
+       reinterpret_cast<void*>(NPyIntN_DotFunc<T>)},
+      {NPY_DT_PyArray_ArrFuncs_compare,
+       reinterpret_cast<void*>(NPyIntN_CompareFunc<T>)},
+      {NPY_DT_PyArray_ArrFuncs_argmax,
+       reinterpret_cast<void*>(NPyIntN_ArgMaxFunc<T>)},
+      {NPY_DT_PyArray_ArrFuncs_argmin,
+       reinterpret_cast<void*>(NPyIntN_ArgMinFunc<T>)},
+      {0, nullptr}};
+  PyArrayDTypeMeta_Spec dtype_spec;
+  dtype_spec.typeobj = reinterpret_cast<PyTypeObject*>(type);
+  dtype_spec.flags = 0;
+  dtype_spec.casts = casts;
+  dtype_spec.slots = dtype_slots;
+  dtype_spec.baseclass = nullptr;
+
+  if (PyArrayInitDTypeMeta_FromSpec(&dm, &dtype_spec) < 0) {
+    return false;
+  }
+  TypeDescriptor<T>::npy_type = dm.type_num;
+
   IntNTypeDescriptor<T>::npy_descr =
       PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
 
