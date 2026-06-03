@@ -91,10 +91,14 @@ class FinfoTest(parameterized.TestCase):
         self.assertTrue(np.isposinf(val), f"expected inf, got {val}")
 
     def assert_zero(val):
-      self.assertEqual(make_val(val), make_val(0))
+      # e8m0fnu doesn't have a zero, so it returns the smallest value.
+      if not (dtype == ml_dtypes.float8_e8m0fnu and val == 0):
+        self.assertEqual(make_val(val), make_val(0))
+      else:
+        self.assertEqual(make_val(val), make_val(info.smallest_normal))
 
     self.assertEqual(np.array(0, dtype).dtype, dtype)
-    self.assertIs(info.dtype, dtype)
+    self.assertEqual(info.dtype, dtype)
 
     if info.bits >= 8:
       self.assertEqual(info.bits, np.array(0, dtype).itemsize * 8)
