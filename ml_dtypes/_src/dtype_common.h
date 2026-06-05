@@ -218,7 +218,7 @@ inline int InitDTypeFromSlots(PyArray_DTypeMeta* dm, PyTypeObject* scalar_type,
 
   PyArrayDTypeMeta_Spec dtype_spec;
   dtype_spec.typeobj = scalar_type;
-  dtype_spec.flags = 0;
+  dtype_spec.flags = NPY_DT_NUMERIC;
   dtype_spec.casts = casts;
   dtype_spec.slots = slots;
   dtype_spec.baseclass = nullptr;
