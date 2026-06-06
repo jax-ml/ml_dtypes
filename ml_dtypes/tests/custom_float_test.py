@@ -266,8 +266,9 @@ class CustomFloatTest(parameterized.TestCase):
     x = np.arange(10, dtype=float_type)
     serialized = pickle.dumps(x)
     x_out = pickle.loads(serialized)
+    # NumPy 2.5+ could rely on NaNs working and not cast to floa32
     self.assertEqual(x_out.dtype, x.dtype)
-    np.testing.assert_array_equal(x_out, x)
+    np.testing.assert_array_equal(x_out.astype("float32"), x.astype("float32"))
 
   def testRoundTripToFloat(self, float_type):
     for v in FLOAT_VALUES[float_type]:
@@ -663,7 +664,8 @@ class CustomFloatTest(parameterized.TestCase):
     # The swapped dtype is still the same custom type, just a different order.
     self.assertIs(swapped_dt.type, float_type)
 
-    arr = np.arange(0, 100).astype(float_type)
+    # NumPy 2.5+ we could rely on NaNs working and use a larger range
+    arr = np.arange(1, 31).astype(float_type)
     swapped = arr.astype(swapped_dt)
     self.assertIs(swapped.dtype.type, float_type)
 
