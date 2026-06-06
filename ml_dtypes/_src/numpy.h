@@ -22,6 +22,8 @@ limitations under the License.
 
 // Disallow Numpy 1.7 deprecated symbols.
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#define NPY_TARGET_VERSION NPY_2_0_API_VERSION
+
 
 // We import_array in the ml_dtypes init function only.
 #define PY_ARRAY_UNIQUE_SYMBOL _ml_dtypes_numpy_api
@@ -37,6 +39,9 @@ limitations under the License.
 #include "numpy/arrayobject.h"
 #include "numpy/arrayscalars.h"
 #include "numpy/ufuncobject.h"
+
+// Needed to compile with NumPy < 2.5 (does nothing with newer NumPy)
+#include "npy_2_compat_new_dtypes.h"
 
 namespace ml_dtypes {
 
