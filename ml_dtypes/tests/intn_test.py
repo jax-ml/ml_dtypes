@@ -336,6 +336,100 @@ class ScalarTest(parameterized.TestCase):
     with np.errstate(invalid="ignore"):
       np.array(1e10).astype(scalar_type)
 
+  _INCOMPATIBLE_VALUES = [
+      None,
+      "string",
+      "",
+      {},
+      {"a": 1},
+      object(),
+  ]
+
+  @parameterized.product(
+      scalar_type=INTN_TYPES,
+      other=_INCOMPATIBLE_VALUES,
+      op=[operator.eq, operator.ne],
+  )
+  def testComparisonEqualityWithIncompatibleTypes(self, scalar_type, other, op):
+    val = scalar_type(0)
+    equiv_type = np.int32 if scalar_type in [int1, int2, int4] else np.uint32
+    equiv_val = equiv_type(0)
+    self.assertEqual(
+        op(val, other),
+        op(equiv_val, other),
+        msg=f"EQ/NE: {scalar_type.__name__} vs {type(other).__name__}",
+    )
+    self.assertEqual(
+        op(other, val),
+        op(other, equiv_val),
+        msg=(
+            f"Reflected EQ/NE: {type(other).__name__} vs {scalar_type.__name__}"
+        ),
+    )
+
+  @parameterized.product(
+      scalar_type=INTN_TYPES,
+      other=_INCOMPATIBLE_VALUES,
+      op=[operator.lt, operator.le, operator.gt, operator.ge],
+  )
+  def testComparisonOrderingWithIncompatibleTypes(self, scalar_type, other, op):
+    val = scalar_type(0)
+    equiv_type = np.int32 if scalar_type in [int1, int2, int4] else np.uint32
+    equiv_val = equiv_type(0)
+    # Check if equiv_val raises TypeError
+    try:
+      op(equiv_val, other)
+      equiv_raises = False
+    except TypeError:
+      equiv_raises = True
+
+    if equiv_raises:
+      with self.assertRaises(
+          TypeError, msg=f"{val} {op.__name__} {repr(other)}"
+      ):
+        op(val, other)
+    else:
+      self.assertEqual(op(val, other), op(equiv_val, other))
+
+    # Reflected ordering
+    try:
+      op(other, equiv_val)
+      equiv_reflected_raises = False
+    except TypeError:
+      equiv_reflected_raises = True
+
+    if equiv_reflected_raises:
+      with self.assertRaises(
+          TypeError, msg=f"{repr(other)} {op.__name__} {val}"
+      ):
+        op(other, val)
+    else:
+      self.assertEqual(op(other, val), op(other, equiv_val))
+
+  @parameterized.product(
+      scalar_type=INTN_TYPES,
+      seq=[
+          [],
+          [0, 1],
+          (0, 1),
+          np.array([0, 1]),
+      ],
+      op=[
+          operator.eq,
+          operator.ne,
+          operator.lt,
+          operator.le,
+          operator.gt,
+          operator.ge,
+      ],
+  )
+  def testComparisonWithSequences(self, scalar_type, seq, op):
+    val = scalar_type(0)
+    equiv_type = np.int32 if scalar_type in [int1, int2, int4] else np.uint32
+    equiv_val = equiv_type(0)
+    np.testing.assert_array_equal(op(val, seq), op(equiv_val, seq))
+    np.testing.assert_array_equal(op(seq, val), op(seq, equiv_val))
+
 
 # Tests for the Python scalar type
 @multi_threaded(num_workers=3, skip_tests=["testBinaryUfuncs"])

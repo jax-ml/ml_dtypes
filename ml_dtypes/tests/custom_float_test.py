@@ -19,6 +19,7 @@ import contextlib
 import copy
 import itertools
 import math
+import operator
 import pickle
 import sys
 from typing import Type
@@ -655,6 +656,98 @@ class CustomFloatTest(parameterized.TestCase):
     else:
       # 8-bit types should be unchanged
       self.assertEqual(original_bytes, swapped.tobytes())
+
+_INCOMPATIBLE_VALUES = [
+    None,
+    "string",
+    "",
+    {},
+    {"a": 1},
+    object(),
+]
+
+
+class CustomFloatComparisonTest(parameterized.TestCase):
+
+  @parameterized.product(
+      float_type=FLOAT_DTYPES,
+      other=_INCOMPATIBLE_VALUES,
+      op=[operator.eq, operator.ne],
+  )
+  def testComparisonEqualityWithIncompatibleTypes(self, float_type, other, op):
+    val = float_type(1.0)
+    equiv_val = np.float32(1.0)
+    self.assertEqual(
+        op(val, other),
+        op(equiv_val, other),
+        msg=f"EQ/NE: {float_type.__name__} vs {type(other).__name__}",
+    )
+    self.assertEqual(
+        op(other, val),
+        op(other, equiv_val),
+        msg=f"Reflected EQ/NE: {type(other).__name__} vs {float_type.__name__}",
+    )
+
+  @parameterized.product(
+      float_type=FLOAT_DTYPES,
+      other=_INCOMPATIBLE_VALUES,
+      op=[operator.lt, operator.le, operator.gt, operator.ge],
+  )
+  def testComparisonOrderingWithIncompatibleTypes(self, float_type, other, op):
+    val = float_type(1.0)
+    equiv_val = np.float32(1.0)
+    # Check if equiv_val raises TypeError
+    try:
+      op(equiv_val, other)
+      equiv_raises = False
+    except TypeError:
+      equiv_raises = True
+
+    if equiv_raises:
+      with self.assertRaises(
+          TypeError, msg=f"{val} {op.__name__} {repr(other)}"
+      ):
+        op(val, other)
+    else:
+      self.assertEqual(op(val, other), op(equiv_val, other))
+
+    # Reflected ordering
+    try:
+      op(other, equiv_val)
+      equiv_reflected_raises = False
+    except TypeError:
+      equiv_reflected_raises = True
+
+    if equiv_reflected_raises:
+      with self.assertRaises(
+          TypeError, msg=f"{repr(other)} {op.__name__} {val}"
+      ):
+        op(other, val)
+    else:
+      self.assertEqual(op(other, val), op(other, equiv_val))
+
+  @parameterized.product(
+      float_type=FLOAT_DTYPES,
+      seq=[
+          [],
+          [1.0, 2.0],
+          (1.0, 2.0),
+          np.array([1.0, 2.0]),
+      ],
+      op=[
+          operator.eq,
+          operator.ne,
+          operator.lt,
+          operator.le,
+          operator.gt,
+          operator.ge,
+      ],
+  )
+  def testComparisonWithSequences(self, float_type, seq, op):
+    val = float_type(1.0)
+    equiv_val = np.float32(1.0)
+    np.testing.assert_array_equal(op(val, seq), op(equiv_val, seq))
+    np.testing.assert_array_equal(op(seq, val), op(seq, equiv_val))
 
 
 BinaryOp = collections.namedtuple("BinaryOp", ["op"])

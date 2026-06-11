@@ -336,6 +336,11 @@ PyObject* PyCustomComplex_RichCompare(PyObject* a, PyObject* b, int op) {
   T x, y;
   if (!SafeCastToCustomComplex<T>(a, &x) ||
       !SafeCastToCustomComplex<T>(b, &y)) {
+    if ((op == Py_EQ || op == Py_NE) &&
+        (PyUnicode_Check(b) || PyBytes_Check(b) ||
+         (!PyNumber_Check(b) && !PyArray_Check(b) && !PySequence_Check(b)))) {
+      Py_RETURN_NOTIMPLEMENTED;
+    }
     return PyGenericArrType_Type.tp_richcompare(a, b, op);
   }
   bool result;

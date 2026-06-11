@@ -472,3 +472,87 @@ def test_dot_product(sctype):
   result = np.dot(x, y)
   expected = np.dot(x.astype(np.complex64), y.astype(np.complex64))
   np.testing.assert_allclose(complex(result), complex(expected), rtol=1e-2)
+
+
+_INCOMPATIBLE_VALUES = [
+    None,
+    "string",
+    "",
+    {},
+    {"a": 1},
+    object(),
+]
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("other", _INCOMPATIBLE_VALUES)
+@pytest.mark.parametrize("op", [operator.eq, operator.ne])
+def test_comparison_equality_with_incompatible_types(sctype, other, op):
+  val = sctype(1 + 1j)
+  equiv_val = np.complex64(1 + 1j)
+  assert op(val, other) == op(equiv_val, other)
+  assert op(other, val) == op(other, equiv_val)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("other", _INCOMPATIBLE_VALUES)
+@pytest.mark.parametrize(
+    "op", [operator.lt, operator.le, operator.gt, operator.ge]
+)
+def test_comparison_ordering_with_incompatible_types(sctype, other, op):
+  val = sctype(1 + 1j)
+  equiv_val = np.complex64(1 + 1j)
+
+  # Check if equiv_val raises TypeError
+  try:
+    op(equiv_val, other)
+    equiv_raises = False
+  except TypeError:
+    equiv_raises = True
+
+  if equiv_raises:
+    with pytest.raises(TypeError):
+      op(val, other)
+  else:
+    assert op(val, other) == op(equiv_val, other)
+
+  # Reflected ordering
+  try:
+    op(other, equiv_val)
+    equiv_reflected_raises = False
+  except TypeError:
+    equiv_reflected_raises = True
+
+  if equiv_reflected_raises:
+    with pytest.raises(TypeError):
+      op(other, val)
+  else:
+    assert op(other, val) == op(other, equiv_val)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize(
+    "seq",
+    [
+        [],
+        [1 + 1j, 2 + 2j],
+        (1 + 1j, 2 + 2j),
+        np.array([1 + 1j, 2 + 2j]),
+    ],
+)
+@pytest.mark.parametrize(
+    "op",
+    [
+        operator.eq,
+        operator.ne,
+        operator.lt,
+        operator.le,
+        operator.gt,
+        operator.ge,
+    ],
+)
+def test_comparison_with_sequences(sctype, seq, op):
+  val = sctype(1 + 1j)
+  equiv_val = np.complex64(1 + 1j)
+  np.testing.assert_array_equal(op(val, seq), op(equiv_val, seq))
+  np.testing.assert_array_equal(op(seq, val), op(seq, equiv_val))
