@@ -37,7 +37,11 @@ __all__ = [
     "uint1",
     "uint2",
     "uint4",
+    "real",
+    "imag",
 ]
+
+import warnings as _warnings
 
 from ml_dtypes._finfo import finfo
 from ml_dtypes._iinfo import iinfo
@@ -84,6 +88,46 @@ uint4: type[_np.generic]
 bcomplex32: type[_np.generic]
 complex32: type[_np.generic]
 
+# Augment the C++ extension's terse docstring with a clearer class summary.
+bcomplex32.__doc__ = (
+    "complex<bfloat16>: a 4-byte complex number pairing two bfloat16\n"
+    "halves (real + imaginary), exposed as an ml_dtypes extension dtype.\n\n"
+    "WARNING: NumPy does not natively understand this custom complex dtype.\n"
+    "On NumPy <2.5, arr.real / arr.imag are SILENTLY wrong; use\n"
+    "ml_dtypes.real() / ml_dtypes.imag() instead (NumPy 2.5+ fixes them).\n\n"
+    "These complex-aware builtins also do NOT recognize this dtype on ANY\n"
+    "NumPy version -- cast to np.complex64 first, or use the workaround:\n"
+    "  np.vdot(a,b)      -> np.dot(np.conjugate(a), b)\n"
+    "  np.linalg.norm(a) -> np.linalg.norm(a.astype(np.complex64))\n"
+    "  np.iscomplex(a)   -> ml_dtypes.imag(a) != 0\n"
+    "  np.angle(a)       -> np.arctan2(ml_dtypes.imag(a), ml_dtypes.real(a))\n"
+    "  np.linalg.det/inv -> cast to np.complex64 first (else they raise)\n"
+    "np.abs, conjugate, arithmetic, reductions, np.dot/inner/outer, casts OK."
+)
+
+
+def _warn_old_numpy(fn_name: str) -> None:
+  """Emit a RuntimeWarning on NumPy <2.5.
+
+  On NumPy <2.5, arr.real / arr.imag return silently incorrect results for
+  ml_dtypes complex arrays (bcomplex32, complex32). This helper itself is
+  correct; the warning steers users away from arr.real/arr.imag and toward
+  upgrading to NumPy 2.5+.
+
+  Args:
+    fn_name: The public function name (``"real"`` or ``"imag"``) to include
+      in the warning message so callers can identify which helper fired it.
+  """
+  if _np.lib.NumpyVersion(_np.__version__) < "2.5.0.dev0":
+    _warnings.warn(
+        f"NumPy <2.5 miscomputes arr.real/arr.imag for ml_dtypes complex "
+        f"arrays; this ml_dtypes.{fn_name}() call is correct, but prefer "
+        "upgrading to NumPy 2.5+.",
+        RuntimeWarning,
+        # 1 = _warn_old_numpy, 2 = real/imag, 3 = user's call site
+        stacklevel=3,
+    )
+
 
 def real(x: _np.ndarray) -> _np.ndarray:
   """Return the real part of a complex array.
@@ -92,12 +136,16 @@ def real(x: _np.ndarray) -> _np.ndarray:
   bcomplex32 or complex32. NumPy cannot correctly understand that these
   are complex dtypes as of NumPy 2.4 at least.
 
+  On NumPy <2.5, a ``RuntimeWarning`` is emitted because the legacy path
+  may produce incorrect results for ml_dtypes custom complex types.
+
   Args:
     x: The input array.
 
   Returns:
     The real part of the input array.
   """
+  _warn_old_numpy("real")
   if isinstance(x, _np.ndarray):
     # Use a view. We add an axes to ensure it is contiguous.
     if x.dtype.type is bcomplex32:
@@ -116,12 +164,16 @@ def imag(x: _np.ndarray) -> _np.ndarray:
   bcomplex32 or complex32. NumPy cannot correctly understand that these
   are complex dtypes as of NumPy 2.4 at least.
 
+  On NumPy <2.5, a ``RuntimeWarning`` is emitted because the legacy path
+  may produce incorrect results for ml_dtypes custom complex types.
+
   Args:
     x: The input array.
 
   Returns:
     The imaginary part of the input array.
   """
+  _warn_old_numpy("imag")
   if isinstance(x, _np.ndarray):
     # Use a view. We add an axes to ensure it is contiguous.
     if x.dtype.type is bcomplex32:
