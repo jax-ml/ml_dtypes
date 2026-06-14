@@ -41,8 +41,6 @@ __all__ = [
     "imag",
 ]
 
-import warnings as _warnings
-
 from ml_dtypes._finfo import finfo
 from ml_dtypes._iinfo import iinfo
 from ml_dtypes._ml_dtypes_ext import bcomplex32
@@ -106,29 +104,6 @@ bcomplex32.__doc__ = (
 )
 
 
-def _warn_old_numpy(fn_name: str) -> None:
-  """Emit a RuntimeWarning on NumPy <2.5.
-
-  On NumPy <2.5, arr.real / arr.imag return silently incorrect results for
-  ml_dtypes complex arrays (bcomplex32, complex32). This helper itself is
-  correct; the warning steers users away from arr.real/arr.imag and toward
-  upgrading to NumPy 2.5+.
-
-  Args:
-    fn_name: The public function name (``"real"`` or ``"imag"``) to include
-      in the warning message so callers can identify which helper fired it.
-  """
-  if _np.lib.NumpyVersion(_np.__version__) < "2.5.0.dev0":
-    _warnings.warn(
-        f"NumPy <2.5 miscomputes arr.real/arr.imag for ml_dtypes complex "
-        f"arrays; this ml_dtypes.{fn_name}() call is correct, but prefer "
-        "upgrading to NumPy 2.5+.",
-        RuntimeWarning,
-        # 1 = _warn_old_numpy, 2 = real/imag, 3 = user's call site
-        stacklevel=3,
-    )
-
-
 def real(x: _np.ndarray) -> _np.ndarray:
   """Return the real part of a complex array.
 
@@ -136,16 +111,12 @@ def real(x: _np.ndarray) -> _np.ndarray:
   bcomplex32 or complex32. NumPy cannot correctly understand that these
   are complex dtypes as of NumPy 2.4 at least.
 
-  On NumPy <2.5, a ``RuntimeWarning`` is emitted because the legacy path
-  may produce incorrect results for ml_dtypes custom complex types.
-
   Args:
     x: The input array.
 
   Returns:
     The real part of the input array.
   """
-  _warn_old_numpy("real")
   if isinstance(x, _np.ndarray):
     # Use a view. We add an axes to ensure it is contiguous.
     if x.dtype.type is bcomplex32:
@@ -164,16 +135,12 @@ def imag(x: _np.ndarray) -> _np.ndarray:
   bcomplex32 or complex32. NumPy cannot correctly understand that these
   are complex dtypes as of NumPy 2.4 at least.
 
-  On NumPy <2.5, a ``RuntimeWarning`` is emitted because the legacy path
-  may produce incorrect results for ml_dtypes custom complex types.
-
   Args:
     x: The input array.
 
   Returns:
     The imaginary part of the input array.
   """
-  _warn_old_numpy("imag")
   if isinstance(x, _np.ndarray):
     # Use a view. We add an axes to ensure it is contiguous.
     if x.dtype.type is bcomplex32:

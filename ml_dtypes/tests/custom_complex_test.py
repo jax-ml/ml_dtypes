@@ -17,7 +17,6 @@
 import operator
 import pickle
 import sys
-import warnings
 
 import ml_dtypes
 import numpy as np
@@ -122,12 +121,8 @@ def test_real_imag_scalars(sctype):
 def test_real_imag_arrays(sctype):
   # Test ml_dtypes.real() and ml_dtypes.imag() helpers.
   arr = np.array([1 + 2j, 3 + 4j], dtype=sctype)
-  # Suppress the NumPy <2.5 RuntimeWarning so pytest.ini's
-  # filterwarnings=error doesn't promote it to an exception.
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", RuntimeWarning)
-    real_part = ml_dtypes.real(arr)
-    imag_part = ml_dtypes.imag(arr)
+  real_part = ml_dtypes.real(arr)
+  imag_part = ml_dtypes.imag(arr)
   expected_dtype = ml_dtypes.finfo(sctype).dtype  # the real one
   assert real_part.dtype == imag_part.dtype == expected_dtype
   np.testing.assert_array_equal(real_part, [1.0, 3.0])
@@ -142,11 +137,8 @@ def test_real_imag_arrays(sctype):
 def test_real_imag_arrays_numpy25(sctype):
   # Test ml_dtypes.real() and ml_dtypes.imag() helpers (NumPy 2.5+ path).
   arr = np.array([1 + 2j, 3 + 4j], dtype=sctype)
-  # Suppress the NumPy <2.5 RuntimeWarning (test runs on 2.5+ but be safe).
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", RuntimeWarning)
-    real_part = ml_dtypes.real(arr)
-    imag_part = ml_dtypes.imag(arr)
+  real_part = ml_dtypes.real(arr)
+  imag_part = ml_dtypes.imag(arr)
   expected_dtype = ml_dtypes.finfo(sctype).dtype  # the real one
   assert real_part.dtype == imag_part.dtype == expected_dtype
   np.testing.assert_array_equal(real_part, [1.0, 3.0])
@@ -255,11 +247,8 @@ def test_cast_from_float(sctype, from_dtype):
   x = np.array([1.0, 2.0, 3.0], dtype=from_dtype)
   y = x.astype(sctype)
   assert y.dtype == sctype
-  # Suppress the NumPy <2.5 RuntimeWarning from ml_dtypes.real/imag.
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", RuntimeWarning)
-    real_part = ml_dtypes.real(y).astype(np.float32)
-    imag_part = ml_dtypes.imag(y).astype(np.float32)
+  real_part = ml_dtypes.real(y).astype(np.float32)
+  imag_part = ml_dtypes.imag(y).astype(np.float32)
   np.testing.assert_array_equal(real_part, x)
   np.testing.assert_array_equal(imag_part, 0.0)
 
@@ -409,18 +398,15 @@ def test_unary_ufuncs(sctype, ufunc):
 
   if sys.platform == "win32":
     mismatch = np.zeros(len(x), dtype=bool)
-    # Suppress the NumPy <2.5 RuntimeWarning from ml_dtypes.real/imag.
-    with warnings.catch_warnings():
-      warnings.simplefilter("ignore", RuntimeWarning)
-      if ufunc == np.cos:
-        # cos(1+infj) returns inf+infj instead of inf-infj
-        mismatch = (ml_dtypes.real(x) == 1.0) & (ml_dtypes.imag(x) == np.inf)
-      elif ufunc == np.sinh:
-        # sinh(+/-inf+0j) returns +/-inf+infj instead of +/-inf+0j
-        mismatch = np.isinf(ml_dtypes.real(x)) & (ml_dtypes.imag(x) == 0.0)
-      elif ufunc == np.cosh:
-        # cosh(-inf+0j) signs 0j wrong
-        mismatch = (ml_dtypes.real(x) == -np.inf) & (ml_dtypes.imag(x) == 0.0)
+    if ufunc == np.cos:
+      # cos(1+infj) returns inf+infj instead of inf-infj
+      mismatch = (ml_dtypes.real(x) == 1.0) & (ml_dtypes.imag(x) == np.inf)
+    elif ufunc == np.sinh:
+      # sinh(+/-inf+0j) returns +/-inf+infj instead of +/-inf+0j
+      mismatch = np.isinf(ml_dtypes.real(x)) & (ml_dtypes.imag(x) == 0.0)
+    elif ufunc == np.cosh:
+      # cosh(-inf+0j) signs 0j wrong
+      mismatch = (ml_dtypes.real(x) == -np.inf) & (ml_dtypes.imag(x) == 0.0)
     expected = expected[~mismatch]
     result = result[~mismatch]
 
@@ -473,10 +459,7 @@ def test_binary_ufuncs(sctype, ufunc):
 
   if ufunc == np.power:
     # TODO(seberg): std::power deals poorly with some values, drop for now.
-    # Suppress the NumPy <2.5 RuntimeWarning from ml_dtypes.real.
-    with warnings.catch_warnings():
-      warnings.simplefilter("ignore", RuntimeWarning)
-      x = x[(ml_dtypes.real(x) != 0) & np.isfinite(x)]
+    x = x[(ml_dtypes.real(x) != 0) & np.isfinite(x)]
 
   y = x[:, np.newaxis]
 
@@ -506,24 +489,3 @@ def test_dot_product(sctype):
   result = np.dot(x, y)
   expected = np.dot(x.astype(np.complex64), y.astype(np.complex64))
   np.testing.assert_allclose(complex(result), complex(expected), rtol=1e-2)
-
-
-@pytest.mark.parametrize(
-    "fn_name,fn", [("real", ml_dtypes.real), ("imag", ml_dtypes.imag)]
-)
-def test_real_imag_warning_on_old_numpy(fn_name, fn, monkeypatch):
-  """On NumPy <2.5, ml_dtypes.real/imag must emit RuntimeWarning naming the function."""
-  # Force the version check to think we're on old NumPy
-  monkeypatch.setattr(np, "__version__", "2.4.0")
-  arr = np.array([1 + 2j, 3 + 4j], dtype=ml_dtypes.bcomplex32)
-  with warnings.catch_warnings(record=True) as w:
-    warnings.simplefilter("always")
-    fn(arr)
-    assert len(w) == 1
-    assert issubclass(w[0].category, RuntimeWarning)
-    msg = str(w[0].message)
-    assert f"ml_dtypes.{fn_name}" in msg, (
-        f"warning should name ml_dtypes.{fn_name}, got: {msg}"
-    )
-    assert "miscomputes" in msg
-    assert "upgrading to NumPy" in msg
