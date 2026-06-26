@@ -37,6 +37,8 @@ __all__ = [
     "uint1",
     "uint2",
     "uint4",
+    "real",
+    "imag",
 ]
 
 from ml_dtypes._finfo import finfo
@@ -83,6 +85,23 @@ uint2: type[_np.generic]
 uint4: type[_np.generic]
 bcomplex32: type[_np.generic]
 complex32: type[_np.generic]
+
+# Augment the C++ extension's terse docstring with a clearer class summary.
+bcomplex32.__doc__ = (
+    "complex<bfloat16>: a 4-byte complex number pairing two bfloat16\n"
+    "halves (real + imaginary), exposed as an ml_dtypes extension dtype.\n\n"
+    "WARNING: NumPy does not natively understand this custom complex dtype.\n"
+    "On NumPy <2.5, arr.real / arr.imag are SILENTLY wrong; use\n"
+    "ml_dtypes.real() / ml_dtypes.imag() instead (NumPy 2.5+ fixes them).\n\n"
+    "These complex-aware builtins also do NOT recognize this dtype on ANY\n"
+    "NumPy version -- cast to np.complex64 first, or use the workaround:\n"
+    "  np.vdot(a,b)      -> np.dot(np.conjugate(a), b)\n"
+    "  np.linalg.norm(a) -> np.linalg.norm(a.astype(np.complex64))\n"
+    "  np.iscomplex(a)   -> ml_dtypes.imag(a) != 0\n"
+    "  np.angle(a)       -> np.arctan2(ml_dtypes.imag(a), ml_dtypes.real(a))\n"
+    "  np.linalg.det/inv -> cast to np.complex64 first (else they raise)\n"
+    "np.abs, conjugate, arithmetic, reductions, np.dot/inner/outer, casts OK."
+)
 
 
 def real(x: _np.ndarray) -> _np.ndarray:

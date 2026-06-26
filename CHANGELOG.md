@@ -25,6 +25,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Drop support for Python 3.9, which reached end-of-life in October 2025.
 * Drop support for NumPy < 1.24.
+* `arr.real` and `arr.imag` now return correct results for `bcomplex32` and
+  `complex32` arrays on NumPy 2.5+ ([#355](https://github.com/jax-ml/ml_dtypes/issues/355)).
 
 ## [0.5.4] - 2025-11-17
 
