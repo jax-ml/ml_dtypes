@@ -657,6 +657,7 @@ class CustomFloatTest(parameterized.TestCase):
       # 8-bit types should be unchanged
       self.assertEqual(original_bytes, swapped.tobytes())
 
+
 _INCOMPATIBLE_VALUES = [
     None,
     "string",
