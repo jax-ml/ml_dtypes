@@ -564,15 +564,7 @@ static PyModuleDef module_def = {
     "_ml_dtypes_ext",
 };
 
-// TODO(phawkins): PyMODINIT_FUNC handles visibility correctly in Python 3.9+.
-// Just use PyMODINIT_FUNC after dropping Python 3.8 support.
-#if defined(WIN32) || defined(_WIN32)
-#define EXPORT_SYMBOL __declspec(dllexport)
-#else
-#define EXPORT_SYMBOL __attribute__((visibility("default")))
-#endif
-
-extern "C" EXPORT_SYMBOL PyObject* PyInit__ml_dtypes_ext() {
+PyMODINIT_FUNC PyInit__ml_dtypes_ext() {
   Safe_PyObjectPtr m = make_safe(PyModule_Create(&module_def));
   if (!m) {
     return nullptr;
