@@ -23,14 +23,25 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-13
+
+* Added new 16-bit complex types: `ml_dtypes.complex32` (based on float16) and
+  `ml_dtypes.bcomplex32` (based on bfloat16) ([#351](https://github.com/jax-ml/ml_dtypes/pull/351)).
+* Added new 1-bit integer types: `ml_dtypes.int1` and `ml_dtypes.uint1`.
 * Added `__format__` method to custom float, complex, and integer types
   ([#341](https://github.com/jax-ml/ml_dtypes/issues/341)). Previously,
   formatting custom scalars (e.g. in f-strings) fell back to string formatting,
   which could truncate exponents or fail on numeric format specifiers.
+* `ml_dtypes.finfo` and `ml_dtypes.iinfo` now allow passing an array object to
+  their constructor ([#350](https://github.com/jax-ml/ml_dtypes/pull/350)).
+* Fixed equality comparison (`==`, `!=`) when comparing custom dtypes against
+  incompatible types like strings or `None`.
 * Dropped support for Python 3.9, which reached end-of-life in October 2025.
 * Dropped support for Python 3.13 free-threading, because cibuildwheel dropped support.
 * Dropped support for NumPy < 2.0.
 * Added support for Python 3.15.
+* Switched build system to `scikit-build-core` and CMake ([#361](https://github.com/jax-ml/ml_dtypes/pull/361)).
+* Updated Eigen dependency to v5.0.1.
 
 ## [0.5.4] - 2025-11-17
 
@@ -119,8 +130,9 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Initial release
 
-[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.4...HEAD
-[0.5.4]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.3....v0.5.4
+[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.4...v0.6.0
+[0.5.4]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.2....v0.5.3
 [0.5.2]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.1....v0.5.2
 [0.5.1]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.0....v0.5.1
