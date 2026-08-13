@@ -50,6 +50,7 @@ struct IntNTypeDescriptor {
   // registered by another system into NumPy.
   static PyObject* type_ptr;
 
+  static PyMethodDef methods[];
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
 
@@ -382,6 +383,30 @@ PyObject* PyIntN_RichCompare(PyObject* a, PyObject* b, int op) {
   PyArrayScalar_RETURN_BOOL_FROM_LONG(result);
 }
 
+// Format function for PyIntN.
+template <typename T>
+PyObject* PyIntN_Format(PyObject* self, PyObject* format_spec) {
+  if (!PyUnicode_Check(format_spec)) {
+    PyErr_Format(PyExc_TypeError, "__format__() argument 1 must be str, not %s",
+                 Py_TYPE(format_spec)->tp_name);
+    return nullptr;
+  }
+  PyObject* i = PyIntN_nb_int<T>(self);
+  if (!i) {
+    return nullptr;
+  }
+  PyObject* result = PyObject_Format(i, format_spec);
+  Py_DECREF(i);
+  return result;
+}
+
+template <typename T>
+PyMethodDef IntNTypeDescriptor<T>::methods[] = {
+    {"__format__", reinterpret_cast<PyCFunction>(PyIntN_Format<T>), METH_O,
+     "Format a custom integer value."},
+    {nullptr, nullptr, 0, nullptr},
+};
+
 template <typename T>
 PyType_Slot IntNTypeDescriptor<T>::type_slots[] = {
     {Py_tp_new, reinterpret_cast<void*>(PyIntN_tp_new<T>)},
@@ -391,6 +416,7 @@ PyType_Slot IntNTypeDescriptor<T>::type_slots[] = {
     {Py_tp_doc,
      reinterpret_cast<void*>(const_cast<char*>(TypeDescriptor<T>::kTpDoc))},
     {Py_tp_richcompare, reinterpret_cast<void*>(PyIntN_RichCompare<T>)},
+    {Py_tp_methods, reinterpret_cast<void*>(IntNTypeDescriptor<T>::methods)},
     {Py_nb_add, reinterpret_cast<void*>(PyIntN_nb_add<T>)},
     {Py_nb_subtract, reinterpret_cast<void*>(PyIntN_nb_subtract<T>)},
     {Py_nb_multiply, reinterpret_cast<void*>(PyIntN_nb_multiply<T>)},

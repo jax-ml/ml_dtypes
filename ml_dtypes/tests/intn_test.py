@@ -124,6 +124,20 @@ class ScalarTest(parameterized.TestCase):
       self.assertEqual(str(value), str(scalar_type(value)))
 
   @parameterized.product(scalar_type=INTN_TYPES)
+  def testFormat(self, scalar_type):
+    for value in VALUES[scalar_type]:
+      val = scalar_type(value)
+      self.assertEqual(f"{val}", f"{value}")
+      self.assertEqual(f"{val:d}", f"{value:d}")
+      self.assertEqual(f"{val:04d}", f"{value:04d}")
+      self.assertEqual(f"{val:x}", f"{value:x}")
+      self.assertEqual(f"{val:b}", f"{value:b}")
+      self.assertEqual(f"{val:o}", f"{value:o}")
+      self.assertEqual(f"{val:8d}", f"{value:8d}")
+      self.assertEqual(format(val, "x"), format(value, "x"))
+      self.assertEqual(format(val), format(value))
+
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testItem(self, scalar_type):
     v = -1 if scalar_type == int1 else 1
     self.assertIsInstance(scalar_type(v).item(), int)

@@ -483,10 +483,29 @@ PyObject* PyCustomComplex_Imag<complex32>(PyObject* self, PyObject*) {
   return scalar.release();
 }
 
+// Format function for PyCustomComplex.
+template <typename T>
+PyObject* PyCustomComplex_Format(PyObject* self, PyObject* format_spec) {
+  if (!PyUnicode_Check(format_spec)) {
+    PyErr_Format(PyExc_TypeError, "__format__() argument 1 must be str, not %s",
+                 Py_TYPE(format_spec)->tp_name);
+    return nullptr;
+  }
+  PyObject* c = PyCustomComplex_Complex<T>(self, nullptr);
+  if (!c) {
+    return nullptr;
+  }
+  PyObject* result = PyObject_Format(c, format_spec);
+  Py_DECREF(c);
+  return result;
+}
+
 template <typename T>
 PyMethodDef CustomComplexType<T>::methods[] = {
     {"__complex__", reinterpret_cast<PyCFunction>(PyCustomComplex_Complex<T>),
      METH_NOARGS, "Convert to Python complex"},
+    {"__format__", reinterpret_cast<PyCFunction>(PyCustomComplex_Format<T>),
+     METH_O, "Format a custom complex value."},
     {NULL, NULL, 0, NULL}};
 
 template <typename T>
