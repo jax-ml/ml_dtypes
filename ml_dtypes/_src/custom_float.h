@@ -42,10 +42,6 @@ limitations under the License.
                  // Possible this has to do with numpy.h being included before
                  // system headers and in bfloat16.{cc,h}?
 
-#if NPY_ABI_VERSION < 0x02000000
-#define PyArray_DescrProto PyArray_Descr
-#endif
-
 namespace ml_dtypes {
 
 template <typename T>
@@ -952,9 +948,5 @@ bool RegisterFloatDtype(PyObject* numpy) {
 }
 
 }  // namespace ml_dtypes
-
-#if NPY_ABI_VERSION < 0x02000000
-#undef PyArray_DescrProto
-#endif
 
 #endif  // ML_DTYPES_CUSTOM_FLOAT_H_

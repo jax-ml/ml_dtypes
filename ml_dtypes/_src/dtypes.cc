@@ -473,14 +473,10 @@ bool Initialize() {
     return false;
   }
 
-  Safe_PyObjectPtr exceptions;
-  if (PyObject_HasAttrString(numpy.get(), "exceptions")) {
-    exceptions = make_safe(PyObject_GetAttrString(numpy.get(), "exceptions"));
-    if (!exceptions) {
-      return false;
-    }
-  } else {
-    exceptions = make_safe(numpy.get());  // main module holds the objects.
+  Safe_PyObjectPtr exceptions =
+      make_safe(PyObject_GetAttrString(numpy.get(), "exceptions"));
+  if (!exceptions) {
+    return false;
   }
   ComplexWarning = PyObject_GetAttrString(exceptions.get(), "ComplexWarning");
   if (!ComplexWarning) {
