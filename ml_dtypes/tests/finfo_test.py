@@ -159,6 +159,40 @@ class FinfoTest(parameterized.TestCase):
     arr = np.zeros(1, dtype=dtype)
     self.assertEqual(ml_dtypes.finfo(arr).dtype, dtype)
 
+  @parameterized.parameters(
+      *ALL_DTYPES,
+      ml_dtypes.bcomplex32,
+      ml_dtypes.complex32,
+      np.float16,
+      np.float32,
+      np.float64,
+      np.complex64,
+      np.complex128,
+  )
+  def testStringVsNonStringIdentity(self, dtype):
+    info_from_type = ml_dtypes.finfo(dtype)
+    info_from_str = ml_dtypes.finfo(np.dtype(dtype).name)
+    info_from_dtype = ml_dtypes.finfo(np.dtype(dtype))
+    self.assertIs(info_from_str, info_from_type)
+    self.assertIs(info_from_dtype, info_from_type)
+
+  @parameterized.parameters(
+      (ml_dtypes.complex32, np.float16),
+      (ml_dtypes.bcomplex32, ml_dtypes.bfloat16),
+      (np.complex64, np.float32),
+      (np.complex128, np.float64),
+  )
+  def testComplexFinfo(self, complex_dtype, float_dtype):
+    complex_info = ml_dtypes.finfo(complex_dtype)
+    float_info = ml_dtypes.finfo(float_dtype)
+    self.assertEqual(complex_info.dtype, np.dtype(float_dtype))
+    self.assertEqual(complex_info.bits, float_info.bits)
+    self.assertEqual(complex_info.eps, float_info.eps)
+    self.assertEqual(complex_info.max, float_info.max)
+    self.assertEqual(complex_info.min, float_info.min)
+    arr = np.zeros(1, dtype=complex_dtype)
+    self.assertEqual(ml_dtypes.finfo(arr).dtype, np.dtype(float_dtype))
+
 
 if __name__ == "__main__":
   absltest.main()
