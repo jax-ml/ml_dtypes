@@ -45,12 +45,7 @@ float8_e5m2fnuz = ml_dtypes.float8_e5m2fnuz
 float8_e8m0fnu = ml_dtypes.float8_e8m0fnu
 
 
-try:
-  # numpy >= 2.0
-  ComplexWarning = np.exceptions.ComplexWarning
-except AttributeError:
-  # numpy < 2.0
-  ComplexWarning = np.ComplexWarning
+ComplexWarning = np.exceptions.ComplexWarning
 
 
 @contextlib.contextmanager

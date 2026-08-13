@@ -29,7 +29,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
   which could truncate exponents or fail on numeric format specifiers.
 * Dropped support for Python 3.9, which reached end-of-life in October 2025.
 * Dropped support for Python 3.13 free-threading, because cibuildwheel dropped support.
-* Dropped support for NumPy < 1.24.
+* Dropped support for NumPy < 2.0.
 * Added support for Python 3.15.
 
 ## [0.5.4] - 2025-11-17

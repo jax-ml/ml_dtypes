@@ -29,10 +29,6 @@ limitations under the License.
 #include "ml_dtypes/_src/ufuncs.h"  // NOLINT
 #include "ml_dtypes/include/intn.h"
 
-#if NPY_ABI_VERSION < 0x02000000
-#define PyArray_DescrProto PyArray_Descr
-#endif
-
 namespace ml_dtypes {
 
 constexpr char kOutOfRange[] = "out of range value cannot be converted to int4";
@@ -885,9 +881,5 @@ bool RegisterIntNDtype(PyObject* numpy) {
 }
 
 }  // namespace ml_dtypes
-
-#if NPY_ABI_VERSION < 0x02000000
-#undef PyArray_DescrProto
-#endif
 
 #endif  // ML_DTYPES_INT4_NUMPY_H_

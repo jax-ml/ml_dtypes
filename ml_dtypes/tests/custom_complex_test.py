@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 
 
-ComplexWarning = getattr(np, "exceptions", np).ComplexWarning
+ComplexWarning = np.exceptions.ComplexWarning
 
 
 COMPLEX_SCTYPES = [ml_dtypes.complex32, ml_dtypes.bcomplex32]
@@ -336,14 +336,7 @@ def test_unimplemented_binary_ufuncs(sctype, func):
         np.reciprocal,
         # Rounding
         np.rint,
-        # Sign
-        pytest.param(
-            np.sign,
-            marks=pytest.mark.xfail(
-                condition=np.__version__.startswith("1."),
-                reason="definition fixed 2.0",
-            ),
-        ),
+        np.sign,
         # Trigonometric
         np.sin,
         np.cos,
