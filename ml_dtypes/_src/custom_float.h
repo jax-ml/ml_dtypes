@@ -61,6 +61,7 @@ struct CustomFloatType {
   // registered by another system into NumPy.
   static PyObject* type_ptr;
 
+  static PyMethodDef methods[];
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
   static PyArray_ArrFuncs arr_funcs;
@@ -358,6 +359,30 @@ Py_hash_t PyCustomFloat_Hash(PyObject* self) {
   return HashImpl(&_Py_HashDouble, self, static_cast<double>(x));
 }
 
+// Format function for PyCustomFloat.
+template <typename T>
+PyObject* PyCustomFloat_Format(PyObject* self, PyObject* format_spec) {
+  if (!PyUnicode_Check(format_spec)) {
+    PyErr_Format(PyExc_TypeError, "__format__() argument 1 must be str, not %s",
+                 Py_TYPE(format_spec)->tp_name);
+    return nullptr;
+  }
+  PyObject* f = PyCustomFloat_Float<T>(self);
+  if (!f) {
+    return nullptr;
+  }
+  PyObject* result = PyObject_Format(f, format_spec);
+  Py_DECREF(f);
+  return result;
+}
+
+template <typename T>
+PyMethodDef CustomFloatType<T>::methods[] = {
+    {"__format__", reinterpret_cast<PyCFunction>(PyCustomFloat_Format<T>),
+     METH_O, "Format a custom float value."},
+    {nullptr, nullptr, 0, nullptr},
+};
+
 template <typename T>
 PyType_Slot CustomFloatType<T>::type_slots[] = {
     {Py_tp_new, reinterpret_cast<void*>(PyCustomFloat_New<T>)},
@@ -367,6 +392,7 @@ PyType_Slot CustomFloatType<T>::type_slots[] = {
     {Py_tp_doc,
      reinterpret_cast<void*>(const_cast<char*>(TypeDescriptor<T>::kTpDoc))},
     {Py_tp_richcompare, reinterpret_cast<void*>(PyCustomFloat_RichCompare<T>)},
+    {Py_tp_methods, reinterpret_cast<void*>(CustomFloatType<T>::methods)},
     {Py_nb_add, reinterpret_cast<void*>(PyCustomFloat_Add<T>)},
     {Py_nb_subtract, reinterpret_cast<void*>(PyCustomFloat_Subtract<T>)},
     {Py_nb_multiply, reinterpret_cast<void*>(PyCustomFloat_Multiply<T>)},

@@ -139,6 +139,19 @@ def test_str_repr(sctype, value):
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 @pytest.mark.parametrize("value", COMPLEX_VALUES)
+def test_format(sctype, value):
+  z = sctype(value)
+  c = complex(z)
+  assert f"{z}" == f"{c}"
+  assert f"{z:.2f}" == f"{c:.2f}"
+  assert f"{z:.4e}" == f"{c:.4e}"
+  assert f"{z:.8}" == f"{c:.8}"
+  assert format(z, ".3g") == format(c, ".3g")
+  assert format(z) == format(c)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("value", COMPLEX_VALUES)
 def test_hash(sctype, value):
   # Test that we hash the same as NumPy (except for NaN)
   if not np.isnan(value):

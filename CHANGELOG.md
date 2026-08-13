@@ -23,6 +23,10 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Added `__format__` method to custom float, complex, and integer types
+  ([#341](https://github.com/jax-ml/ml_dtypes/issues/341)). Previously,
+  formatting custom scalars (e.g. in f-strings) fell back to string formatting,
+  which could truncate exponents or fail on numeric format specifiers.
 * Dropped support for Python 3.9, which reached end-of-life in October 2025.
 * Dropped support for Python 3.13 free-threading, because cibuildwheel dropped support.
 * Dropped support for NumPy < 1.24.

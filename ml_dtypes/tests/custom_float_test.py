@@ -360,6 +360,18 @@ class CustomFloatTest(parameterized.TestCase):
           "%.6g" % float(float_type(value)), repr(float_type(value))
       )
 
+  def testFormat(self, float_type):
+    for value in FLOAT_VALUES[float_type]:
+      val = float_type(value)
+      f = float(val)
+      self.assertEqual(f"{val}", f"{f}")
+      self.assertEqual(f"{val:f}", f"{f:f}")
+      self.assertEqual(f"{val:.2f}", f"{f:.2f}")
+      self.assertEqual(f"{val:.4e}", f"{f:.4e}")
+      self.assertEqual(f"{val:.8}", f"{f:.8}")
+      self.assertEqual(format(val, ".3g"), format(f, ".3g"))
+      self.assertEqual(format(val), format(f))
+
   def testItem(self, float_type):
     self.assertIsInstance(float_type(0).item(), float)
 
