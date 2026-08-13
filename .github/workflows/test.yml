@@ -33,14 +33,16 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest"]
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15.0-rc.1"]
         freethreaded: [false, true]
         exclude:
-          - python-version: 3.10
+          - python-version: "3.10"
             freethreaded: true
-          - python-version: 3.11
+          - python-version: "3.11"
             freethreaded: true
-          - python-version: 3.12
+          - python-version: "3.12"
+            freethreaded: true
+          - python-version: "3.13"
             freethreaded: true
         include:
           - os: macos-14
@@ -72,6 +74,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded }}
+          allow-prereleases: true
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
