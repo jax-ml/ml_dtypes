@@ -17,9 +17,11 @@
 import collections
 import contextlib
 import copy
+import io
 import itertools
 import math
 import operator
+import os
 import pickle
 import sys
 from typing import Type
@@ -30,6 +32,11 @@ from absl.testing import parameterized
 import ml_dtypes
 from multi_thread_utils import multi_threaded
 import numpy as np
+
+
+def _using_new_dtype_api():
+  return os.environ.get("ML_DTYPES_USE_NEW_DTYPE_API") == "1"
+
 
 bfloat16 = ml_dtypes.bfloat16
 float4_e2m1fn = ml_dtypes.float4_e2m1fn
@@ -425,24 +432,34 @@ class CustomFloatTest(parameterized.TestCase):
   def testAddScalarTypePromotion(self, float_type):
     """Tests type promotion against Numpy scalar values."""
     types = [float_type, np.float16, np.float32, np.float64, np.longdouble]
+    if np.dtype(float_type).kind == "V":
+      next_fp = np.float32
+    else:
+      size = np.dtype(float_type).itemsize
+      next_fp = {1: np.float16, 2: np.float32, 4: np.float64}.get(
+          size, np.float32
+      )
     for lhs_type in types:
       for rhs_type in types:
         expected_type = numpy_promote_types(
             lhs_type,
             rhs_type,
             float_type=float_type,
-            next_largest_fp_type=np.float32,
+            next_largest_fp_type=next_fp,
         )
         actual_type = type(lhs_type(3.5) + rhs_type(2.25))
         self.assertEqual(expected_type, actual_type)
 
   def testAddArrayTypePromotion(self, float_type):
-    self.assertEqual(
-        np.float32, type(float_type(3.5) + np.array(2.25, np.float32))
-    )
-    self.assertEqual(
-        np.float32, type(np.array(3.5, np.float32) + float_type(2.25))
-    )
+    if np.dtype(float_type).kind == "V":
+      next_fp = np.float32
+    else:
+      size = np.dtype(float_type).itemsize
+      next_fp = {1: np.float16, 2: np.float32, 4: np.float64}.get(
+          size, np.float32
+      )
+    self.assertEqual(next_fp, type(float_type(3.5) + np.array(2.25, next_fp)))
+    self.assertEqual(next_fp, type(np.array(3.5, next_fp) + float_type(2.25)))
 
   def testSub(self, float_type):
     for a, b in [
@@ -627,7 +644,10 @@ class CustomFloatTest(parameterized.TestCase):
     dt = np.dtype(float_type)
     self.assertIs(dt.type, float_type)
     self.assertEqual(dt.name, name)
-    self.assertEqual(repr(dt), f"dtype({name})")
+    expected_repr = (
+        f"dtype('{name}')" if _using_new_dtype_api() else f"dtype({name})"
+    )
+    self.assertEqual(repr(dt), expected_repr)
 
   def testConstructFromDtype(self, float_type):
     for np_dtype in NUMPY_DTYPES:
@@ -807,6 +827,7 @@ BINARY_UFUNCS = [
     np.logaddexp2,
     np.floor_divide,
     np.power,
+    np.float_power,
     np.remainder,
     np.fmod,
     np.heaviside,
@@ -882,7 +903,9 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testArray(self, float_type):
     x = np.array([[1, 2, 4]], dtype=float_type)
     self.assertEqual(float_type, x.dtype)
-    self.assertEqual("[[1 2 4]]", str(x))
+    self.assertIn(
+        str(x), ("[[1 2 4]]", "[[1.e+00 2.e+00 4.e+00]]", "[[1. 2. 4.]]")
+    )
     np.testing.assert_equal(x, x)
     numpy_assert_allclose(x, x, float_type=float_type)
     self.assertTrue((x == x).all())
@@ -924,6 +947,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         (float_type, np.clongdouble),
     ]
     all_dtypes = [
+        np.bool_,
         np.float16,
         np.float32,
         np.float64,
@@ -959,6 +983,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   )
   def testCasts(self, float_type):
     for dtype in [
+        np.bool_,
         np.float16,
         np.float32,
         np.float64,
@@ -980,7 +1005,11 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.uintc,
         np.ulonglong,
     ]:
-      x = np.array([[1, 2, 4]], dtype=dtype)
+      if dtype == np.bool_:
+        values = [[1, 1, 1]] if float_type == float8_e8m0fnu else [[0, 1, 1]]
+      else:
+        values = [[1, 2, 4]]
+      x = np.array(values, dtype=dtype)
       y = x.astype(float_type)
       z = y.astype(dtype)
       self.assertTrue(np.all(x == y))
@@ -1067,6 +1096,26 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.testing.assert_equal(
             op(x, y), op(x.astype(np.float32), y.astype(np.float32))
         )
+
+  def testLogicalUfuncReduce(self, float_type):
+    x = np.array([True, False, True], dtype=float_type)
+    for op in [np.logical_and, np.logical_or, np.logical_xor]:
+      with self.subTest(op.__name__):
+        np.testing.assert_equal(
+            op.reduce(x),
+            op.reduce(x.astype(bool)),
+        )
+
+  def testAccumulateWithOutputDtype(self, float_type):
+    x = np.array([1, 2, 3], dtype=float_type)
+    res = np.multiply.accumulate(x, dtype=np.int16)
+    np.testing.assert_equal(res, np.multiply.accumulate(x.astype(np.int16)))
+
+  def testZeroSizeReduction(self, float_type):
+    x = np.array([], dtype=float_type)
+    for op, expected in [(np.add, 0), (np.multiply, 1)]:
+      with self.subTest(op.__name__):
+        np.testing.assert_equal(op.reduce(x), float_type(expected))
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPredicateUfunc(self, float_type):
@@ -1173,7 +1222,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testLdexp(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
-    y = rng.randint(-50, 50, (1, 7)).astype(np.int32)
+    y = rng.randint(-50, 50, (1, 7)).astype(np.intc)
     self.assertEqual(np.ldexp(x, y).dtype, x.dtype)
     numpy_assert_allclose(
         np.ldexp(x, y).astype(np.float32),
@@ -1293,6 +1342,43 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       if dtype_has_inf(float_type):
         inf = float_type(float("inf"))
         np.testing.assert_equal(np.spacing(inf), np.spacing(np.float32(inf)))
+
+  def testLinspace(self, float_type):
+    start = np.array([0.0, 1.0], dtype=float_type)
+    stop = np.array([1.0, 2.0], dtype=float_type)
+    np.linspace(
+        start, stop, num=5, endpoint=False, retstep=True, dtype=float_type
+    )
+
+  def testLdexpInt64(self, float_type):
+    x = np.array([1.0, 2.0], dtype=float_type)
+    y = np.array([1, 2], dtype=np.int64)
+    np.ldexp(x, y)
+
+  def testClipFloat64Bounds(self, float_type):
+    x = np.array([-2.0, 0.0, 2.0], dtype=float_type)
+    np.clip(
+        x, np.array([-0.9], dtype=np.float64), np.array([1.0], dtype=np.float64)
+    )
+
+  @ignore_warning(
+      category=UserWarning, message="Custom dtypes are saved as python objects"
+  )
+  def testSaveAndLoadWithPickle(self, float_type):
+    buf = io.BytesIO()
+    x = np.array([1.0, 2.0], dtype=float_type)
+    np.save(buf, x, allow_pickle=True)
+    buf.seek(0)
+    out = np.load(buf, allow_pickle=True)
+    if _using_new_dtype_api():
+      self.assertEqual(out.dtype, x.dtype)
+      np.testing.assert_array_equal(out, x)
+
+  def testLdexpPythonInt(self, float_type):
+    x = np.array([1.0, 2.0], dtype=float_type)
+    np.testing.assert_array_equal(
+        np.ldexp(x, 1), np.array([2.0, 4.0], dtype=float_type)
+    )
 
 
 if __name__ == "__main__":

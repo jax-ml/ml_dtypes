@@ -241,6 +241,11 @@ struct intN {
   }
 };
 
+template <int N, typename UnderlyingTy>
+constexpr intN<N, UnderlyingTy> abs(intN<N, UnderlyingTy> v) {
+  return v < intN<N, UnderlyingTy>(0) ? -v : v;
+}
+
 using int1 = intN<1, int8_t>;
 using int2 = intN<2, int8_t>;
 using uint1 = intN<1, uint8_t>;
