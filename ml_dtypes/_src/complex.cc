@@ -1,4 +1,4 @@
-/* Copyright 2026 The ml_dtypes Authors
+/* Copyright 2026 The ml_dtypes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,32 +13,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_CUSTOM_COMPLEX_H_
-#define ML_DTYPES_CUSTOM_COMPLEX_H_
+#include "ml_dtypes/_src/complex.h"
 
-// Must be included first
-// clang-format off
-#include "ml_dtypes/_src/numpy.h" // NOLINT
-// clang-format on
-
-// Support utilities for adding custom floating-point dtypes to TensorFlow,
-// such as bfloat16, and float8_*.
-
-#include <array>        // NOLINT
-#include <cmath>        // NOLINT
-#include <limits>       // NOLINT
-#include <locale>       // NOLINT
-#include <memory>       // NOLINT
-#include <sstream>      // NOLINT
-#include <type_traits>  // NOLINT
-#include <vector>       // NOLINT
-// Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
+#include <array>
+#include <cmath>
+#include <complex>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <sstream>
+#include <type_traits>
+#include <vector>
+
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"  // NOLINT
-#include "ml_dtypes/_src/custom_float.h"
-#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/floats.h"
+#include "ml_dtypes/_src/numpy.h"
+#include "ml_dtypes/_src/ufuncs.h"
 #include "ml_dtypes/include/complex_types.h"
 
 #undef copysign  // TODO(ddunleavy): temporary fix for Windows bazel build
@@ -48,47 +42,6 @@ limitations under the License.
 namespace ml_dtypes {
 
 template <typename T>
-struct CustomComplexTraits {};
-
-template <typename T, typename = void>
-struct is_custom_complex : std::false_type {};
-
-template <typename T>
-struct is_custom_complex<
-    T, std::void_t<decltype(CustomComplexTraits<T>::kTypeName)>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_custom_complex_v = is_custom_complex<T>::value;
-
-template <typename T>
-struct CustomComplexType {
-  static int Dtype() { return npy_type; }
-
-  // Registered numpy type ID. Global variable populated by the registration
-  // code. Protected by the GIL.
-  static int npy_type;
-
-  // Pointer to the python type object we are using. This is either a pointer
-  // to type, if we choose to register it, or to the python type
-  // registered by another system into NumPy.
-  static PyObject* type_ptr;
-
-  static PyType_Spec type_spec;
-  static PyType_Slot type_slots[];
-  static PyMethodDef methods[];
-  static PyGetSetDef getset[];
-  static PyArray_ArrFuncs arr_funcs;
-  static PyArray_DescrProto npy_descr_proto;
-  static PyArray_Descr* npy_descr;
-};
-
-template <typename T>
-struct DtypeTraits<T, std::enable_if_t<is_custom_complex_v<T>>> {
-  static int Dtype() { return CustomComplexType<T>::Dtype(); }
-};
-
-template <typename T>
 int CustomComplexType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomComplexType<T>::type_ptr = nullptr;
@@ -96,6 +49,8 @@ template <typename T>
 PyArray_DescrProto CustomComplexType<T>::npy_descr_proto;
 template <typename T>
 PyArray_Descr* CustomComplexType<T>::npy_descr = nullptr;
+
+namespace {
 
 // Representation of a Python custom float object.
 template <typename T>
@@ -470,13 +425,21 @@ Py_hash_t PyCustomComplex_Hash(PyObject* self) {
 
 template <typename T>
 PyObject* PyCustomComplex_Real(PyObject* self, PyObject*) {
-  T x = reinterpret_cast<PyCustomComplex<T>*>(self)->value;
-  return PyCustomFloat_FromT(x.real()).release();
+  typename T::value_type val =
+      reinterpret_cast<PyCustomComplex<T>*>(self)->value.real();
+  return make_safe(PyArray_Scalar(
+                       &val, CustomFloatType<typename T::value_type>::npy_descr,
+                       nullptr))
+      .release();
 }
 template <typename T>
 PyObject* PyCustomComplex_Imag(PyObject* self, PyObject*) {
-  T x = reinterpret_cast<PyCustomComplex<T>*>(self)->value;
-  return PyCustomFloat_FromT(x.imag()).release();
+  typename T::value_type val =
+      reinterpret_cast<PyCustomComplex<T>*>(self)->value.imag();
+  return make_safe(PyArray_Scalar(
+                       &val, CustomFloatType<typename T::value_type>::npy_descr,
+                       nullptr))
+      .release();
 }
 
 // We need explicit specializations for complex32 to create the NumPy
@@ -516,6 +479,8 @@ PyObject* PyCustomComplex_Format(PyObject* self, PyObject* format_spec) {
   Py_DECREF(c);
   return result;
 }
+
+}  // namespace
 
 template <typename T>
 PyMethodDef CustomComplexType<T>::methods[] = {
@@ -567,6 +532,8 @@ PyType_Spec CustomComplexType<T>::type_spec = {
 template <typename T>
 PyArray_ArrFuncs CustomComplexType<T>::arr_funcs;
 
+namespace {
+
 template <typename T>
 PyArray_DescrProto GetCustomComplexDescrProto() {
   return {
@@ -610,17 +577,22 @@ int NPyCustomComplex_SetItem(PyObject* item, void* data, void* arr) {
   return 0;
 }
 
+// TODO: If float ocmpare supports byte-swapping this'll be wrong.
 template <typename T>
 int NPyCustomComplex_Compare(const void* a, const void* b, void* arr) {
-  using real_type = typename T::value_type;
-  // TODO: If float ocmpare supports byte-swapping this'll be wrong.
-  int res = NPyCustomFloat_Compare<real_type>(a, b, arr);
+  T x;
+  memcpy(&x, a, sizeof(T));
+
+  T y;
+  memcpy(&y, b, sizeof(T));
+
+  int res =
+      CompareFloats(static_cast<float>(x.real()), static_cast<float>(y.real()));
   if (res != 0) {
     return res;
   }
-  a = reinterpret_cast<const char*>(a) + sizeof(real_type);
-  b = reinterpret_cast<const char*>(b) + sizeof(real_type);
-  return NPyCustomFloat_Compare<real_type>(a, b, arr);
+  return CompareFloats(static_cast<float>(x.imag()),
+                       static_cast<float>(y.imag()));
 }
 
 template <typename T>
@@ -663,7 +635,7 @@ void NPyCustomComplex_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
     } else if (sizeof(T) == sizeof(int32_t)) {
       for (npy_intp i = 0; i < n; i++) {
         char* r = dst + dstride * i;
-        ByteSwap16(r);
+        ByteSwap32(r);
       }
     }
   }
@@ -1026,6 +998,11 @@ bool RegisterComplexDtype(PyObject* numpy) {
   return RegisterComplexCasts<T>() && RegisterComplexUFuncs<T>(numpy);
 }
 
-}  // namespace ml_dtypes
+}  // namespace
 
-#endif  // ML_DTYPES_CUSTOM_COMPLEX_H_
+bool RegisterCustomComplex(PyObject* numpy) {
+  return RegisterComplexDtype<bcomplex32>(numpy) &&
+         RegisterComplexDtype<complex32>(numpy);
+}
+
+}  // namespace ml_dtypes

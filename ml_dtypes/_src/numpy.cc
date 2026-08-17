@@ -21,7 +21,10 @@ limitations under the License.
 
 namespace ml_dtypes {
 
-void ImportNumpy() { import_array1(); }
+void ImportNumpy() {
+  import_array1();
+  import_umath1();
+}
 
 NPY_VISIBILITY_HIDDEN PyObject* ComplexWarning = nullptr;
 

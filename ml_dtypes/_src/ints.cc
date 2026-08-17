@@ -1,4 +1,4 @@
-/* Copyright 2023 The ml_dtypes Authors
+/* Copyright 2026 The ml_dtypes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,65 +13,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_CUSTOM_INT_H_
-#define ML_DTYPES_CUSTOM_INT_H_
+#include "ml_dtypes/_src/ints.h"
 
+#include <Python.h>
+
+#include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+#include <memory>
+#include <string>
 #include <type_traits>
 
-// Must be included first
-// clang-format off
-#include "ml_dtypes/_src/numpy.h"
-// clang-format on
-
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"  // NOLINT
-#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
-#include "ml_dtypes/include/intn.h"
+#include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/numpy.h"
+#include "ml_dtypes/_src/ufuncs.h"
 
 namespace ml_dtypes {
 
 constexpr char kOutOfRange[] = "out of range value cannot be converted to int4";
-
-template <typename T>
-struct CustomIntTraits {};
-
-template <typename T, typename = void>
-struct is_intn : std::false_type {};
-
-template <typename T>
-struct is_intn<T, std::void_t<decltype(CustomIntTraits<T>::kTypeName)>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_intn_v = is_intn<T>::value;
-
-template <typename T>
-struct CustomIntType {
-  static int Dtype() { return npy_type; }
-
-  // Registered numpy type ID. Global variable populated by the registration
-  // code. Protected by the GIL.
-  static int npy_type;
-
-  // Pointer to the python type object we are using. This is either a pointer
-  // to type, if we choose to register it, or to the python type
-  // registered by another system into NumPy.
-  static PyObject* type_ptr;
-
-  static PyMethodDef methods[];
-  static PyType_Spec type_spec;
-  static PyType_Slot type_slots[];
-
-  static PyArray_ArrFuncs arr_funcs;
-  static PyArray_DescrProto npy_descr_proto;
-  static PyArray_Descr* npy_descr;
-};
-
-template <typename T>
-struct DtypeTraits<T, std::enable_if_t<is_intn_v<T>>> {
-  static int Dtype() { return CustomIntType<T>::Dtype(); }
-};
 
 template <typename T>
 int CustomIntType<T>::npy_type = NPY_NOTYPE;
@@ -81,6 +42,8 @@ template <typename T>
 PyArray_DescrProto CustomIntType<T>::npy_descr_proto;
 template <typename T>
 PyArray_Descr* CustomIntType<T>::npy_descr = nullptr;
+
+namespace {
 
 // Representation of a Python custom integer object.
 template <typename T>
@@ -414,6 +377,8 @@ PyObject* PyIntN_Format(PyObject* self, PyObject* format_spec) {
   return result;
 }
 
+}  // namespace
+
 template <typename T>
 PyMethodDef CustomIntType<T>::methods[] = {
     {"__format__", reinterpret_cast<PyCFunction>(PyIntN_Format<T>), METH_O,
@@ -455,6 +420,8 @@ PyType_Spec CustomIntType<T>::type_spec = {
 // Numpy support
 template <typename T>
 PyArray_ArrFuncs CustomIntType<T>::arr_funcs;
+
+namespace {
 
 template <typename T>
 PyArray_DescrProto GetIntNDescrProto() {
@@ -506,7 +473,6 @@ template <typename T>
 int NPyIntN_Compare(const void* a, const void* b, void* arr) {
   T x;
   memcpy(&x, a, sizeof(T));
-
   T y;
   memcpy(&y, b, sizeof(T));
   int fy(y);
@@ -535,15 +501,14 @@ void NPyIntN_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
       }
     }
   }
-  // Note: No byte swapping needed for 8-bit integer types
 }
 
+// Note: No byte swapping needed for 8-bit integer types
 template <typename T>
 void NPyIntN_CopySwap(void* dst, void* src, int swap, void* arr) {
   if (src) {
     memcpy(dst, src, sizeof(T));
   }
-  // Note: No byte swapping needed for 8-bit integer types
 }
 
 template <typename T>
@@ -896,6 +861,12 @@ bool RegisterIntNDtype(PyObject* numpy) {
   return RegisterIntNCasts<T>() && RegisterIntNUFuncs<T>(numpy);
 }
 
-}  // namespace ml_dtypes
+}  // namespace
 
-#endif  // ML_DTYPES_CUSTOM_INT_H_
+bool RegisterCustomInts(PyObject* numpy) {
+  return RegisterIntNDtype<int1>(numpy) && RegisterIntNDtype<uint1>(numpy) &&
+         RegisterIntNDtype<int2>(numpy) && RegisterIntNDtype<uint2>(numpy) &&
+         RegisterIntNDtype<int4>(numpy) && RegisterIntNDtype<uint4>(numpy);
+}
+
+}  // namespace ml_dtypes

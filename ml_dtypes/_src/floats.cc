@@ -1,4 +1,4 @@
-/* Copyright 2022 The ml_dtypes Authors
+/* Copyright 2024 The ml_dtypes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,77 +13,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_CUSTOM_FLOAT_H_
-#define ML_DTYPES_CUSTOM_FLOAT_H_
+// Enable cmath defines on Windows
+#define _USE_MATH_DEFINES
 
-// Must be included first
-// clang-format off
-#include "ml_dtypes/_src/numpy.h" // NOLINT
-// clang-format on
+#include "ml_dtypes/_src/floats.h"
 
-// Support utilities for adding custom floating-point dtypes to TensorFlow,
-// such as bfloat16, and float8_*.
-
-#include <array>        // NOLINT
-#include <cmath>        // NOLINT
-#include <limits>       // NOLINT
-#include <locale>       // NOLINT
-#include <memory>       // NOLINT
-#include <sstream>      // NOLINT
-#include <type_traits>  // NOLINT
-#include <vector>       // NOLINT
-// Place `<locale>` before <Python.h> to avoid a build failure in macOS.
 #include <Python.h>
 
+#include <array>
+#include <cmath>
+#include <limits>
+#include <memory>
+#include <sstream>
+#include <type_traits>
+#include <vector>
+
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"  // NOLINT
-#include "ml_dtypes/_src/ufuncs.h"  // NOLINT
+#include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/numpy.h"
+#include "ml_dtypes/_src/ufuncs.h"
 
 #undef copysign  // TODO(ddunleavy): temporary fix for Windows bazel build
                  // Possible this has to do with numpy.h being included before
                  // system headers and in bfloat16.{cc,h}?
 
 namespace ml_dtypes {
-
-template <typename T>
-struct CustomFloatTraits {};
-
-template <typename T, typename = void>
-struct is_custom_float : std::false_type {};
-
-template <typename T>
-struct is_custom_float<T,
-                       std::void_t<decltype(CustomFloatTraits<T>::kTypeName)>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_custom_float_v = is_custom_float<T>::value;
-
-template <typename T>
-struct CustomFloatType {
-  static int Dtype() { return npy_type; }
-
-  // Registered numpy type ID. Global variable populated by the registration
-  // code. Protected by the GIL.
-  static int npy_type;
-
-  // Pointer to the python type object we are using. This is either a pointer
-  // to type, if we choose to register it, or to the python type
-  // registered by another system into NumPy.
-  static PyObject* type_ptr;
-
-  static PyMethodDef methods[];
-  static PyType_Spec type_spec;
-  static PyType_Slot type_slots[];
-  static PyArray_ArrFuncs arr_funcs;
-  static PyArray_DescrProto npy_descr_proto;
-  static PyArray_Descr* npy_descr;
-};
-
-template <typename T>
-struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
-  static int Dtype() { return CustomFloatType<T>::Dtype(); }
-};
 
 template <typename T>
 int CustomFloatType<T>::npy_type = NPY_NOTYPE;
@@ -94,24 +48,14 @@ PyArray_DescrProto CustomFloatType<T>::npy_descr_proto;
 template <typename T>
 PyArray_Descr* CustomFloatType<T>::npy_descr = nullptr;
 
+namespace {
+
 // Representation of a Python custom float object.
 template <typename T>
 struct PyCustomFloat {
   PyObject_HEAD;  // Python object header
   T value;
 };
-
-// Returns true if 'object' is a PyCustomFloat.
-template <typename T>
-bool PyCustomFloat_Check(PyObject* object) {
-  return PyObject_IsInstance(object, CustomFloatType<T>::type_ptr);
-}
-
-// Extracts the value of a PyCustomFloat object.
-template <typename T>
-T PyCustomFloat_CustomFloat(PyObject* object) {
-  return reinterpret_cast<PyCustomFloat<T>*>(object)->value;
-}
 
 // Constructs a PyCustomFloat object from PyCustomFloat<T>::T.
 template <typename T>
@@ -124,6 +68,18 @@ Safe_PyObjectPtr PyCustomFloat_FromT(T x) {
     p->value = x;
   }
   return ref;
+}
+
+// Returns true if 'object' is a PyCustomFloat.
+template <typename T>
+bool PyCustomFloat_Check(PyObject* object) {
+  return PyObject_IsInstance(object, CustomFloatType<T>::type_ptr);
+}
+
+// Extracts the value of a PyCustomFloat object.
+template <typename T>
+T PyCustomFloat_CustomFloat(PyObject* object) {
+  return reinterpret_cast<PyCustomFloat<T>*>(object)->value;
 }
 
 // Converts a Python object to a reduced float value. Returns true on success,
@@ -139,7 +95,6 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    // TODO(phawkins): check for overflow
     *output = T(d);
     return true;
   }
@@ -153,7 +108,7 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     return true;
   }
   if (PyArray_IsScalar(arg, Generic)) {
-    // Allow conversion from any NumPy scalar if conversion to complex float
+    // Allow conversion from any NumPy scalar if conversion to float32
     // is defined.
     // NOTE: Should use `PyArray_Pack` with NumPy>=2, which is better and may
     // make even more conversions (ie. casts) work. (May want to use new dtypes
@@ -392,6 +347,8 @@ PyObject* PyCustomFloat_Format(PyObject* self, PyObject* format_spec) {
   return result;
 }
 
+}  // namespace
+
 template <typename T>
 PyMethodDef CustomFloatType<T>::methods[] = {
     {"__format__", reinterpret_cast<PyCFunction>(PyCustomFloat_Format<T>),
@@ -408,14 +365,13 @@ PyType_Slot CustomFloatType<T>::type_slots[] = {
     {Py_tp_doc,
      reinterpret_cast<void*>(const_cast<char*>(CustomFloatTraits<T>::kTpDoc))},
     {Py_tp_richcompare, reinterpret_cast<void*>(PyCustomFloat_RichCompare<T>)},
-    {Py_tp_methods, reinterpret_cast<void*>(CustomFloatType<T>::methods)},
     {Py_nb_add, reinterpret_cast<void*>(PyCustomFloat_Add<T>)},
     {Py_nb_subtract, reinterpret_cast<void*>(PyCustomFloat_Subtract<T>)},
     {Py_nb_multiply, reinterpret_cast<void*>(PyCustomFloat_Multiply<T>)},
     {Py_nb_negative, reinterpret_cast<void*>(PyCustomFloat_Negative<T>)},
     {Py_nb_int, reinterpret_cast<void*>(PyCustomFloat_Int<T>)},
     {Py_nb_float, reinterpret_cast<void*>(PyCustomFloat_Float<T>)},
-    {Py_nb_true_divide, reinterpret_cast<void*>(PyCustomFloat_TrueDivide<T>)},
+    {Py_tp_methods, reinterpret_cast<void*>(CustomFloatType<T>::methods)},
     {0, nullptr},
 };
 
@@ -431,6 +387,8 @@ PyType_Spec CustomFloatType<T>::type_spec = {
 // Numpy support
 template <typename T>
 PyArray_ArrFuncs CustomFloatType<T>::arr_funcs;
+
+namespace {
 
 template <typename T>
 PyArray_DescrProto GetCustomFloatDescrProto() {
@@ -460,7 +418,7 @@ template <typename T>
 PyObject* NPyCustomFloat_GetItem(void* data, void* arr) {
   T x;
   memcpy(&x, data, sizeof(T));
-  return PyFloat_FromDouble(static_cast<float>(x));
+  return PyFloat_FromDouble(static_cast<double>(static_cast<float>(x)));
 }
 
 template <typename T>
@@ -482,23 +440,7 @@ int NPyCustomFloat_Compare(const void* a, const void* b, void* arr) {
 
   T y;
   memcpy(&y, b, sizeof(T));
-  float fy(y);
-  float fx(x);
-
-  if (fx < fy) {
-    return -1;
-  }
-  if (fy < fx) {
-    return 1;
-  }
-  // NaNs sort to the end.
-  if (!Eigen::numext::isnan(fx) && Eigen::numext::isnan(fy)) {
-    return -1;
-  }
-  if (Eigen::numext::isnan(fx) && !Eigen::numext::isnan(fy)) {
-    return 1;
-  }
-  return 0;
+  return CompareFloats(static_cast<float>(x), static_cast<float>(y));
 }
 
 template <typename T>
@@ -524,13 +466,11 @@ void NPyCustomFloat_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
         memcpy(dst + dstride * i, src + sstride * i, sizeof(T));
       }
     }
-  } else {
+  } else if (swap && sizeof(T) == sizeof(int16_t)) {
     // In-place swap when src is NULL
-    if (swap && sizeof(T) == sizeof(int16_t)) {
-      for (npy_intp i = 0; i < n; i++) {
-        char* r = dst + dstride * i;
-        ByteSwap16(r);
-      }
+    for (npy_intp i = 0; i < n; i++) {
+      char* r = dst + dstride * i;
+      ByteSwap16(r);
     }
   }
 }
@@ -543,8 +483,11 @@ void NPyCustomFloat_CopySwap(void* dst, void* src, int swap, void* arr) {
   if (src) {
     memcpy(dst, src, sizeof(T));
   }
+  if (!swap) {
+    return;
+  }
 
-  if (swap && sizeof(T) == sizeof(int16_t)) {
+  if (sizeof(T) == sizeof(int16_t)) {
     ByteSwap16(dst);
   }
 }
@@ -588,13 +531,7 @@ template <typename T>
 int NPyCustomFloat_CompareFunc(const void* v1, const void* v2, void* arr) {
   T b1 = *reinterpret_cast<const T*>(v1);
   T b2 = *reinterpret_cast<const T*>(v2);
-  if (b1 < b2) {
-    return -1;
-  }
-  if (b1 > b2) {
-    return 1;
-  }
-  return 0;
+  return CompareFloats(static_cast<float>(b1), static_cast<float>(b2));
 }
 
 template <typename T>
@@ -659,8 +596,8 @@ void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
   }
 }
 
-// Registers a cast between T (a reduced float) and type 'OtherT'. 'numpy_type'
-// is the NumPy type corresponding to 'OtherT'.
+// Registers a cast between T (a reduced float) and type 'OtherT'.
+// 'numpy_type' is the NumPy type corresponding to 'OtherT'.
 template <typename T, typename OtherT>
 bool RegisterCustomFloatCast(int numpy_type = DtypeTraits<OtherT>::Dtype()) {
   PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
@@ -965,6 +902,21 @@ bool RegisterFloatDtype(PyObject* numpy) {
   return RegisterFloatCasts<T>() && RegisterFloatUFuncs<T>(numpy);
 }
 
-}  // namespace ml_dtypes
+}  // namespace
 
-#endif  // ML_DTYPES_CUSTOM_FLOAT_H_
+bool RegisterCustomFloats(PyObject* numpy) {
+  return RegisterFloatDtype<bfloat16>(numpy) &&
+         RegisterFloatDtype<float8_e4m3>(numpy) &&
+         RegisterFloatDtype<float8_e4m3b11fnuz>(numpy) &&
+         RegisterFloatDtype<float8_e4m3fn>(numpy) &&
+         RegisterFloatDtype<float8_e4m3fnuz>(numpy) &&
+         RegisterFloatDtype<float8_e5m2>(numpy) &&
+         RegisterFloatDtype<float8_e5m2fnuz>(numpy) &&
+         RegisterFloatDtype<float8_e3m4>(numpy) &&
+         RegisterFloatDtype<float8_e8m0fnu>(numpy) &&
+         RegisterFloatDtype<float6_e2m3fn>(numpy) &&
+         RegisterFloatDtype<float6_e3m2fn>(numpy) &&
+         RegisterFloatDtype<float4_e2m1fn>(numpy);
+}
+
+}  // namespace ml_dtypes

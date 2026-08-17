@@ -17,7 +17,11 @@ set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/eigen EXCLUDE_FROM_ALL)
 
 Python_add_library(_ml_dtypes_ext MODULE WITH_SOABI
+    ml_dtypes/_src/casts.cc
+    ml_dtypes/_src/complex.cc
     ml_dtypes/_src/dtypes.cc
+    ml_dtypes/_src/floats.cc
+    ml_dtypes/_src/ints.cc
     ml_dtypes/_src/numpy.cc
 )
 

@@ -23,14 +23,13 @@ limitations under the License.
 // Disallow Numpy 2.0 deprecated symbols.
 #define NPY_NO_DEPRECATED_API NPY_2_0_API_VERSION
 
-// We import_array in the ml_dtypes init function only.
-#define PY_ARRAY_UNIQUE_SYMBOL _ml_dtypes_numpy_api
+// We import_array and import_umath in the ml_dtypes init function only.
+#define PY_ARRAY_UNIQUE_SYMBOL _ml_dtypes_numpy_array_api
+#define PY_UFUNC_UNIQUE_SYMBOL _ml_dtypes_numpy_ufunc_api
 #ifndef ML_DTYPES_IMPORT_NUMPY
 #define NO_IMPORT_ARRAY
+#define NO_IMPORT_UFUNC
 #endif
-
-// Place `<locale>` before <Python.h> to avoid build failure in macOS.
-#include <locale>
 
 #include <Python.h>
 

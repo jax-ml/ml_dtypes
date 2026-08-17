@@ -16,20 +16,16 @@ limitations under the License.
 #ifndef ML_DTYPES_UFUNCS_H_
 #define ML_DTYPES_UFUNCS_H_
 
-// Must be included first
-// clang-format off
+#include <array>
+#include <cmath>
+#include <complex>
+#include <cstddef>
+#include <limits>
+#include <utility>
+#include <vector>
+
+#include "ml_dtypes/_src/common.h"
 #include "ml_dtypes/_src/numpy.h"
-// clang-format on
-
-#include <array>    // NOLINT
-#include <cmath>    // NOLINT
-#include <complex>  // NOLINT
-#include <cstddef>  // NOLINT
-#include <limits>   // NOLINT
-#include <utility>  // NOLINT
-#include <vector>   // NOLINT
-
-#include "ml_dtypes/_src/common.h"  // NOLINT
 
 // Some versions of MSVC define a "copysign" macro which wreaks havoc.
 #if defined(_MSC_VER) && defined(copysign)

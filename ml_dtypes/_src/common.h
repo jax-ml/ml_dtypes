@@ -16,17 +16,13 @@ limitations under the License.
 #ifndef ML_DTYPES_COMMON_H_
 #define ML_DTYPES_COMMON_H_
 
-// Must be included first
-// clang-format off
-#include "ml_dtypes/_src/numpy.h"
-// clang-format on
-
 #include <Python.h>
 
-#include <complex>  // NOLINT
-#include <memory>   // NOLINT
+#include <complex>
+#include <memory>
 
 #include "Eigen/Core"
+#include "ml_dtypes/_src/numpy.h"
 
 namespace ml_dtypes {
 
@@ -42,6 +38,23 @@ inline void ByteSwap32(void* value) {
   char* p = reinterpret_cast<char*>(value);
   std::swap(p[0], p[3]);
   std::swap(p[1], p[2]);
+}
+
+inline int CompareFloats(float fx, float fy) {
+  if (fx < fy) {
+    return -1;
+  }
+  if (fy < fx) {
+    return 1;
+  }
+  // NaNs sort to the end.
+  if (!Eigen::numext::isnan(fx) && Eigen::numext::isnan(fy)) {
+    return -1;
+  }
+  if (Eigen::numext::isnan(fx) && !Eigen::numext::isnan(fy)) {
+    return 1;
+  }
+  return 0;
 }
 
 struct PyDecrefDeleter {
