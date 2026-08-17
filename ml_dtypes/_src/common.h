@@ -56,20 +56,17 @@ inline Safe_PyObjectPtr make_safe(PyObject* object) {
 }
 
 template <typename T, typename Enable = void>
-struct TypeDescriptor {
-  // typedef ... T;  // Representation type in memory for NumPy values of type
+struct DtypeTraits {
   // static int Dtype() { return NPY_...; }  // Numpy type number for T.
 };
 
 template <>
-struct TypeDescriptor<unsigned char> {
-  typedef unsigned char T;
+struct DtypeTraits<unsigned char> {
   static int Dtype() { return NPY_UBYTE; }
 };
 
 template <>
-struct TypeDescriptor<unsigned short> {  // NOLINT
-  typedef unsigned short T;              // NOLINT
+struct DtypeTraits<unsigned short> {  // NOLINT
   static int Dtype() { return NPY_USHORT; }
 };
 
@@ -77,98 +74,82 @@ struct TypeDescriptor<unsigned short> {  // NOLINT
 // Linux, where "int" and "long" are the same type, and Windows, where "long"
 // and "longlong" are the same type.
 template <>
-struct TypeDescriptor<unsigned int> {
-  typedef unsigned int T;
+struct DtypeTraits<unsigned int> {
   static int Dtype() { return NPY_UINT; }
 };
 
 template <>
-struct TypeDescriptor<unsigned long> {  // NOLINT
-  typedef unsigned long T;              // NOLINT
+struct DtypeTraits<unsigned long> {  // NOLINT
   static int Dtype() { return NPY_ULONG; }
 };
 
 template <>
-struct TypeDescriptor<unsigned long long> {  // NOLINT
-  typedef unsigned long long T;              // NOLINT
+struct DtypeTraits<unsigned long long> {  // NOLINT
   static int Dtype() { return NPY_ULONGLONG; }
 };
 
 template <>
-struct TypeDescriptor<signed char> {
-  typedef signed char T;
+struct DtypeTraits<signed char> {
   static int Dtype() { return NPY_BYTE; }
 };
 
 template <>
-struct TypeDescriptor<short> {  // NOLINT
-  typedef short T;              // NOLINT
+struct DtypeTraits<short> {  // NOLINT
   static int Dtype() { return NPY_SHORT; }
 };
 
 template <>
-struct TypeDescriptor<int> {
-  typedef int T;
+struct DtypeTraits<int> {
   static int Dtype() { return NPY_INT; }
 };
 
 template <>
-struct TypeDescriptor<long> {  // NOLINT
-  typedef long T;              // NOLINT
+struct DtypeTraits<long> {  // NOLINT
   static int Dtype() { return NPY_LONG; }
 };
 
 template <>
-struct TypeDescriptor<long long> {  // NOLINT
-  typedef long long T;              // NOLINT
+struct DtypeTraits<long long> {  // NOLINT
   static int Dtype() { return NPY_LONGLONG; }
 };
 
 template <>
-struct TypeDescriptor<bool> {
-  typedef unsigned char T;
+struct DtypeTraits<bool> {
   static int Dtype() { return NPY_BOOL; }
 };
 
 template <>
-struct TypeDescriptor<ml_dtypes::half> {
-  typedef ml_dtypes::half T;
+struct DtypeTraits<ml_dtypes::half> {
   static int Dtype() { return NPY_HALF; }
 };
 
 template <>
-struct TypeDescriptor<float> {
-  typedef float T;
+struct DtypeTraits<float> {
   static int Dtype() { return NPY_FLOAT; }
 };
 
 template <>
-struct TypeDescriptor<double> {
-  typedef double T;
+struct DtypeTraits<double> {
   static int Dtype() { return NPY_DOUBLE; }
 };
 
 template <>
-struct TypeDescriptor<long double> {
-  typedef long double T;
+struct DtypeTraits<long double> {
   static int Dtype() { return NPY_LONGDOUBLE; }
 };
 
 template <>
-struct TypeDescriptor<std::complex<float>> {
-  typedef std::complex<float> T;
+struct DtypeTraits<std::complex<float>> {
   static int Dtype() { return NPY_CFLOAT; }
 };
 
 template <>
-struct TypeDescriptor<std::complex<double>> {
-  typedef std::complex<double> T;
+struct DtypeTraits<std::complex<double>> {
   static int Dtype() { return NPY_CDOUBLE; }
 };
 
 template <>
-struct TypeDescriptor<std::complex<long double>> {
-  typedef std::complex<long double> T;
+struct DtypeTraits<std::complex<long double>> {
   static int Dtype() { return NPY_CLONGDOUBLE; }
 };
 

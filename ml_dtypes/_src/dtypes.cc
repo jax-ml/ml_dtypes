@@ -31,21 +31,17 @@ limitations under the License.
 #include <Python.h>
 
 #include "Eigen/Core"
-#include "ml_dtypes/_src/intn_numpy.h"
+#include "ml_dtypes/_src/custom_complex.h"
+#include "ml_dtypes/_src/custom_float.h"
+#include "ml_dtypes/_src/custom_int.h"
 #include "ml_dtypes/include/float8.h"
 #include "ml_dtypes/include/intn.h"
 #include "ml_dtypes/include/mxfloat.h"
-#include "ml_dtypes/_src/custom_float.h"
-#include "ml_dtypes/_src/custom_complex.h"
 
 namespace ml_dtypes {
 
 template <>
-struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
-  typedef bfloat16 T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<bfloat16> {
   static constexpr const char* kTypeName = "bfloat16";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.bfloat16";
   static constexpr const char* kTpDoc = "bfloat16 floating-point values";
@@ -62,11 +58,7 @@ struct TypeDescriptor<bfloat16> : CustomFloatType<bfloat16> {
 };
 
 template <>
-struct TypeDescriptor<float8_e3m4> : CustomFloatType<float8_e3m4> {
-  typedef float8_e3m4 T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e3m4> {
   static constexpr const char* kTypeName = "float8_e3m4";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e3m4";
   static constexpr const char* kTpDoc = "float8_e3m4 floating-point values";
@@ -77,11 +69,7 @@ struct TypeDescriptor<float8_e3m4> : CustomFloatType<float8_e3m4> {
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3> : CustomFloatType<float8_e4m3> {
-  typedef float8_e4m3 T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e4m3> {
   static constexpr const char* kTypeName = "float8_e4m3";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3";
   static constexpr const char* kTpDoc = "float8_e4m3 floating-point values";
@@ -92,12 +80,7 @@ struct TypeDescriptor<float8_e4m3> : CustomFloatType<float8_e4m3> {
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3b11fnuz>
-    : CustomFloatType<float8_e4m3b11fnuz> {
-  typedef float8_e4m3b11fnuz T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e4m3b11fnuz> {
   static constexpr const char* kTypeName = "float8_e4m3b11fnuz";
   static constexpr const char* kQualifiedTypeName =
       "ml_dtypes.float8_e4m3b11fnuz";
@@ -116,11 +99,7 @@ struct TypeDescriptor<float8_e4m3b11fnuz>
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3fn> : CustomFloatType<float8_e4m3fn> {
-  typedef float8_e4m3fn T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e4m3fn> {
   static constexpr const char* kTypeName = "float8_e4m3fn";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3fn";
   static constexpr const char* kTpDoc = "float8_e4m3fn floating-point values";
@@ -136,11 +115,7 @@ struct TypeDescriptor<float8_e4m3fn> : CustomFloatType<float8_e4m3fn> {
 };
 
 template <>
-struct TypeDescriptor<float8_e4m3fnuz> : CustomFloatType<float8_e4m3fnuz> {
-  typedef float8_e4m3fnuz T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e4m3fnuz> {
   static constexpr const char* kTypeName = "float8_e4m3fnuz";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e4m3fnuz";
   static constexpr const char* kTpDoc = "float8_e4m3fnuz floating-point values";
@@ -152,11 +127,7 @@ struct TypeDescriptor<float8_e4m3fnuz> : CustomFloatType<float8_e4m3fnuz> {
 };
 
 template <>
-struct TypeDescriptor<float8_e5m2> : CustomFloatType<float8_e5m2> {
-  typedef float8_e5m2 T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e5m2> {
   static constexpr const char* kTypeName = "float8_e5m2";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2";
   static constexpr const char* kTpDoc = "float8_e5m2 floating-point values";
@@ -169,11 +140,7 @@ struct TypeDescriptor<float8_e5m2> : CustomFloatType<float8_e5m2> {
 };
 
 template <>
-struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
-  typedef float8_e5m2fnuz T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e5m2fnuz> {
   static constexpr const char* kTypeName = "float8_e5m2fnuz";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m2fnuz";
   static constexpr const char* kTpDoc = "float8_e5m2fnuz floating-point values";
@@ -185,11 +152,7 @@ struct TypeDescriptor<float8_e5m2fnuz> : CustomFloatType<float8_e5m2fnuz> {
 };
 
 template <>
-struct TypeDescriptor<float6_e2m3fn> : CustomFloatType<float6_e2m3fn> {
-  typedef float6_e2m3fn T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float6_e2m3fn> {
   static constexpr const char* kTypeName = "float6_e2m3fn";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float6_e2m3fn";
   static constexpr const char* kTpDoc = "float6_e2m3fn floating-point values";
@@ -199,11 +162,7 @@ struct TypeDescriptor<float6_e2m3fn> : CustomFloatType<float6_e2m3fn> {
 };
 
 template <>
-struct TypeDescriptor<float6_e3m2fn> : CustomFloatType<float6_e3m2fn> {
-  typedef float6_e3m2fn T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float6_e3m2fn> {
   static constexpr const char* kTypeName = "float6_e3m2fn";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float6_e3m2fn";
   static constexpr const char* kTpDoc = "float6_e3m2fn floating-point values";
@@ -213,11 +172,7 @@ struct TypeDescriptor<float6_e3m2fn> : CustomFloatType<float6_e3m2fn> {
 };
 
 template <>
-struct TypeDescriptor<float4_e2m1fn> : CustomFloatType<float4_e2m1fn> {
-  typedef float4_e2m1fn T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float4_e2m1fn> {
   static constexpr const char* kTypeName = "float4_e2m1fn";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float4_e2m1fn";
   static constexpr const char* kTpDoc = "float4_e2m1fn floating-point values";
@@ -227,11 +182,7 @@ struct TypeDescriptor<float4_e2m1fn> : CustomFloatType<float4_e2m1fn> {
 };
 
 template <>
-struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
-  typedef float8_e8m0fnu T;
-  typedef float builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomFloatTraits<float8_e8m0fnu> {
   static constexpr const char* kTypeName = "float8_e8m0fnu";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e8m0fnu";
   static constexpr const char* kTpDoc = "float8_e8m0fnu floating-point values";
@@ -243,11 +194,7 @@ struct TypeDescriptor<float8_e8m0fnu> : CustomFloatType<float8_e8m0fnu> {
 };
 
 template <>
-struct TypeDescriptor<int1> : IntNTypeDescriptor<int1> {
-  typedef int1 T;
-  typedef int8_t builtin_type;
-  static constexpr bool is_floating = false;
-  static constexpr bool is_integral = true;
+struct CustomIntTraits<int1> {
   static constexpr const char* kTypeName = "int1";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.int1";
   static constexpr const char* kTpDoc = "int1 integer values";
@@ -259,11 +206,7 @@ struct TypeDescriptor<int1> : IntNTypeDescriptor<int1> {
 };
 
 template <>
-struct TypeDescriptor<uint1> : IntNTypeDescriptor<uint1> {
-  typedef uint1 T;
-  typedef uint8_t builtin_type;
-  static constexpr bool is_floating = false;
-  static constexpr bool is_integral = true;
+struct CustomIntTraits<uint1> {
   static constexpr const char* kTypeName = "uint1";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint1";
   static constexpr const char* kTpDoc = "uint1 integer values";
@@ -275,11 +218,7 @@ struct TypeDescriptor<uint1> : IntNTypeDescriptor<uint1> {
 };
 
 template <>
-struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
-  typedef int2 T;
-  typedef int8_t builtin_type;
-  static constexpr bool is_floating = false;
-  static constexpr bool is_integral = true;
+struct CustomIntTraits<int2> {
   static constexpr const char* kTypeName = "int2";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.int2";
   static constexpr const char* kTpDoc = "int2 integer values";
@@ -291,11 +230,7 @@ struct TypeDescriptor<int2> : IntNTypeDescriptor<int2> {
 };
 
 template <>
-struct TypeDescriptor<uint2> : IntNTypeDescriptor<uint2> {
-  typedef uint2 T;
-  typedef uint8_t builtin_type;
-  static constexpr bool is_floating = false;
-  static constexpr bool is_integral = true;
+struct CustomIntTraits<uint2> {
   static constexpr const char* kTypeName = "uint2";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint2";
   static constexpr const char* kTpDoc = "uint2 integer values";
@@ -307,11 +242,7 @@ struct TypeDescriptor<uint2> : IntNTypeDescriptor<uint2> {
 };
 
 template <>
-struct TypeDescriptor<int4> : IntNTypeDescriptor<int4> {
-  typedef int4 T;
-  typedef int8_t builtin_type;
-  static constexpr bool is_floating = false;
-  static constexpr bool is_integral = true;
+struct CustomIntTraits<int4> {
   static constexpr const char* kTypeName = "int4";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.int4";
   static constexpr const char* kTpDoc = "int4 integer values";
@@ -323,11 +254,7 @@ struct TypeDescriptor<int4> : IntNTypeDescriptor<int4> {
 };
 
 template <>
-struct TypeDescriptor<uint4> : IntNTypeDescriptor<uint4> {
-  typedef uint4 T;
-  typedef uint8_t builtin_type;
-  static constexpr bool is_floating = false;
-  static constexpr bool is_integral = true;
+struct CustomIntTraits<uint4> {
   static constexpr const char* kTypeName = "uint4";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint4";
   static constexpr const char* kTpDoc = "uint4 integer values";
@@ -339,11 +266,7 @@ struct TypeDescriptor<uint4> : IntNTypeDescriptor<uint4> {
 };
 
 template <>
-struct TypeDescriptor<bcomplex32> : CustomComplexType<bcomplex32> {
-  typedef bcomplex32 T;
-  typedef std::complex<float> builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomComplexTraits<bcomplex32> {
   static constexpr const char* kTypeName = "bcomplex32";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.bcomplex32";
   static constexpr const char* kTpDoc =
@@ -357,11 +280,7 @@ struct TypeDescriptor<bcomplex32> : CustomComplexType<bcomplex32> {
 };
 
 template <>
-struct TypeDescriptor<complex32> : CustomComplexType<complex32> {
-  typedef complex32 T;
-  typedef std::complex<float> builtin_type;
-  static constexpr bool is_floating = true;
-  static constexpr bool is_integral = false;
+struct CustomComplexTraits<complex32> {
   static constexpr const char* kTypeName = "complex32";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.complex32";
   static constexpr const char* kTpDoc = "complex half floating-point values";
@@ -398,8 +317,8 @@ void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
 
 template <typename Type1, typename Type2, typename Via>
 bool RegisterTwoWayCustomCast() {
-  int nptype1 = TypeDescriptor<Type1>::npy_type;
-  int nptype2 = TypeDescriptor<Type2>::npy_type;
+  int nptype1 = DtypeTraits<Type1>::Dtype();
+  int nptype2 = DtypeTraits<Type2>::Dtype();
   PyArray_Descr* descr1 = PyArray_DescrFromType(nptype1);
   if (PyArray_RegisterCastFunc(descr1, nptype2, PyCast<Type1, Type2, Via>) <
       0) {
@@ -415,8 +334,8 @@ bool RegisterTwoWayCustomCast() {
 
 template <typename Type1, typename Type2, typename Via>
 bool RegisterOneWayCustomCast() {
-  int nptype1 = TypeDescriptor<Type1>::npy_type;
-  int nptype2 = TypeDescriptor<Type2>::npy_type;
+  int nptype1 = DtypeTraits<Type1>::Dtype();
+  int nptype2 = DtypeTraits<Type2>::Dtype();
   PyArray_Descr* descr1 = PyArray_DescrFromType(nptype1);
   if (PyArray_RegisterCastFunc(descr1, nptype2, PyCast<Type1, Type2, Via>) <
       0) {
@@ -447,14 +366,6 @@ template <typename T, typename U, typename... Args>
 bool RegisterAllFloatCasts() {
   return RegisterTwoWayFloatCasts<T, U, Args...>() &&
          RegisterAllFloatCasts<U, Args...>();
-}
-
-// Initialize type attribute in the module object.
-template <typename T>
-bool InitModuleType(PyObject* obj, const char* name) {
-  return PyObject_SetAttrString(
-             obj, name,
-             reinterpret_cast<PyObject*>(TypeDescriptor<T>::type_ptr)) >= 0;
 }
 
 }  // namespace
@@ -576,26 +487,47 @@ PyMODINIT_FUNC PyInit__ml_dtypes_ext() {
     return nullptr;
   }
 
-  if (!InitModuleType<float4_e2m1fn>(m.get(), "float4_e2m1fn") ||
-      !InitModuleType<float6_e2m3fn>(m.get(), "float6_e2m3fn") ||
-      !InitModuleType<float6_e3m2fn>(m.get(), "float6_e3m2fn") ||
-      !InitModuleType<float8_e3m4>(m.get(), "float8_e3m4") ||
-      !InitModuleType<float8_e4m3>(m.get(), "float8_e4m3") ||
-      !InitModuleType<float8_e4m3b11fnuz>(m.get(), "float8_e4m3b11fnuz") ||
-      !InitModuleType<float8_e4m3fn>(m.get(), "float8_e4m3fn") ||
-      !InitModuleType<float8_e4m3fnuz>(m.get(), "float8_e4m3fnuz") ||
-      !InitModuleType<float8_e5m2>(m.get(), "float8_e5m2") ||
-      !InitModuleType<float8_e5m2fnuz>(m.get(), "float8_e5m2fnuz") ||
-      !InitModuleType<float8_e8m0fnu>(m.get(), "float8_e8m0fnu") ||
-      !InitModuleType<bfloat16>(m.get(), "bfloat16") ||
-      !InitModuleType<bcomplex32>(m.get(), "bcomplex32") ||
-      !InitModuleType<complex32>(m.get(), "complex32") ||
-      !InitModuleType<int1>(m.get(), "int1") ||
-      !InitModuleType<int2>(m.get(), "int2") ||
-      !InitModuleType<int4>(m.get(), "int4") ||
-      !InitModuleType<uint1>(m.get(), "uint1") ||
-      !InitModuleType<uint2>(m.get(), "uint2") ||
-      !InitModuleType<uint4>(m.get(), "uint4")) {
+  if (PyObject_SetAttrString(m.get(), "float4_e2m1fn",
+                             CustomFloatType<float4_e2m1fn>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float6_e2m3fn",
+                             CustomFloatType<float6_e2m3fn>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float6_e3m2fn",
+                             CustomFloatType<float6_e3m2fn>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e3m4",
+                             CustomFloatType<float8_e3m4>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e4m3",
+                             CustomFloatType<float8_e4m3>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e4m3b11fnuz",
+                             CustomFloatType<float8_e4m3b11fnuz>::type_ptr) <
+          0 ||
+      PyObject_SetAttrString(m.get(), "float8_e4m3fn",
+                             CustomFloatType<float8_e4m3fn>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e4m3fnuz",
+                             CustomFloatType<float8_e4m3fnuz>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e5m2",
+                             CustomFloatType<float8_e5m2>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e5m2fnuz",
+                             CustomFloatType<float8_e5m2fnuz>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e8m0fnu",
+                             CustomFloatType<float8_e8m0fnu>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "bfloat16",
+                             CustomFloatType<bfloat16>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "bcomplex32",
+                             CustomComplexType<bcomplex32>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "complex32",
+                             CustomComplexType<complex32>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "int1", CustomIntType<int1>::type_ptr) <
+          0 ||
+      PyObject_SetAttrString(m.get(), "int2", CustomIntType<int2>::type_ptr) <
+          0 ||
+      PyObject_SetAttrString(m.get(), "int4", CustomIntType<int4>::type_ptr) <
+          0 ||
+      PyObject_SetAttrString(m.get(), "uint1", CustomIntType<uint1>::type_ptr) <
+          0 ||
+      PyObject_SetAttrString(m.get(), "uint2", CustomIntType<uint2>::type_ptr) <
+          0 ||
+      PyObject_SetAttrString(m.get(), "uint4", CustomIntType<uint4>::type_ptr) <
+          0) {
     return nullptr;
   }
 

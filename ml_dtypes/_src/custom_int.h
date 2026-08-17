@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_INT4_NUMPY_H_
-#define ML_DTYPES_INT4_NUMPY_H_
+#ifndef ML_DTYPES_CUSTOM_INT_H_
+#define ML_DTYPES_CUSTOM_INT_H_
 
 #include <limits>
 #include <type_traits>
@@ -34,7 +34,20 @@ namespace ml_dtypes {
 constexpr char kOutOfRange[] = "out of range value cannot be converted to int4";
 
 template <typename T>
-struct IntNTypeDescriptor {
+struct CustomIntTraits {};
+
+template <typename T, typename = void>
+struct is_intn : std::false_type {};
+
+template <typename T>
+struct is_intn<T, std::void_t<decltype(CustomIntTraits<T>::kTypeName)>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_intn_v = is_intn<T>::value;
+
+template <typename T>
+struct CustomIntType {
   static int Dtype() { return npy_type; }
 
   // Registered numpy type ID. Global variable populated by the registration
@@ -56,13 +69,18 @@ struct IntNTypeDescriptor {
 };
 
 template <typename T>
-int IntNTypeDescriptor<T>::npy_type = NPY_NOTYPE;
+struct DtypeTraits<T, std::enable_if_t<is_intn_v<T>>> {
+  static int Dtype() { return CustomIntType<T>::Dtype(); }
+};
+
 template <typename T>
-PyObject* IntNTypeDescriptor<T>::type_ptr = nullptr;
+int CustomIntType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
-PyArray_DescrProto IntNTypeDescriptor<T>::npy_descr_proto;
+PyObject* CustomIntType<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_Descr* IntNTypeDescriptor<T>::npy_descr = nullptr;
+PyArray_DescrProto CustomIntType<T>::npy_descr_proto;
+template <typename T>
+PyArray_Descr* CustomIntType<T>::npy_descr = nullptr;
 
 // Representation of a Python custom integer object.
 template <typename T>
@@ -74,7 +92,7 @@ struct PyIntN {
 // Returns true if 'object' is a PyIntN.
 template <typename T>
 bool PyIntN_Check(PyObject* object) {
-  return PyObject_IsInstance(object, TypeDescriptor<T>::type_ptr);
+  return PyObject_IsInstance(object, CustomIntType<T>::type_ptr);
 }
 
 // Extracts the value of a PyIntN object.
@@ -96,7 +114,7 @@ bool PyIntN_Value(PyObject* arg, T* output) {
 template <typename T>
 Safe_PyObjectPtr PyIntN_FromValue(T x) {
   PyTypeObject* type =
-      reinterpret_cast<PyTypeObject*>(TypeDescriptor<T>::type_ptr);
+      reinterpret_cast<PyTypeObject*>(CustomIntType<T>::type_ptr);
   Safe_PyObjectPtr ref = make_safe(type->tp_alloc(type, 0));
   PyIntN<T>* p = reinterpret_cast<PyIntN<T>*>(ref.get());
   if (p) {
@@ -193,7 +211,7 @@ PyObject* PyIntN_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   if (size != 1) {
     PyErr_Format(PyExc_TypeError,
                  "expected number as argument to %s constructor",
-                 TypeDescriptor<T>::kTypeName);
+                 CustomIntTraits<T>::kTypeName);
     return nullptr;
   }
   PyObject* arg = PyTuple_GetItem(args, 0);
@@ -206,8 +224,8 @@ PyObject* PyIntN_tp_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     return PyIntN_FromValue<T>(value).release();
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
-    if (PyArray_TYPE(arr) != TypeDescriptor<T>::Dtype()) {
-      return PyArray_Cast(arr, TypeDescriptor<T>::Dtype());
+    if (PyArray_TYPE(arr) != CustomIntType<T>::Dtype()) {
+      return PyArray_Cast(arr, CustomIntType<T>::Dtype());
     } else {
       Py_INCREF(arg);
       return arg;
@@ -397,22 +415,22 @@ PyObject* PyIntN_Format(PyObject* self, PyObject* format_spec) {
 }
 
 template <typename T>
-PyMethodDef IntNTypeDescriptor<T>::methods[] = {
+PyMethodDef CustomIntType<T>::methods[] = {
     {"__format__", reinterpret_cast<PyCFunction>(PyIntN_Format<T>), METH_O,
      "Format a custom integer value."},
     {nullptr, nullptr, 0, nullptr},
 };
 
 template <typename T>
-PyType_Slot IntNTypeDescriptor<T>::type_slots[] = {
+PyType_Slot CustomIntType<T>::type_slots[] = {
     {Py_tp_new, reinterpret_cast<void*>(PyIntN_tp_new<T>)},
     {Py_tp_repr, reinterpret_cast<void*>(PyIntN_Repr<T>)},
     {Py_tp_hash, reinterpret_cast<void*>(PyIntN_Hash<T>)},
     {Py_tp_str, reinterpret_cast<void*>(PyIntN_Str<T>)},
     {Py_tp_doc,
-     reinterpret_cast<void*>(const_cast<char*>(TypeDescriptor<T>::kTpDoc))},
+     reinterpret_cast<void*>(const_cast<char*>(CustomIntTraits<T>::kTpDoc))},
     {Py_tp_richcompare, reinterpret_cast<void*>(PyIntN_RichCompare<T>)},
-    {Py_tp_methods, reinterpret_cast<void*>(IntNTypeDescriptor<T>::methods)},
+    {Py_tp_methods, reinterpret_cast<void*>(CustomIntType<T>::methods)},
     {Py_nb_add, reinterpret_cast<void*>(PyIntN_nb_add<T>)},
     {Py_nb_subtract, reinterpret_cast<void*>(PyIntN_nb_subtract<T>)},
     {Py_nb_multiply, reinterpret_cast<void*>(PyIntN_nb_multiply<T>)},
@@ -426,26 +444,26 @@ PyType_Slot IntNTypeDescriptor<T>::type_slots[] = {
 };
 
 template <typename T>
-PyType_Spec IntNTypeDescriptor<T>::type_spec = {
-    /*.name=*/TypeDescriptor<T>::kQualifiedTypeName,
+PyType_Spec CustomIntType<T>::type_spec = {
+    /*.name=*/CustomIntTraits<T>::kQualifiedTypeName,
     /*.basicsize=*/static_cast<int>(sizeof(PyIntN<T>)),
     /*.itemsize=*/0,
     /*.flags=*/Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    /*.slots=*/IntNTypeDescriptor<T>::type_slots,
+    /*.slots=*/CustomIntType<T>::type_slots,
 };
 
 // Numpy support
 template <typename T>
-PyArray_ArrFuncs IntNTypeDescriptor<T>::arr_funcs;
+PyArray_ArrFuncs CustomIntType<T>::arr_funcs;
 
 template <typename T>
 PyArray_DescrProto GetIntNDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/TypeDescriptor<T>::kNpyDescrKind,
-      /*type=*/TypeDescriptor<T>::kNpyDescrType,
-      /*byteorder=*/TypeDescriptor<T>::kNpyDescrByteorder,
+      /*kind=*/CustomIntTraits<T>::kNpyDescrKind,
+      /*type=*/CustomIntTraits<T>::kNpyDescrType,
+      /*byteorder=*/CustomIntTraits<T>::kNpyDescrByteorder,
       /*flags=*/NPY_USE_SETITEM,
       /*type_num=*/0,
       /*elsize=*/sizeof(T),
@@ -453,7 +471,7 @@ PyArray_DescrProto GetIntNDescrProto() {
       /*subarray=*/nullptr,
       /*fields=*/nullptr,
       /*names=*/nullptr,
-      /*f=*/&IntNTypeDescriptor<T>::arr_funcs,
+      /*f=*/&CustomIntType<T>::arr_funcs,
       /*metadata=*/nullptr,
       /*c_metadata=*/nullptr,
       /*hash=*/-1,  // -1 means "not computed yet".
@@ -627,25 +645,23 @@ int CastToInt(T value) {
 template <typename From, typename To>
 void IntegerCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
                  void* toarr) {
-  const auto* from =
-      reinterpret_cast<typename TypeDescriptor<From>::T*>(from_void);
-  auto* to = reinterpret_cast<typename TypeDescriptor<To>::T*>(to_void);
+  const auto* from = reinterpret_cast<From*>(from_void);
+  auto* to = reinterpret_cast<To*>(to_void);
   for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<typename TypeDescriptor<To>::T>(
-        static_cast<To>(CastToInt(from[i])));
+    to[i] = static_cast<To>(CastToInt(from[i]));
   }
 }
 
 // Registers a cast between T (a reduced float) and type 'OtherT'. 'numpy_type'
 // is the NumPy type corresponding to 'OtherT'.
 template <typename T, typename OtherT>
-bool RegisterCustomIntCast(int numpy_type = TypeDescriptor<OtherT>::Dtype()) {
+bool RegisterCustomIntCast(int numpy_type = DtypeTraits<OtherT>::Dtype()) {
   PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
-  if (PyArray_RegisterCastFunc(descr, TypeDescriptor<T>::Dtype(),
+  if (PyArray_RegisterCastFunc(descr, CustomIntType<T>::Dtype(),
                                IntegerCast<OtherT, T>) < 0) {
     return false;
   }
-  if (PyArray_RegisterCastFunc(IntNTypeDescriptor<T>::npy_descr, numpy_type,
+  if (PyArray_RegisterCastFunc(CustomIntType<T>::npy_descr, numpy_type,
                                IntegerCast<T, OtherT>) < 0) {
     return false;
   }
@@ -713,73 +729,73 @@ bool RegisterIntNCasts() {
   }
 
   // Safe casts from T to other types
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT8,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT8,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT16,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT16,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT32,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT32,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_INT64,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT64,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
 
   if (!std::numeric_limits<T>::is_signed) {
-    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT8,
+    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT8,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
-    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT16,
+    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT16,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
-    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT32,
+    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT32,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
-    if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_UINT64,
+    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT64,
                                 NPY_NOSCALAR) < 0) {
       return false;
     }
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_HALF,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_HALF,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_FLOAT,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_FLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_DOUBLE,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_DOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_LONGDOUBLE,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_LONGDOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CFLOAT,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_CFLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CDOUBLE,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_CDOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
-  if (PyArray_RegisterCanCast(TypeDescriptor<T>::npy_descr, NPY_CLONGDOUBLE,
+  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_CLONGDOUBLE,
                               NPY_NOSCALAR) < 0) {
     return false;
   }
 
   // Safe casts to T from other types
   if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
-                              TypeDescriptor<T>::Dtype(), NPY_NOSCALAR) < 0) {
+                              CustomIntType<T>::Dtype(), NPY_NOSCALAR) < 0) {
     return false;
   }
 
@@ -811,23 +827,23 @@ bool RegisterIntNDtype(PyObject* numpy) {
   Safe_PyObjectPtr bases(
       PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
   PyObject* type =
-      PyType_FromSpecWithBases(&IntNTypeDescriptor<T>::type_spec, bases.get());
+      PyType_FromSpecWithBases(&CustomIntType<T>::type_spec, bases.get());
   if (!type) {
     return false;
   }
-  TypeDescriptor<T>::type_ptr = type;
+  CustomIntType<T>::type_ptr = type;
 
   Safe_PyObjectPtr module = make_safe(PyUnicode_FromString("ml_dtypes"));
   if (!module) {
     return false;
   }
-  if (PyObject_SetAttrString(TypeDescriptor<T>::type_ptr, "__module__",
+  if (PyObject_SetAttrString(CustomIntType<T>::type_ptr, "__module__",
                              module.get()) < 0) {
     return false;
   }
 
   // Initializes the NumPy descriptor.
-  PyArray_ArrFuncs& arr_funcs = IntNTypeDescriptor<T>::arr_funcs;
+  PyArray_ArrFuncs& arr_funcs = CustomIntType<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
   arr_funcs.getitem = NPyIntN_GetItem<T>;
   arr_funcs.setitem = NPyIntN_SetItem<T>;
@@ -846,34 +862,34 @@ bool RegisterIntNDtype(PyObject* numpy) {
   // RegisterDataType alive, because it stores its pointer.
   // After 2.0, the proto and descriptor types diverge, and NumPy allocates
   // and manages the lifetime of the descriptor itself.
-  PyArray_DescrProto& descr_proto = IntNTypeDescriptor<T>::npy_descr_proto;
+  PyArray_DescrProto& descr_proto = CustomIntType<T>::npy_descr_proto;
   descr_proto = GetIntNDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
-  TypeDescriptor<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (TypeDescriptor<T>::npy_type < 0) {
+  CustomIntType<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
+  if (CustomIntType<T>::npy_type < 0) {
     return false;
   }
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.
-  IntNTypeDescriptor<T>::npy_descr =
-      PyArray_DescrFromType(TypeDescriptor<T>::npy_type);
+  CustomIntType<T>::npy_descr =
+      PyArray_DescrFromType(CustomIntType<T>::npy_type);
 
   Safe_PyObjectPtr typeDict_obj =
       make_safe(PyObject_GetAttrString(numpy, "sctypeDict"));
   if (!typeDict_obj) return false;
   // Add the type object to `numpy.typeDict`: that makes
   // `numpy.dtype(type_name)` work.
-  if (PyDict_SetItemString(typeDict_obj.get(), TypeDescriptor<T>::kTypeName,
-                           TypeDescriptor<T>::type_ptr) < 0) {
+  if (PyDict_SetItemString(typeDict_obj.get(), CustomIntTraits<T>::kTypeName,
+                           CustomIntType<T>::type_ptr) < 0) {
     return false;
   }
 
   // Support dtype(type_name)
   if (PyObject_SetAttrString(
-          TypeDescriptor<T>::type_ptr, "dtype",
-          reinterpret_cast<PyObject*>(IntNTypeDescriptor<T>::npy_descr)) < 0) {
+          CustomIntType<T>::type_ptr, "dtype",
+          reinterpret_cast<PyObject*>(CustomIntType<T>::npy_descr)) < 0) {
     return false;
   }
 
@@ -882,4 +898,4 @@ bool RegisterIntNDtype(PyObject* numpy) {
 
 }  // namespace ml_dtypes
 
-#endif  // ML_DTYPES_INT4_NUMPY_H_
+#endif  // ML_DTYPES_CUSTOM_INT_H_

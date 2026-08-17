@@ -61,8 +61,7 @@ inline bool my_isnan(const T& value) {
 template <typename Functor, typename OutType, typename... InTypes>
 struct UFunc {
   static std::vector<int> Types() {
-    return {TypeDescriptor<InTypes>::Dtype()...,
-            TypeDescriptor<OutType>::Dtype()};
+    return {DtypeTraits<InTypes>::Dtype()..., DtypeTraits<OutType>::Dtype()};
   }
   static constexpr int kInputArity = sizeof...(InTypes);
 
@@ -91,9 +90,9 @@ template <typename Functor, typename OutType, typename OutType2,
 struct UFunc2 {
   static std::vector<int> Types() {
     return {
-        TypeDescriptor<InTypes>::Dtype()...,
-        TypeDescriptor<OutType>::Dtype(),
-        TypeDescriptor<OutType2>::Dtype(),
+        DtypeTraits<InTypes>::Dtype()...,
+        DtypeTraits<OutType>::Dtype(),
+        DtypeTraits<OutType2>::Dtype(),
     };
   }
   static constexpr int kInputArity = sizeof...(InTypes);
@@ -137,7 +136,7 @@ bool RegisterUFunc(PyObject* numpy, const char* name) {
                  ufunc->nargs, types.size());
     return false;
   }
-  if (PyUFunc_RegisterLoopForType(ufunc, TypeDescriptor<CustomT>::Dtype(), fn,
+  if (PyUFunc_RegisterLoopForType(ufunc, DtypeTraits<CustomT>::Dtype(), fn,
                                   const_cast<int*>(types.data()),
                                   nullptr) < 0) {
     return false;
@@ -209,7 +208,7 @@ struct Divmod {
 template <typename T>
 struct FloorDivide {
   template <typename U = T,
-            std::enable_if_t<TypeDescriptor<U>::is_integral, bool> = true>
+            std::enable_if_t<std::numeric_limits<U>::is_integer, bool> = true>
   T operator()(T x, T y) {
     if (y == T(0)) {
       PyErr_WarnEx(PyExc_RuntimeWarning,
@@ -223,7 +222,7 @@ struct FloorDivide {
     return v;
   }
   template <typename U = T,
-            std::enable_if_t<TypeDescriptor<U>::is_floating, bool> = true>
+            std::enable_if_t<!std::numeric_limits<U>::is_integer, bool> = true>
   T operator()(T a, T b) {
     return T(divmod_impl(to_system(a), to_system(b)).first);
   }
@@ -231,7 +230,7 @@ struct FloorDivide {
 template <typename T>
 struct Remainder {
   template <typename U = T,
-            std::enable_if_t<TypeDescriptor<U>::is_integral, bool> = true>
+            std::enable_if_t<std::numeric_limits<U>::is_integer, bool> = true>
   T operator()(T x, T y) {
     if (y == 0) {
       PyErr_WarnEx(PyExc_RuntimeWarning,
@@ -245,7 +244,7 @@ struct Remainder {
     return v;
   }
   template <typename U = T,
-            std::enable_if_t<TypeDescriptor<U>::is_floating, bool> = true>
+            std::enable_if_t<!std::numeric_limits<U>::is_integer, bool> = true>
   T operator()(T a, T b) {
     return T(divmod_impl(to_system(a), to_system(b)).second);
   }
