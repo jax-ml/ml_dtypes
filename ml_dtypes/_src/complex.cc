@@ -717,11 +717,17 @@ void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
       auto via = static_cast<std::complex<float>>(from[i]);
       to[i] = static_cast<To>(via);
     } else if constexpr (is_complex_v<From> && !is_complex_v<To>) {
-      if (GiveComplexWarningNoGIL() < 0) {
-        return;
+      if constexpr (std::is_same_v<To, bool>) {
+        to[i] =
+            static_cast<To>(from[i].real() != typename From::value_type(0) ||
+                            from[i].imag() != typename From::value_type(0));
+      } else {
+        if (GiveComplexWarningNoGIL() < 0) {
+          return;
+        }
+        auto via = static_cast<float>(from[i].real());
+        to[i] = static_cast<To>(via);
       }
-      auto via = static_cast<float>(from[i].real());
-      to[i] = static_cast<To>(via);
     } else if constexpr (!is_complex_v<From> && is_complex_v<To>) {
       auto via = static_cast<float>(from[i]);
       to[i] = static_cast<To>(via);
@@ -856,6 +862,8 @@ bool RegisterComplexUFuncs(PyObject* numpy) {
       RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>, T>(numpy,
                                                               "true_divide") &&
       RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy, "power") &&
+      RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy,
+                                                         "float_power") &&
       RegisterUFunc<UFunc<ufuncs::Abs<T>, typename T::value_type, T>, T>(
           numpy, "absolute") &&
       RegisterUFunc<UFunc<ufuncs::Rint<T>, T, T>, T>(numpy, "rint") &&

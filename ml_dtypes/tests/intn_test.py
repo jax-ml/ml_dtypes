@@ -201,6 +201,7 @@ class ScalarTest(parameterized.TestCase):
           self.assertEqual(scalar_type(op(v, w)), out, msg=(v, w))
 
   CAST_DTYPES = [
+      np.bool_,
       np.float16,
       np.float32,
       np.float64,
@@ -525,6 +526,7 @@ class ArrayTest(parameterized.TestCase):
   @parameterized.product(
       scalar_type=INTN_TYPES,
       dtype=[
+          np.bool_,
           np.float16,
           np.float32,
           np.float64,
@@ -600,6 +602,34 @@ class ArrayTest(parameterized.TestCase):
         ufunc(x[:, None], x[None, :]).astype(scalar_type),
         ufunc(y[:, None], y[None, :]),
     )
+
+  @parameterized.product(
+      scalar_type=INTN_TYPES,
+      ufunc=[
+          np.logical_and,
+          np.logical_or,
+          np.logical_xor,
+      ],
+  )
+  def testLogicalUfuncReduce(self, scalar_type, ufunc):
+    x = np.array([True, False, True], dtype=scalar_type)
+    np.testing.assert_equal(
+        ufunc.reduce(x),
+        ufunc.reduce(x.astype(bool)),
+    )
+
+  @parameterized.parameters(INTN_TYPES)
+  def testAccumulateWithOutputDtype(self, scalar_type):
+    x = np.array([1, 2, 3], dtype=scalar_type)
+    res = np.multiply.accumulate(x, dtype=np.int32)
+    np.testing.assert_equal(res, np.multiply.accumulate(x.astype(np.int32)))
+
+  @parameterized.parameters(INTN_TYPES)
+  def testZeroSizeReduction(self, scalar_type):
+    x = np.array([], dtype=scalar_type)
+    for op, expected in [(np.add, 0), (np.multiply, 1)]:
+      with self.subTest(op.__name__):
+        np.testing.assert_equal(op.reduce(x), scalar_type(expected))
 
 
 if __name__ == "__main__":

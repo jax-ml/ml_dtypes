@@ -737,6 +737,8 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
       RegisterUFunc<UFunc<ufuncs::FloorDivide<T>, T, T, T>, T>(
           numpy, "floor_divide") &&
       RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy, "power") &&
+      RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy,
+                                                         "float_power") &&
       RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy,
                                                              "remainder") &&
       RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy, "mod") &&

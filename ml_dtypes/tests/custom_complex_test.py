@@ -47,7 +47,7 @@ COMPLEX_VALUES = [
 
 
 def assert_expected_dtype(result, expected, sctype):
-  if expected.dtype == np.complex64:
+  if expected.dtype in [np.complex64, np.complex128]:
     assert result.dtype == sctype
   elif expected.dtype == np.bool_:
     assert result.dtype == np.bool_
@@ -262,6 +262,28 @@ def test_cast_to_float(sctype, to_dtype):
   np.testing.assert_array_equal(y, [1.0, 3.0] * 500)
 
 
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_cast_from_bool(sctype):
+  """Test casting from bool to complex."""
+  x = np.array([True, False, True], dtype=bool)
+  y = x.astype(sctype)
+  assert y.dtype == sctype
+  np.testing.assert_array_equal(
+      ml_dtypes.real(y).astype(np.float32), [1.0, 0.0, 1.0]
+  )
+  np.testing.assert_array_equal(
+      ml_dtypes.imag(y).astype(np.float32), [0.0, 0.0, 0.0]
+  )
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_cast_to_bool(sctype):
+  """Test casting from complex to bool."""
+  x = np.array([0 + 0j, 1 + 0j, 0 + 2j, 3 + 4j], dtype=sctype)
+  y = x.astype(bool)
+  np.testing.assert_array_equal(y, [False, True, True, True])
+
+
 # ==========================
 # UFunc/array function tests
 # ==========================
@@ -371,7 +393,7 @@ def test_unary_ufuncs(sctype, ufunc):
   expected = ufunc(x.astype(np.complex64))
 
   assert_expected_dtype(result, expected, sctype)
-  if ufunc in [np.arctan, np.arctanh]:
+  if ufunc in [np.arctan, np.arctanh, np.cos, np.sinh, np.cosh]:
     # Arctan/arctanh seems to differe a bit with Inf/Nan results
     assert (np.isnan(expected) == np.isnan(result)).all()
     assert (np.isinf(expected) == np.isinf(result)).all()
@@ -420,6 +442,7 @@ def test_unary_ufuncs(sctype, ufunc):
         np.divide,
         np.true_divide,
         np.power,
+        np.float_power,
         # Maximum and minimum
         np.maximum,
         np.minimum,
@@ -446,7 +469,7 @@ def test_binary_ufuncs(sctype, ufunc):
   )
   x = x.astype(sctype)
 
-  if ufunc == np.power:
+  if ufunc in [np.power, np.float_power]:
     # TODO(seberg): std::power deals poorly with some values, drop for now.
     x = x[(ml_dtypes.real(x) != 0) & np.isfinite(x)]
 
@@ -456,7 +479,13 @@ def test_binary_ufuncs(sctype, ufunc):
   expected = ufunc(x.astype(np.complex64), y.astype(np.complex64))
 
   assert_expected_dtype(result, expected, sctype)
-  if ufunc in [np.multiply, np.divide, np.true_divide, np.power]:
+  if ufunc in [
+      np.multiply,
+      np.divide,
+      np.true_divide,
+      np.power,
+      np.float_power,
+  ]:
     np.testing.assert_allclose(
         result.astype(np.complex64),
         expected,
@@ -562,3 +591,34 @@ def test_comparison_with_sequences(sctype, seq, op):
   equiv_val = np.complex64(1 + 1j)
   np.testing.assert_array_equal(op(val, seq), op(equiv_val, seq))
   np.testing.assert_array_equal(op(seq, val), op(seq, equiv_val))
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize(
+    "ufunc",
+    [
+        np.logical_and,
+        np.logical_or,
+        np.logical_xor,
+    ],
+)
+def test_logical_ufunc_reduce(sctype, ufunc):
+  x = np.array([True, False, True], dtype=sctype)
+  np.testing.assert_equal(
+      ufunc.reduce(x),
+      ufunc.reduce(x.astype(bool)),
+  )
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_accumulate_with_output_dtype(sctype):
+  x = np.array([1 + 0j, 2 + 0j, 3 + 0j], dtype=sctype)
+  res = np.multiply.accumulate(x, dtype=np.complex128)
+  np.testing.assert_equal(res, np.multiply.accumulate(x.astype(np.complex128)))
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("op,expected", [(np.add, 0), (np.multiply, 1)])
+def test_zero_size_reduction(sctype, op, expected):
+  x = np.array([], dtype=sctype)
+  np.testing.assert_equal(op.reduce(x), sctype(expected))

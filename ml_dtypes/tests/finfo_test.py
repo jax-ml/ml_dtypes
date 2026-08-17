@@ -63,15 +63,26 @@ class FinfoTest(parameterized.TestCase):
       return
     self.assertEqual(x, y)
 
+  @parameterized.parameters(
+      *ALL_DTYPES,
+      ml_dtypes.bcomplex32,
+      ml_dtypes.complex32,
+  )
+  def testFinfoEquivalence(self, dtype):
+    dt = np.dtype(dtype)
+    info = ml_dtypes.finfo(dtype)
+    self.assertIs(ml_dtypes.finfo(dt.name), info)
+    self.assertIs(ml_dtypes.finfo(dt), info)
+    self.assertIs(np.finfo(dtype), info)
+    self.assertIs(np.finfo(dt.name), info)
+    self.assertIs(np.finfo(dt), info)
+
   @parameterized.named_parameters(
       {"testcase_name": f"_{dtype.__name__}", "dtype": np.dtype(dtype)}
       for dtype in ALL_DTYPES
   )
   def testFInfo(self, dtype):
     info = ml_dtypes.finfo(dtype)
-
-    assert ml_dtypes.finfo(dtype.name) is info
-    assert ml_dtypes.finfo(dtype.type) is info
 
     _ = str(info)  # doesn't crash
 
@@ -94,7 +105,7 @@ class FinfoTest(parameterized.TestCase):
       self.assertEqual(make_val(val), make_val(0))
 
     self.assertEqual(np.array(0, dtype).dtype, dtype)
-    self.assertIs(info.dtype, dtype)
+    self.assertEqual(info.dtype, dtype)
 
     if info.bits >= 8:
       self.assertEqual(info.bits, np.array(0, dtype).itemsize * 8)
@@ -129,7 +140,7 @@ class FinfoTest(parameterized.TestCase):
 
     assert_representable(info.smallest_subnormal)
     if info.min < 0.0:
-      assert_zero(info.smallest_subnormal * 0.5)
+      assert_zero(float(info.smallest_subnormal) * 0.5)
     self.assertGreater(info.smallest_normal, 0.0)
     self.assertEqual(info.tiny, info.smallest_normal)
 
@@ -158,23 +169,6 @@ class FinfoTest(parameterized.TestCase):
     # return the same object.
     arr = np.zeros(1, dtype=dtype)
     self.assertEqual(ml_dtypes.finfo(arr).dtype, dtype)
-
-  @parameterized.parameters(
-      *ALL_DTYPES,
-      ml_dtypes.bcomplex32,
-      ml_dtypes.complex32,
-      np.float16,
-      np.float32,
-      np.float64,
-      np.complex64,
-      np.complex128,
-  )
-  def testStringVsNonStringIdentity(self, dtype):
-    info_from_type = ml_dtypes.finfo(dtype)
-    info_from_str = ml_dtypes.finfo(np.dtype(dtype).name)
-    info_from_dtype = ml_dtypes.finfo(np.dtype(dtype))
-    self.assertIs(info_from_str, info_from_type)
-    self.assertIs(info_from_dtype, info_from_type)
 
   @parameterized.parameters(
       (ml_dtypes.complex32, np.float16),

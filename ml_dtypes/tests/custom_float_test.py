@@ -807,6 +807,7 @@ BINARY_UFUNCS = [
     np.logaddexp2,
     np.floor_divide,
     np.power,
+    np.float_power,
     np.remainder,
     np.fmod,
     np.heaviside,
@@ -959,6 +960,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   )
   def testCasts(self, float_type):
     for dtype in [
+        np.bool_,
         np.float16,
         np.float32,
         np.float64,
@@ -980,7 +982,12 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.uintc,
         np.ulonglong,
     ]:
-      x = np.array([[1, 2, 4]], dtype=dtype)
+      if dtype == np.bool_:
+        # float8_e8m0fnu cannot represent zero.
+        values = [[1, 1, 1]] if float_type == float8_e8m0fnu else [[0, 1, 1]]
+      else:
+        values = [[1, 2, 4]]
+      x = np.array(values, dtype=dtype)
       y = x.astype(float_type)
       z = y.astype(dtype)
       self.assertTrue(np.all(x == y))
@@ -1067,6 +1074,26 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.testing.assert_equal(
             op(x, y), op(x.astype(np.float32), y.astype(np.float32))
         )
+
+  def testLogicalUfuncReduce(self, float_type):
+    x = np.array([True, False, True], dtype=float_type)
+    for op in [np.logical_and, np.logical_or, np.logical_xor]:
+      with self.subTest(op.__name__):
+        np.testing.assert_equal(
+            op.reduce(x),
+            op.reduce(x.astype(bool)),
+        )
+
+  def testAccumulateWithOutputDtype(self, float_type):
+    x = np.array([1, 2, 3], dtype=float_type)
+    res = np.multiply.accumulate(x, dtype=np.int16)
+    np.testing.assert_equal(res, np.multiply.accumulate(x.astype(np.int16)))
+
+  def testZeroSizeReduction(self, float_type):
+    x = np.array([], dtype=float_type)
+    for op, expected in [(np.add, 0), (np.multiply, 1)]:
+      with self.subTest(op.__name__):
+        np.testing.assert_equal(op.reduce(x), float_type(expected))
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPredicateUfunc(self, float_type):
@@ -1173,7 +1200,7 @@ class CustomFloatNumPyTest(parameterized.TestCase):
   def testLdexp(self, float_type):
     rng = np.random.RandomState(seed=42)
     x = rng.randn(3, 7).astype(float_type)
-    y = rng.randint(-50, 50, (1, 7)).astype(np.int32)
+    y = rng.randint(-50, 50, (1, 7)).astype(np.intc)
     self.assertEqual(np.ldexp(x, y).dtype, x.dtype)
     numpy_assert_allclose(
         np.ldexp(x, y).astype(np.float32),
@@ -1181,6 +1208,19 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         rtol=1e-2,
         atol=1e-6,
         float_type=float_type,
+    )
+
+  def testLdexpInt64(self, float_type):
+    x = np.array([0.5, 1.0], dtype=float_type)
+    y = np.array([1, 2], dtype=np.int64)
+    np.testing.assert_array_equal(
+        np.ldexp(x, y), np.array([1.0, 4.0], dtype=float_type)
+    )
+
+  def testLdexpPythonInt(self, float_type):
+    x = np.array([1.0, 2.0], dtype=float_type)
+    np.testing.assert_array_equal(
+        np.ldexp(x, 1), np.array([2.0, 4.0], dtype=float_type)
     )
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
@@ -1293,6 +1333,20 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       if dtype_has_inf(float_type):
         inf = float_type(float("inf"))
         np.testing.assert_equal(np.spacing(inf), np.spacing(np.float32(inf)))
+
+  def testLinspace(self, float_type):
+    start = np.array([0.5, 1.0], dtype=float_type)
+    stop = np.array([1.0, 2.0], dtype=float_type)
+    out, _ = np.linspace(
+        start, stop, num=5, endpoint=False, retstep=True, dtype=float_type
+    )
+    np.testing.assert_array_equal(out[0], start)
+
+  def testClipFloat64Bounds(self, float_type):
+    x = np.array([-2.0, 0.0, 2.0], dtype=float_type)
+    np.clip(
+        x, np.array([-0.9], dtype=np.float64), np.array([1.0], dtype=np.float64)
+    )
 
 
 if __name__ == "__main__":
