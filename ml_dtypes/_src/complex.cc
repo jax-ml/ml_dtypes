@@ -534,14 +534,22 @@ PyArray_ArrFuncs CustomComplexType<T>::arr_funcs;
 
 namespace {
 
+// Constructs the legacy NumPy 1.x descriptor prototype for custom complex
+// types.
+//
+// Note on kind and type character in NumPy 1.x:
+// 1. Custom complex types use kind='V' (Void) to avoid conflation with NumPy's
+//    built-in complex dtypes.
+// 2. Type characters ('P' for bcomplex32, 'O' for complex32) are assigned on a
+//    best-effort basis; 'E' was already used by bfloat16.
 template <typename T>
 PyArray_DescrProto GetCustomComplexDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/CustomComplexTraits<T>::kNpyDescrKind,
-      /*type=*/CustomComplexTraits<T>::kNpyDescrType,
-      /*byteorder=*/CustomComplexTraits<T>::kNpyDescrByteorder,
+      /*kind=*/'V',
+      /*type=*/CustomComplexTraits<T>::kNumPy1DescrType,
+      /*byteorder=*/'=',
       /*flags=*/NPY_USE_SETITEM,
       /*type_num=*/0,
       /*elsize=*/sizeof(T),

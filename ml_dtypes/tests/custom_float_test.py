@@ -256,6 +256,10 @@ class CustomFloatTest(parameterized.TestCase):
   def testModuleName(self, float_type):
     self.assertEqual(float_type.__module__, "ml_dtypes")
 
+  def testKind(self, float_type):
+    expected_kind = "f" if float_type is float8_e5m2 else "V"
+    self.assertEqual(np.dtype(float_type).kind, expected_kind)
+
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPickleable(self, float_type):
     # https://github.com/jax-ml/jax/discussions/8505

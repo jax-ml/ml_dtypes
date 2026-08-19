@@ -390,14 +390,28 @@ PyArray_ArrFuncs CustomFloatType<T>::arr_funcs;
 
 namespace {
 
+// Constructs the legacy NumPy 1.x descriptor prototype for custom float types.
+//
+// Note on kind and type character in NumPy 1.x:
+// 1. We register custom floats with kind='V' (Void) rather than kind='f'
+//    (float), because NumPy 1.x considers two types with the same kind and
+//    itemsize to be equal. Since multiple 1-byte and 2-byte float types exist,
+//    kind='V' prevents collisions with NumPy's built-in types (e.g., float16 !=
+//    bfloat16) and between custom types. The exception is float8_e5m2, which
+//    uses kind='f' as the standard IEEE-754 8-bit float.
+//    The downside in NumPy 1.x is that scalar promotion does not work with
+//    kind='V' types.
+// 2. Type characters (e.g. 'E', '4', '7') are arbitrary single-character codes
+//    assigned on a best-effort basis; NumPy 1.x does not provide a mechanism to
+//    guarantee character uniqueness.
 template <typename T>
 PyArray_DescrProto GetCustomFloatDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/CustomFloatTraits<T>::kNpyDescrKind,
-      /*type=*/CustomFloatTraits<T>::kNpyDescrType,
-      /*byteorder=*/CustomFloatTraits<T>::kNpyDescrByteorder,
+      /*kind=*/std::is_same_v<T, float8_e5m2> ? 'f' : 'V',
+      /*type=*/CustomFloatTraits<T>::kNumPy1DescrType,
+      /*byteorder=*/'=',
       /*flags=*/NPY_USE_SETITEM,
       /*type_num=*/0,
       /*elsize=*/sizeof(T),

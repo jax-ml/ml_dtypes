@@ -31,11 +31,7 @@ struct CustomIntTraits<int1> {
   static constexpr const char* kTypeName = "int1";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.int1";
   static constexpr const char* kTpDoc = "int1 integer values";
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'e';
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'e';
 };
 
 template <>
@@ -43,11 +39,7 @@ struct CustomIntTraits<uint1> {
   static constexpr const char* kTypeName = "uint1";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint1";
   static constexpr const char* kTpDoc = "uint1 integer values";
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'E';
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'E';
 };
 
 template <>
@@ -55,11 +47,7 @@ struct CustomIntTraits<int2> {
   static constexpr const char* kTypeName = "int2";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.int2";
   static constexpr const char* kTpDoc = "int2 integer values";
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'c';
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'c';
 };
 
 template <>
@@ -67,11 +55,7 @@ struct CustomIntTraits<uint2> {
   static constexpr const char* kTypeName = "uint2";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint2";
   static constexpr const char* kTpDoc = "uint2 integer values";
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'C';
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'C';
 };
 
 template <>
@@ -79,11 +63,7 @@ struct CustomIntTraits<int4> {
   static constexpr const char* kTypeName = "int4";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.int4";
   static constexpr const char* kTpDoc = "int4 integer values";
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'a';
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'a';
 };
 
 template <>
@@ -91,11 +71,7 @@ struct CustomIntTraits<uint4> {
   static constexpr const char* kTypeName = "uint4";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.uint4";
   static constexpr const char* kTpDoc = "uint4 integer values";
-  static constexpr char kNpyDescrKind = 'V';
-  // TODO(phawkins): there doesn't seem to be a way of guaranteeing a type
-  // character is unique.
-  static constexpr char kNpyDescrType = 'A';
-  static constexpr char kNpyDescrByteorder = '=';
+  static constexpr char kNumPy1DescrType = 'A';
 };
 
 template <typename T, typename = void>

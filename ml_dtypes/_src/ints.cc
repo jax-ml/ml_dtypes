@@ -423,14 +423,23 @@ PyArray_ArrFuncs CustomIntType<T>::arr_funcs;
 
 namespace {
 
+// Constructs the legacy NumPy 1.x descriptor prototype for custom integer
+// types.
+//
+// Note on kind and type character in NumPy 1.x:
+// 1. Custom integer types use kind='V' (Void) to prevent collisions with
+//    built-in integer types sharing the same itemsize.
+// 2. Type characters (e.g. 'e', 'E', 'c', 'C', 'a', 'A') are arbitrary
+//    single-character codes assigned on a best-effort basis; NumPy 1.x does
+//    not guarantee character uniqueness.
 template <typename T>
 PyArray_DescrProto GetIntNDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/CustomIntTraits<T>::kNpyDescrKind,
-      /*type=*/CustomIntTraits<T>::kNpyDescrType,
-      /*byteorder=*/CustomIntTraits<T>::kNpyDescrByteorder,
+      /*kind=*/'V',
+      /*type=*/CustomIntTraits<T>::kNumPy1DescrType,
+      /*byteorder=*/'=',
       /*flags=*/NPY_USE_SETITEM,
       /*type_num=*/0,
       /*elsize=*/sizeof(T),
