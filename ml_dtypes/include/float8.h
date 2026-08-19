@@ -1263,7 +1263,8 @@ struct Traits<float8_e8m0fnu> : public TraitsBase<float8_e8m0fnu> {
 };
 
 template <typename Bits>
-constexpr inline Bits RoundBitsToNearestEven(Bits bits, int roundoff) {
+constexpr inline Bits RoundBitsToNearestEven(Bits bits, int roundoff,
+                                             bool last_kept_bit) {
   // Round to nearest even by adding a bias term.
   // Consider a bit pattern
   //   FFF...FLRTT...T,
@@ -1272,8 +1273,19 @@ constexpr inline Bits RoundBitsToNearestEven(Bits bits, int roundoff) {
   // - L is 1, R is 1, OR
   // - L is 0, R is 1, any T is one.
   // We do this by adding L to a bit pattern consisting of all T = 1.
-  Bits bias = ((bits >> roundoff) & 1) + (Bits{1} << (roundoff - 1)) - 1;
+  //
+  // L is the least-significant bit that is *kept* in the result. That is
+  // usually bit `roundoff` of `bits`, but a caller may pass a different value
+  // when that bit is not the result's LSB -- e.g. a mantissa-less target
+  // (E8M0) where the implicit bit carries into the exponent during packing, so
+  // the result's LSB is the exponent LSB, not bit `roundoff`.
+  Bits bias = Bits{last_kept_bit} + (Bits{1} << (roundoff - 1)) - 1;
   return bits + bias;
+}
+
+template <typename Bits>
+constexpr inline Bits RoundBitsToNearestEven(Bits bits, int roundoff) {
+  return RoundBitsToNearestEven(bits, roundoff, ((bits >> roundoff) & 1) != 0);
 }
 
 #if (defined(__cpp_lib_bitops) && __cpp_lib_bitops >= 201907L)
@@ -1462,8 +1474,23 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
       if constexpr (!kTruncate) {
         // Rounding may cause a carry (e.g., 1.11... -> 10.00...).
         // This carry will naturally flow into the exponent during packing.
-        normalized_mantissa =
-            RoundBitsToNearestEven(normalized_mantissa, alignment_shift);
+        if constexpr (kToMantissaBits == 0) {
+          // The target has no mantissa bits (E8M0). The implicit bit carries
+          // into the exponent during packing (Step 6), so the result's LSB is
+          // the truncated exponent's LSB, not bit `alignment_shift` of the
+          // mantissa (which is the always-1 implicit bit). Supply that bit
+          // explicitly so exact ties round to even rather than always up.
+          const ToBits trunc_exp_bits =
+              static_cast<ToBits>(std::max(0, target_biased_exponent_base));
+          const bool result_lsb =
+              (((normalized_mantissa >> alignment_shift) + trunc_exp_bits) &
+               1) != 0;
+          normalized_mantissa = RoundBitsToNearestEven(
+              normalized_mantissa, alignment_shift, result_lsb);
+        } else {
+          normalized_mantissa =
+              RoundBitsToNearestEven(normalized_mantissa, alignment_shift);
+        }
       }
       aligned_mantissa = normalized_mantissa >> alignment_shift;
     } else {
