@@ -37,6 +37,8 @@ __all__ = [
     "uint1",
     "uint2",
     "uint4",
+    "real",
+    "imag",
 ]
 
 from ml_dtypes._finfo import finfo
@@ -83,6 +85,17 @@ uint2: type[_np.generic]
 uint4: type[_np.generic]
 bcomplex32: type[_np.generic]
 complex32: type[_np.generic]
+
+bcomplex32.__doc__ = (
+    "A 4-byte complex number composed of two bfloat16 values.\n\n"
+    "On NumPy <2.5, use ml_dtypes.real() and ml_dtypes.imag() instead of "
+    "array.real and array.imag."
+)
+complex32.__doc__ = (
+    "A 4-byte complex number composed of two float16 values.\n\n"
+    "On NumPy <2.5, use ml_dtypes.real() and ml_dtypes.imag() instead of "
+    "array.real and array.imag."
+)
 
 
 def real(x: _np.ndarray) -> _np.ndarray:

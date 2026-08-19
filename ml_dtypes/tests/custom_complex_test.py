@@ -130,6 +130,68 @@ def test_real_imag_arrays(sctype):
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.skipif(
+    np.lib.NumpyVersion(np.__version__) < "2.5.0",
+    reason="NumPy 2.5 introduced real and imag ufuncs.",
+)
+def test_real_imag_arrays_numpy25(sctype):
+  source = np.array([[1 + 2j, 3 + 4j], [5 + 6j, 7 + 8j]], dtype=np.complex64)
+  expected_dtype = ml_dtypes.finfo(sctype).dtype  # the real one
+
+  for arr, expected in (
+      (source.astype(sctype), source),
+      (source.astype(sctype).T, source.T),
+      (source.astype(sctype)[::-1, ::-1], source[::-1, ::-1]),
+  ):
+    for attr, func, expected_part in (
+        ("real", np.real, expected.real),
+        ("imag", np.imag, expected.imag),
+    ):
+      attr_result = getattr(arr, attr)
+      func_result = func(arr)
+      assert attr_result.dtype == func_result.dtype == expected_dtype
+      np.testing.assert_array_equal(attr_result, expected_part)
+      np.testing.assert_array_equal(func_result, expected_part)
+      assert np.shares_memory(arr, attr_result)
+      assert np.shares_memory(arr, func_result)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.skipif(
+    np.lib.NumpyVersion(np.__version__) < "2.5.0",
+    reason="NumPy 2.5 introduced real and imag ufuncs.",
+)
+def test_real_imag_arrays_numpy25_write_through(sctype):
+  arr = np.array([1 + 2j, 3 + 4j], dtype=sctype)
+  arr.real[...] = [5, 7]
+  arr.imag[...] = [6, 8]
+  np.testing.assert_array_equal(
+      arr.astype(np.complex64), np.array([5 + 6j, 7 + 8j])
+  )
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_complex_byteswap_round_trip(sctype):
+  expected = np.array([1 + 2j, 3 + 4j], dtype=np.complex64)
+  arr = expected.astype(sctype)
+  swapped = arr.byteswap().view(arr.dtype.newbyteorder())
+  np.testing.assert_array_equal(swapped.astype(np.complex64), expected)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.skipif(
+    np.lib.NumpyVersion(np.__version__) < "2.5.0",
+    reason="NumPy 2.5 introduced real and imag ufuncs.",
+)
+def test_real_imag_byteswapped_arrays_numpy25(sctype):
+  source = np.array([1 + 2j, 3 + 4j], dtype=np.complex64)
+  arr = source.astype(sctype)
+  swapped = arr.byteswap().view(arr.dtype.newbyteorder())
+  np.testing.assert_array_equal(swapped.real, source.real)
+  np.testing.assert_array_equal(swapped.imag, source.imag)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 @pytest.mark.parametrize("value", COMPLEX_VALUES)
 def test_str_repr(sctype, value):
   z = sctype(value)
