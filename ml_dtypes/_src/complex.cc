@@ -539,15 +539,16 @@ namespace {
 //
 // Note on kind and type character in NumPy 1.x:
 // 1. Custom complex types use kind='V' (Void) to avoid conflation with NumPy's
-//    built-in complex dtypes.
-// 2. Type characters ('P' for bcomplex32, 'O' for complex32) are assigned on a
+//    built-in complex dtypes. The exception is complex32, which uses kind='c'
+//    as the standard complex float16 type.
+// 2. Type characters ('K' for bcomplex32, 'J' for complex32) are assigned on a
 //    best-effort basis; 'E' was already used by bfloat16.
 template <typename T>
 PyArray_DescrProto GetCustomComplexDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/'V',
+      /*kind=*/std::is_same_v<T, complex32> ? 'c' : 'V',
       /*type=*/CustomComplexTraits<T>::kNumPy1DescrType,
       /*byteorder=*/'=',
       /*flags=*/NPY_USE_SETITEM,

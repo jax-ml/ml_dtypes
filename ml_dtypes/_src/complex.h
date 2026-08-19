@@ -32,7 +32,7 @@ struct CustomComplexTraits<bcomplex32> {
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.bcomplex32";
   static constexpr const char* kTpDoc =
       "complex bfloat16 floating-point values";
-  static constexpr char kNumPy1DescrType = 'P';
+  static constexpr char kNumPy1DescrType = 'K';
 };
 
 template <>
@@ -40,7 +40,7 @@ struct CustomComplexTraits<complex32> {
   static constexpr const char* kTypeName = "complex32";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.complex32";
   static constexpr const char* kTpDoc = "complex half floating-point values";
-  static constexpr char kNumPy1DescrType = 'O';
+  static constexpr char kNumPy1DescrType = 'J';
 };
 
 template <typename T, typename = void>
