@@ -23,6 +23,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* `arr.real` and `arr.imag` now return correct results for `bcomplex32` and
+  `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
+* Fixed byte-swapping of `bcomplex32` and `complex32` arrays
+  ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
+
 ## [0.6.0] - 2026-08-13
 
 * Added new 16-bit complex types: `ml_dtypes.complex32` (based on float16) and

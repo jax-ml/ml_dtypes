@@ -604,27 +604,34 @@ int NPyCustomComplex_Compare(const void* a, const void* b, void* arr) {
 }
 
 template <typename T>
+void ByteSwapComplexComponents(void* value) {
+  using real_type = typename T::value_type;
+  static_assert(sizeof(T) == 2 * sizeof(real_type),
+                "complex value must contain exactly two components");
+  static_assert(sizeof(real_type) == sizeof(int16_t) ||
+                    sizeof(real_type) == sizeof(int8_t),
+                "Not supported");
+
+  if constexpr (sizeof(real_type) == sizeof(int16_t)) {
+    char* data = reinterpret_cast<char*>(value);
+    ByteSwap16(data);
+    ByteSwap16(data + sizeof(real_type));
+  }
+}
+
+template <typename T>
 void NPyCustomComplex_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
                                 npy_intp sstride, npy_intp n, int swap,
                                 void* arr) {
-  static_assert(sizeof(T) == sizeof(int32_t) || sizeof(T) == sizeof(int16_t),
-                "Not supported");
   char* dst = reinterpret_cast<char*>(dstv);
   char* src = reinterpret_cast<char*>(srcv);
 
   if (src) {
-    if (swap && sizeof(T) == sizeof(int16_t)) {
+    if (swap) {
       for (npy_intp i = 0; i < n; i++) {
         char* r = dst + dstride * i;
         memcpy(r, src + sstride * i, sizeof(T));
-        ByteSwap16(r);
-      }
-    }
-    if (swap && sizeof(T) == sizeof(int32_t)) {
-      for (npy_intp i = 0; i < n; i++) {
-        char* r = dst + dstride * i;
-        memcpy(r, src + sstride * i, sizeof(T));
-        ByteSwap32(r);
+        ByteSwapComplexComponents<T>(r);
       }
     } else if (dstride == sizeof(T) && sstride == sizeof(T)) {
       memcpy(dst, src, n * sizeof(T));
@@ -635,36 +642,19 @@ void NPyCustomComplex_CopySwapN(void* dstv, npy_intp dstride, void* srcv,
     }
   } else if (swap) {
     // In-place swap when src is NULL
-    if (sizeof(T) == sizeof(int16_t)) {
-      for (npy_intp i = 0; i < n; i++) {
-        char* r = dst + dstride * i;
-        ByteSwap16(r);
-      }
-    } else if (sizeof(T) == sizeof(int32_t)) {
-      for (npy_intp i = 0; i < n; i++) {
-        char* r = dst + dstride * i;
-        ByteSwap32(r);
-      }
+    for (npy_intp i = 0; i < n; i++) {
+      ByteSwapComplexComponents<T>(dst + dstride * i);
     }
   }
 }
 
 template <typename T>
 void NPyCustomComplex_CopySwap(void* dst, void* src, int swap, void* arr) {
-  static_assert(sizeof(T) == sizeof(int32_t) || sizeof(T) == sizeof(int16_t),
-                "Not supported");
-
   if (src) {
     memcpy(dst, src, sizeof(T));
   }
-  if (!swap) {
-    return;
-  }
-
-  if (sizeof(T) == sizeof(int16_t)) {
-    ByteSwap16(dst);
-  } else if (sizeof(T) == sizeof(int32_t)) {
-    ByteSwap32(dst);
+  if (swap) {
+    ByteSwapComplexComponents<T>(dst);
   }
 }
 
@@ -934,6 +924,121 @@ bool RegisterComplexUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// Match NumPy's built-in complex real/imag loops. Array properties normally
+// use view_offset; the strided loop supports direct ufunc execution.
+template <bool real_part>
+static NPY_CASTING complex_to_real_resolve_descriptors(
+    struct PyArrayMethodObject_tag* self, PyArray_DTypeMeta* const dtypes[2],
+    PyArray_Descr* const given_descrs[2], PyArray_Descr* loop_descrs[2],
+    npy_intp* view_offset) {
+  Py_INCREF(given_descrs[0]);
+  loop_descrs[0] = given_descrs[0];
+  Py_INCREF(dtypes[1]->singleton);
+  loop_descrs[1] = dtypes[1]->singleton;
+
+  if (PyDataType_ISBYTESWAPPED(loop_descrs[0])) {
+    Py_SETREF(loop_descrs[1],
+              PyArray_DescrNewByteorder(loop_descrs[1], NPY_SWAP));
+    if (loop_descrs[1] == NULL) {
+      Py_DECREF(loop_descrs[0]);
+      return _NPY_ERROR_OCCURRED_IN_CAST;
+    }
+  }
+  if constexpr (real_part) {
+    *view_offset = 0;
+  } else {
+    *view_offset = PyDataType_ELSIZE(loop_descrs[1]);
+  }
+  return NPY_NO_CASTING;
+}
+
+/* We shouldn't normally use it, but define a simple loop anyway. */
+template <typename T, bool real_part>
+static int extract_complex_part_loop(PyArrayMethod_Context* context,
+                                     char* const data[],
+                                     npy_intp const dimensions[],
+                                     npy_intp const strides[],
+                                     NpyAuxData* auxdata) {
+  using real_type = typename T::value_type;
+  // Both complex_to_real_resolve_descriptors' view_offset (0 for real,
+  // sizeof(real_type) for imag) and this loop's reinterpret-based extraction
+  // assume a complex element is exactly two consecutive real_type halves with
+  // no padding. Guard that invariant at compile time per instantiated type.
+  static_assert(sizeof(T) == 2 * sizeof(real_type),
+                "complex element must be exactly two value_types, no padding");
+  static_assert(std::is_standard_layout_v<T>,
+                "complex element must be standard-layout so reinterpret-based "
+                "real/imag extraction is well-defined");
+  static_assert(alignof(T) == alignof(real_type),
+                "complex alignment must match its half-type alignment");
+  npy_intp N = dimensions[0];
+  char* in = data[0];
+  char* out = data[1];
+  npy_intp istride = strides[0];
+  npy_intp ostride = strides[1];
+
+  if constexpr (!real_part) {
+    in += sizeof(real_type);
+  }
+
+  while (N--) {
+    real_type value = *reinterpret_cast<real_type*>(in);
+    *reinterpret_cast<real_type*>(out) = value;
+    in += istride;
+    out += ostride;
+  }
+  return 0;
+}
+
+template <typename T, bool real_part>
+int RegisterRealImag(PyArray_DTypeMeta* complex_dtype) {
+  using real_type = typename T::value_type;
+  static_assert(
+      std::is_same_v<decltype(&complex_to_real_resolve_descriptors<real_part>),
+                     PyArrayMethod_ResolveDescriptors*>,
+      "resolver must match NumPy's public callback type");
+  Safe_PyObjectPtr real_descr = make_safe(
+      (PyObject*)PyArray_DescrFromType(DtypeTraits<real_type>::Dtype()));
+  if (!real_descr) {
+    return -1;
+  }
+
+  PyType_Slot meth_slots[] = {
+      {NPY_METH_resolve_descriptors,
+       (void*)&complex_to_real_resolve_descriptors<real_part>},
+      {NPY_METH_strided_loop, (void*)&extract_complex_part_loop<T, real_part>},
+      {0, nullptr},
+  };
+  PyArray_DTypeMeta* dtypes[2] = {complex_dtype, NPY_DTYPE(real_descr.get())};
+  PyArrayMethod_Spec meth_spec;
+  meth_spec.name = "generic_real_imag_loop";
+  meth_spec.flags = NPY_METH_NO_FLOATINGPOINT_ERRORS;
+  meth_spec.nin = 1;
+  meth_spec.nout = 1;
+  meth_spec.dtypes = dtypes;
+  meth_spec.slots = meth_slots;
+  meth_spec.casting = NPY_NO_CASTING;
+  constexpr const char* ufunc_name = real_part ? "real" : "imag";
+  PyUFunc_LoopSlot loop_slots[] = {
+      {ufunc_name, &meth_spec},
+      {nullptr, nullptr},
+  };
+  return PyUFunc_AddLoopsFromSpecs(loop_slots);
+}
+
+template <typename T>
+int RegisterRealAndImag(PyArray_DTypeMeta* complex_dtype) {
+  // real()/imag() helpers landed in NumPy 2.5 (NPY_2_5_API_VERSION == 0x16).
+  // Gate registration on the runtime API version so older NumPy skips it.
+  if (PyArray_RUNTIME_VERSION < 0x16) {
+    return 0;
+  }
+  if (RegisterRealImag<T, true>(complex_dtype) < 0) {
+    return -1;
+  }
+  return RegisterRealImag<T, false>(complex_dtype);
+}
+
 template <typename T>
 bool RegisterComplexDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
@@ -992,6 +1097,10 @@ bool RegisterComplexDtype(PyObject* numpy) {
   // Implement a better module destructor to handle this.
   CustomComplexType<T>::npy_descr =
       PyArray_DescrFromType(CustomComplexType<T>::npy_type);
+
+  if (RegisterRealAndImag<T>(NPY_DTYPE(CustomComplexType<T>::npy_descr)) < 0) {
+    return false;
+  }
 
   Safe_PyObjectPtr typeDict_obj =
       make_safe(PyObject_GetAttrString(numpy, "sctypeDict"));
