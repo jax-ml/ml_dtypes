@@ -446,8 +446,13 @@ class ScalarTest(parameterized.TestCase):
     np.testing.assert_array_equal(op(seq, val), op(seq, equiv_val))
 
 
-# Tests for the Python scalar type
-@multi_threaded(num_workers=3, skip_tests=["testBinaryUfuncs"])
+@multi_threaded(
+    num_workers=3,
+    skip_tests=[
+        "testBinaryUfuncs",
+        "testZeroSizeReduction",  # pytest 9.0.1's subtest appears not to be thread-safe
+    ],
+)
 class ArrayTest(parameterized.TestCase):
 
   @parameterized.product(scalar_type=INTN_TYPES)

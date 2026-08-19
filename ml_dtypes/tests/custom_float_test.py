@@ -238,10 +238,10 @@ INT_VALUES = {
         "testDiv",
         "testPickleable",
         "testRoundTripNumpyTypes",
-        "testRoundTripToNumpy",
-        "testConstructFromDtype",
-        "testHashNumbers",
-        "testHashNan",
+        "testRoundTripToNumpy",  # pytest 9.0.1's subtest appears not to be thread-safe
+        "testConstructFromDtype",  # pytest 9.0.1's subtest appears not to be thread-safe
+        "testHashNumbers",  # pytest 9.0.1's subtest appears not to be thread-safe
+        "testHashNan",  # pytest 9.0.1's subtest appears not to be thread-safe
     ],
 )
 @parameterized.named_parameters(
@@ -852,10 +852,12 @@ BINARY_PREDICATE_UFUNCS = [
         "testFloordivCornerCases",
         "testFrexp",
         "testLdexp",
+        "testLogicalUfuncReduce",  # pytest 9.0.1's subtest appears not to be thread-safe
         "testModf",
         "testPredicateUfunc",
         "testSpacing",
         "testUnaryUfunc",
+        "testZeroSizeReduction",  # pytest 9.0.1's subtest appears not to be thread-safe
     ],
 )
 @parameterized.named_parameters(
