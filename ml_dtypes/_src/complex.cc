@@ -46,8 +46,6 @@ int CustomComplexType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomComplexType<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_DescrProto CustomComplexType<T>::npy_descr_proto;
-template <typename T>
 PyArray_Descr* CustomComplexType<T>::npy_descr = nullptr;
 
 namespace {
@@ -1079,13 +1077,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
   arr_funcs.argmax = nullptr;  // NumPy defines them, but it's shaky
   arr_funcs.argmin = nullptr;
 
-  // This is messy, but that's because the NumPy 2.0 API transition is messy.
-  // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
-  // RegisterDataType alive, because it stores its pointer.
-  // After 2.0, the proto and descriptor types diverge, and NumPy allocates
-  // and manages the lifetime of the descriptor itself.
-  PyArray_DescrProto& descr_proto = CustomComplexType<T>::npy_descr_proto;
-  descr_proto = GetCustomComplexDescrProto<T>();
+  PyArray_DescrProto descr_proto = GetCustomComplexDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 

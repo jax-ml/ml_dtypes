@@ -155,7 +155,6 @@ struct CustomFloatType {
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
   static PyArray_ArrFuncs arr_funcs;
-  static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
 };
 

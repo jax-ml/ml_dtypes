@@ -72,7 +72,6 @@ struct CustomComplexType {
   static PyMethodDef methods[];
   static PyGetSetDef getset[];
   static PyArray_ArrFuncs arr_funcs;
-  static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
 };
 

@@ -39,8 +39,6 @@ int CustomIntType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomIntType<T>::type_ptr = nullptr;
 template <typename T>
-PyArray_DescrProto CustomIntType<T>::npy_descr_proto;
-template <typename T>
 PyArray_Descr* CustomIntType<T>::npy_descr = nullptr;
 
 namespace {
@@ -831,13 +829,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
   arr_funcs.argmax = NPyIntN_ArgMaxFunc<T>;
   arr_funcs.argmin = NPyIntN_ArgMinFunc<T>;
 
-  // This is messy, but that's because the NumPy 2.0 API transition is messy.
-  // Before 2.0, NumPy assumes we'll keep the descriptor passed in to
-  // RegisterDataType alive, because it stores its pointer.
-  // After 2.0, the proto and descriptor types diverge, and NumPy allocates
-  // and manages the lifetime of the descriptor itself.
-  PyArray_DescrProto& descr_proto = CustomIntType<T>::npy_descr_proto;
-  descr_proto = GetIntNDescrProto<T>();
+  PyArray_DescrProto descr_proto = GetIntNDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
