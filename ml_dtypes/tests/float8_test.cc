@@ -430,6 +430,26 @@ TYPED_TEST(Float8Test, DownCasts) {
   }
 }
 
+// Regression test: converting to a mantissa-less target (E8M0) must round
+// exact ties to nearest-*even*, not always up. Previously the round-to-even
+// bit was read from the always-1 implicit mantissa bit, so every tie rounded
+// up. The tie 1.5 * 2^k is equidistant between 2^k and 2^(k+1); ties-to-even
+// selects the encoding whose LSB is 0.
+TEST(Float8E8m0Test, ConvertFromTiesToEven) {
+  auto rep = [](double x) {
+    return float8_e8m0fnu::ConvertFrom</*kSaturate=*/false,
+                                       /*kTruncate=*/false>(x)
+        .rep();
+  };
+  EXPECT_EQ(rep(3.0), 0x80);   // tie 2.0 (0x80, even) / 4.0 (0x81) -> 0x80
+  EXPECT_EQ(rep(0.75), 0x7E);  // tie 0.5 (0x7E, even) / 1.0 (0x7F) -> 0x7E
+  EXPECT_EQ(rep(6.0), 0x82);   // tie 4.0 (0x81) / 8.0 (0x82, even) -> 0x82
+  EXPECT_EQ(rep(12.0), 0x82);  // tie 8.0 (0x82, even) / 16.0 (0x83) -> 0x82
+  // Non-ties round to the nearest value.
+  EXPECT_EQ(rep(2.4), 0x80);  // nearer 2.0
+  EXPECT_EQ(rep(3.4), 0x81);  // nearer 4.0
+}
+
 TYPED_TEST(Float8Test, ConvertFromWithSaturation) {
   using Float8 = TypeParam;
 

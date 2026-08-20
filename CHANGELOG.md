@@ -27,6 +27,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
   `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
 * Fixed byte-swapping of `bcomplex32` and `complex32` arrays
   ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
+* Fixed `float8_e8m0fnu` conversion to round exact ties to nearest-even instead
+  of always rounding up.
 
 ## [0.6.0] - 2026-08-13
 
