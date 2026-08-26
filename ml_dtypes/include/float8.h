@@ -1474,19 +1474,17 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
       if constexpr (!kTruncate) {
         // Rounding may cause a carry (e.g., 1.11... -> 10.00...).
         // This carry will naturally flow into the exponent during packing.
-        if constexpr (kToMantissaBits == 0) {
-          // The target has no mantissa bits (E8M0). The implicit bit carries
-          // into the exponent during packing (Step 6), so the result's LSB is
-          // the truncated exponent's LSB, not bit `alignment_shift` of the
-          // mantissa (which is the always-1 implicit bit). Supply that bit
-          // explicitly so exact ties round to even rather than always up.
-          const ToBits trunc_exp_bits =
-              static_cast<ToBits>(std::max(0, target_biased_exponent_base));
+        if constexpr (kToMantissaBits == 0 && kFromMantissaBits > 0) {
+          // The target has no mantissa bits (E8M0): consecutive encodings are a
+          // full power of two apart, so round the source fraction about its own
+          // binade midpoint (bit `kFromMantissaBits`), not about
+          // `alignment_shift` (which the denormal adjustment widens, misplacing
+          // the tie). Ties go to the even *result* encoding, whose LSB is the
+          // low bit of the truncated (round-toward-zero) biased exponent.
           const bool result_lsb =
-              (((normalized_mantissa >> alignment_shift) + trunc_exp_bits) &
-               1) != 0;
+              ((target_biased_exponent_base + 1) & 1) != 0;
           normalized_mantissa = RoundBitsToNearestEven(
-              normalized_mantissa, alignment_shift, result_lsb);
+              normalized_mantissa, kFromMantissaBits, result_lsb);
         } else {
           normalized_mantissa =
               RoundBitsToNearestEven(normalized_mantissa, alignment_shift);

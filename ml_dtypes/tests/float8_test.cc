@@ -445,6 +445,11 @@ TEST(Float8E8m0Test, ConvertFromTiesToEven) {
   EXPECT_EQ(rep(0.75), 0x7E);  // tie 0.5 (0x7E, even) / 1.0 (0x7F) -> 0x7E
   EXPECT_EQ(rep(6.0), 0x82);   // tie 4.0 (0x81) / 8.0 (0x82, even) -> 0x82
   EXPECT_EQ(rep(12.0), 0x82);  // tie 8.0 (0x82, even) / 16.0 (0x83) -> 0x82
+  // Lowest binade (clamped exponent): the tie 1.5*2^-127 is equidistant from
+  // 2^-127 (0x00, even) and 2^-126 (0x01); ties-to-even selects 0x00.
+  EXPECT_EQ(rep(0x1.8p-127), 0x00);  // tie 2^-127/2^-126 -> even 0x00
+  EXPECT_EQ(rep(0x1.4p-127), 0x00);  // nearer 2^-127
+  EXPECT_EQ(rep(0x1.cp-127), 0x01);  // nearer 2^-126
   // Non-ties round to the nearest value.
   EXPECT_EQ(rep(2.4), 0x80);  // nearer 2.0
   EXPECT_EQ(rep(3.4), 0x81);  // nearer 4.0
