@@ -22,6 +22,7 @@ limitations under the License.
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -598,13 +599,52 @@ float CastToFloat(T value) {
 }
 
 // Performs a NumPy array cast from type 'From' to 'To'.
+// Narrows a wide floating-point value (double, long double) to float with
+// round-to-odd. Converting such a value to a reduced float through an
+// intermediate `float` double-rounds: the first rounding (to float) can land
+// exactly on a midpoint of the target format, and the second rounding then
+// resolves that spurious tie to even, e.g. the double -431.99999999999994 is
+// nearest to the float8_e4m3fn value -416 but rounds to -432.0f (a tie) and
+// then to -448. Rounding the intermediate to *odd* instead makes the following
+// round-to-nearest-even exact for any target with at least two fewer
+// significand bits than float (Boldo & Melquiond, "When double rounding is
+// odd", 2005). This mirrors float8_base::ConvertFrom's handling of long double.
+template <typename From>
+float NarrowToFloatRoundToOdd(From from) {
+  static_assert(std::is_floating_point_v<From> && sizeof(From) > sizeof(float));
+  static_assert(std::numeric_limits<From>::digits >=
+                std::numeric_limits<float>::digits + 2);
+  static_assert(std::numeric_limits<float>::min_exponent >=
+                std::numeric_limits<From>::min_exponent + 2);
+  const bool is_negative = std::signbit(from);
+  const From abs_wide = std::fabs(from);
+  float abs_narrow = static_cast<float>(abs_wide);
+  const From abs_narrow_as_wide = static_cast<From>(abs_narrow);
+  uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
+  // Keep the narrow value if the narrowing was exact, if it is NaN, or if it
+  // is already odd. Otherwise it is the even neighbour of the wide value and
+  // we step to the odd neighbour on the same side.
+  const bool keep_narrow = (abs_wide == abs_narrow_as_wide) ||
+                           std::isnan(abs_narrow) || (narrow_bits & 1);
+  const bool narrow_is_rd = abs_wide > abs_narrow_as_wide;
+  narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
+  abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
+  return is_negative ? -abs_narrow : abs_narrow;
+}
+
 template <typename From, typename To>
 void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
              void* toarr) {
   const auto* from = reinterpret_cast<From*>(from_void);
   auto* to = reinterpret_cast<To*>(to_void);
   for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(CastToFloat(from[i]));
+    if constexpr (std::is_floating_point_v<From> &&
+                  sizeof(From) > sizeof(float)) {
+      // Avoid double rounding through the float intermediate (see above).
+      to[i] = static_cast<To>(NarrowToFloatRoundToOdd(from[i]));
+    } else {
+      to[i] = static_cast<To>(CastToFloat(from[i]));
+    }
   }
 }
 

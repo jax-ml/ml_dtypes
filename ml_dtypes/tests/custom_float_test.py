@@ -289,6 +289,40 @@ class CustomFloatTest(parameterized.TestCase):
           np.array(FLOAT_VALUES[float_type], dtype),
       )
 
+  def testCastFromFloat64DoesNotDoubleRound(self, float_type):
+    # A float64 just above (below) the midpoint of two adjacent float_type
+    # values must round to the upper (lower) neighbour. Such a value rounds to
+    # float32 exactly onto the midpoint, so a cast that narrows through float32
+    # first sees a spurious tie and resolves it to even instead of to nearest.
+    finfo = ml_dtypes.finfo(float_type)
+    bits = getattr(finfo, "bits", np.dtype(float_type).itemsize * 8)
+    patterns = np.arange(2**bits, dtype=np.uint16 if bits > 8 else np.uint8)
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore")
+      values = patterns.view(float_type).astype(np.float64)
+    values = np.unique(values[np.isfinite(values)])
+    # Spread a bounded number of adjacent pairs across the whole range.
+    n_pairs = min(128, len(values) - 1)
+    for i in np.unique(np.linspace(0, len(values) - 2, n_pairs).astype(int)):
+      lo, hi = values[i], values[i + 1]
+      mid = (lo + hi) / 2
+      # Only midpoints that are normal float32 values. (float8_e8m0fnu's lowest
+      # binade lies in the float32 subnormal range and has a separate rounding
+      # bug, fixed in #398.)
+      if (
+          mid == 0
+          or np.float64(np.float32(mid)) != mid
+          or abs(mid) < np.finfo(np.float32).tiny
+      ):
+        continue
+      up, down = np.nextafter(mid, np.inf), np.nextafter(mid, -np.inf)
+      # The nudge is invisible to float32; this is what makes the trap.
+      self.assertEqual(np.float32(up), np.float32(mid))
+      self.assertEqual(
+          float(np.array(up).astype(float_type).astype(np.float64)), hi)
+      self.assertEqual(
+          float(np.array(down).astype(float_type).astype(np.float64)), lo)
+
   def testRoundTripToInt(self, float_type):
     for v in INT_VALUES[float_type]:
       self.assertEqual(v, int(float_type(v)))
