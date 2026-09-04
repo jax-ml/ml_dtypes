@@ -144,3 +144,25 @@ def imag(x: _np.ndarray) -> _np.ndarray:
 
   # Otherwise, assume everything is OK with just using the normal `.imag`
   return x.imag
+
+
+_DLPACK_TYPES = [
+    # (DLDataTypeCode, bits) -> dtype
+    ((4, 16), bfloat16),  # kDLBfloat
+    ((18, 32), bcomplex32),  # kDLBcomplex
+    ((5, 32), complex32),  # kDLComplex
+    ((7, 8), float8_e3m4),  # kDLFloat8_e3m4
+    ((8, 8), float8_e4m3),  # kDLFloat8_e4m3
+    ((9, 8), float8_e4m3b11fnuz),  # kDLFloat8_e4m3b11fnuz
+    ((10, 8), float8_e4m3fn),  # kDLFloat8_e4m3fn
+    ((11, 8), float8_e4m3fnuz),  # kDLFloat8_e4m3fnuz
+    ((12, 8), float8_e5m2),  # kDLFloat8_e5m2
+    ((13, 8), float8_e5m2fnuz),  # kDLFloat8_e5m2fnuz
+    ((14, 8), float8_e8m0fnu),  # kDLFloat8_e8m0fnu
+]
+
+if _np.lib.NumpyVersion(_np.__version__) >= "2.5.0":
+  for _key, _dt in _DLPACK_TYPES:
+    # Note: If there is a conflicting registration, NumPy may raise a ValueError.
+    # If this ever becomes an issue in practice, consider warning or ignoring it.
+    _np.dtypes.register_dlpack_dtype(_key, _np.dtype(_dt))
