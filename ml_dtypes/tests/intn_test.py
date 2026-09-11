@@ -345,6 +345,14 @@ class ScalarTest(parameterized.TestCase):
       np.array(np.inf, dtype=scalar_type)
     with self.assertRaises(OverflowError):
       np.array(1e10, dtype=scalar_type)
+    # The message names the type.
+    high = VALUES[scalar_type][-1]
+    with self.assertRaisesRegex(OverflowError, scalar_type.__name__):
+      scalar_type(float(high + 1))
+    with self.assertRaisesRegex(OverflowError, scalar_type.__name__):
+      scalar_type(np.float32(high + 1))
+    with self.assertRaisesRegex(OverflowError, scalar_type.__name__):
+      scalar_type(np.int64(high + 1))
     # But these shouldn't raise exceptions.
     np.array(np.nan).astype(scalar_type)
     np.array(np.inf).astype(scalar_type)
