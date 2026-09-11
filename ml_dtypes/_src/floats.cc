@@ -341,6 +341,10 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
     return arg;
   } else if (CastToCustomFloat<T>(arg, &value)) {
     return PyCustomFloat_FromT<T>(value).release();
+  } else if (PyErr_Occurred()) {
+    // The argument was recognized but could not be converted; keep that
+    // error (e.g. the ValueError for a NumPy string scalar with no number).
+    return nullptr;
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != CustomFloatType<T>::Dtype()) {
@@ -351,8 +355,11 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
     }
   } else if (PyUnicode_Check(arg) || PyBytes_Check(arg)) {
     // Parse float from string, then cast to T.
-    PyObject* f = PyFloat_FromString(arg);
-    if (CastToCustomFloat<T>(f, &value)) {
+    Safe_PyObjectPtr f = make_safe(PyFloat_FromString(arg));
+    if (f == nullptr) {
+      return nullptr;
+    }
+    if (CastToCustomFloat<T>(f.get(), &value)) {
       return PyCustomFloat_FromT<T>(value).release();
     }
   }
@@ -550,6 +557,9 @@ template <typename T>
 int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
   T x;
   if (!CastToCustomFloat<T>(item, &x)) {
+    if (PyErr_Occurred()) {
+      return -1;
+    }
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;

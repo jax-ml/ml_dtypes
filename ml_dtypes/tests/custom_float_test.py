@@ -356,6 +356,19 @@ class CustomFloatTest(parameterized.TestCase):
         self.assertEqual(
             float(np.array([down], dtype).astype(float_type)[0]), lo)
 
+  def testConstructFromInvalidValueRaises(self, float_type):
+    # Conversion failures surface as the conversion's own exception rather
+    # than as a crash or a SystemError.
+    for bad in ("not a number", b"not a number", np.str_("not a number")):
+      with self.assertRaises(ValueError):
+        float_type(bad)
+    with self.assertRaises((TypeError, ValueError)):
+      float_type(np.datetime64("2020-01-01"))
+    with self.assertRaises((TypeError, ValueError)):
+      np.array([np.str_("not a number")], dtype=float_type)
+    self.assertEqual(float(float_type("0.5")), 0.5)
+    self.assertEqual(float(float_type(np.str_("0.5"))), 0.5)
+
   def testConstructFromScalarDoesNotDoubleRound(self, float_type):
     # The scalar constructor must round like the array casts above.
     for lo, hi in self._adjacent_finite_pairs(float_type):
