@@ -289,20 +289,25 @@ class CustomFloatTest(parameterized.TestCase):
           np.array(FLOAT_VALUES[float_type], dtype),
       )
 
-  def testCastFromFloat64DoesNotDoubleRound(self, float_type):
-    # A float64 just above (below) the midpoint of two adjacent float_type
-    # values must round to the upper (lower) neighbour. Such a value rounds to
-    # float32 exactly onto the midpoint, so a cast that narrows through float32
-    # first sees a spurious tie and resolves it to even instead of to nearest.
+  def _adjacent_finite_pairs(self, float_type, lower=None, upper=None):
+    """Adjacent finite float_type values whose midpoint is a normal float32.
+
+    Returns at most 128 pairs, spread over [lower, upper).
+    """
     finfo = ml_dtypes.finfo(float_type)
     bits = getattr(finfo, "bits", np.dtype(float_type).itemsize * 8)
     patterns = np.arange(2**bits, dtype=np.uint16 if bits > 8 else np.uint8)
-    with warnings.catch_warnings():
-      warnings.simplefilter("ignore")
+    # np.errstate rather than warnings.catch_warnings: the latter is not
+    # thread-safe and the NaN patterns raise FE_INVALID when widened.
+    with np.errstate(all="ignore"):
       values = patterns.view(float_type).astype(np.float64)
     values = np.unique(values[np.isfinite(values)])
-    # Spread a bounded number of adjacent pairs across the whole range.
-    n_pairs = min(128, len(values) - 1)
+    if lower is not None:
+      values = values[values >= lower]
+    if upper is not None:
+      values = values[values < upper]
+    pairs = []
+    n_pairs = min(128, max(len(values) - 1, 0))
     for i in np.unique(np.linspace(0, len(values) - 2, n_pairs).astype(int)):
       lo, hi = values[i], values[i + 1]
       mid = (lo + hi) / 2
@@ -315,6 +320,16 @@ class CustomFloatTest(parameterized.TestCase):
           or abs(mid) < np.finfo(np.float32).tiny
       ):
         continue
+      pairs.append((lo, hi))
+    return pairs
+
+  def testCastFromFloat64DoesNotDoubleRound(self, float_type):
+    # A float64 just above (below) the midpoint of two adjacent float_type
+    # values must round to the upper (lower) neighbour. Such a value rounds to
+    # float32 exactly onto the midpoint, so a cast that narrows through float32
+    # first sees a spurious tie and resolves it to even instead of to nearest.
+    for lo, hi in self._adjacent_finite_pairs(float_type):
+      mid = (lo + hi) / 2
       up, down = np.nextafter(mid, np.inf), np.nextafter(mid, -np.inf)
       # The nudge is invisible to float32; this is what makes the trap.
       self.assertEqual(np.float32(up), np.float32(mid))
@@ -322,6 +337,45 @@ class CustomFloatTest(parameterized.TestCase):
           float(np.array(up).astype(float_type).astype(np.float64)), hi)
       self.assertEqual(
           float(np.array(down).astype(float_type).astype(np.float64)), lo)
+
+  def testCastFromInt64DoesNotDoubleRound(self, float_type):
+    # The integer trap: an integer next to a midpoint that lies beyond 2**24 is
+    # not representable in float32 and rounds onto the midpoint, exactly as the
+    # float64 values above.
+    pairs = self._adjacent_finite_pairs(float_type, lower=2.0**24, upper=2.0**63)
+    if not pairs:
+      self.skipTest(f"{float_type.__name__} has no values above 2**24")
+    for lo, hi in pairs:
+      mid = (int(lo) + int(hi)) // 2
+      self.assertEqual(2 * mid, int(lo) + int(hi))
+      up, down = mid + 1, mid - 1
+      self.assertEqual(np.float32(up), np.float32(mid))
+      for dtype in (np.int64, np.uint64):
+        self.assertEqual(
+            float(np.array([up], dtype).astype(float_type)[0]), hi)
+        self.assertEqual(
+            float(np.array([down], dtype).astype(float_type)[0]), lo)
+
+  def testConstructFromScalarDoesNotDoubleRound(self, float_type):
+    # The scalar constructor must round like the array casts above.
+    for lo, hi in self._adjacent_finite_pairs(float_type):
+      mid = (lo + hi) / 2
+      up, down = np.nextafter(mid, np.inf), np.nextafter(mid, -np.inf)
+      for cast in (float, np.float64, np.longdouble):
+        self.assertEqual(float(float_type(cast(up))), hi)
+        self.assertEqual(float(float_type(cast(down))), lo)
+    # Integer sources: Python ints and 64-bit NumPy scalars up to 2**63, 32-bit
+    # NumPy scalars up to 2**31.
+    for upper, casts in (
+        (2.0**63, (int, np.int64, np.uint64)),
+        (2.0**31, (np.int32, np.uint32)),
+    ):
+      pairs = self._adjacent_finite_pairs(float_type, lower=2.0**24, upper=upper)
+      for lo, hi in pairs:
+        mid = (int(lo) + int(hi)) // 2
+        for cast in casts:
+          self.assertEqual(float(float_type(cast(mid + 1))), hi)
+          self.assertEqual(float(float_type(cast(mid - 1))), lo)
 
   def testRoundTripToInt(self, float_type):
     for v in INT_VALUES[float_type]:

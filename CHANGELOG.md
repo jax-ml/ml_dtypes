@@ -23,10 +23,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-* Fixed double rounding when casting NumPy `float64`/`longdouble` arrays to the
-  custom float types: the cast narrowed to `float32` first, so a value whose
-  `float32` rounding lands on a midpoint of the target type was then rounded
-  to even instead of to the true nearest value
+* Fixed double rounding when converting to the custom float types from
+  `float64`/`longdouble` values, from 32- and 64-bit integers, and from Python
+  and NumPy scalars: these conversions narrowed to `float32` first, so a value
+  whose `float32` rounding lands on a midpoint of the target type was then
+  rounded to even instead of to the true nearest value
   ([#401](https://github.com/jax-ml/ml_dtypes/pull/401)).
 * `arr.real` and `arr.imag` now return correct results for `bcomplex32` and
   `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).

@@ -22,6 +22,7 @@ limitations under the License.
 
 #include <array>
 #include <cmath>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -81,6 +82,100 @@ T PyCustomFloat_CustomFloat(PyObject* object) {
   return reinterpret_cast<PyCustomFloat<T>*>(object)->value;
 }
 
+// Narrows a wide floating-point value (double, long double) to float with
+// round-to-odd. Converting such a value to a reduced float through an
+// intermediate `float` double-rounds: the first rounding (to float) can land
+// exactly on a midpoint of the target format, and the second rounding then
+// resolves that spurious tie to even, e.g. the double -431.99999999999994 is
+// nearest to the float8_e4m3fn value -416 but rounds to -432.0f (a tie) and
+// then to -448. Rounding the intermediate to *odd* instead makes the following
+// round-to-nearest-even exact for any target with at least two fewer
+// significand bits than float (Boldo & Melquiond, "When double rounding is
+// odd", 2005). This mirrors float8_base::ConvertFrom's handling of long double.
+template <typename From>
+float NarrowToFloatRoundToOdd(From from) {
+  static_assert(std::is_floating_point_v<From> && sizeof(From) > sizeof(float));
+  static_assert(std::numeric_limits<From>::digits >=
+                std::numeric_limits<float>::digits + 2);
+  static_assert(std::numeric_limits<float>::min_exponent >=
+                std::numeric_limits<From>::min_exponent + 2);
+  const bool is_negative = std::signbit(from);
+  const From abs_wide = std::fabs(from);
+  float abs_narrow = static_cast<float>(abs_wide);
+  const From abs_narrow_as_wide = static_cast<From>(abs_narrow);
+  uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
+  // Keep the narrow value if the narrowing was exact, if it is NaN, or if it
+  // is already odd. Otherwise it is the even neighbour of the wide value and
+  // we step to the odd neighbour on the same side.
+  const bool keep_narrow = (abs_wide == abs_narrow_as_wide) ||
+                           std::isnan(abs_narrow) || (narrow_bits & 1);
+  const bool narrow_is_rd = abs_wide > abs_narrow_as_wide;
+  narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
+  abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
+  return is_negative ? -abs_narrow : abs_narrow;
+}
+
+// Converts an integer to float with round-to-odd: the bits below the float
+// significand are dropped and, if any of them was set, the lowest kept bit is
+// set. Integers with more bits than the float significand (32- and 64-bit
+// integers) otherwise suffer the same double rounding as above when they are
+// converted to a reduced float through `float`.
+template <typename From>
+float IntegerToFloatRoundToOdd(From from) {
+  static_assert(std::is_integral_v<From>);
+  using Unsigned = std::make_unsigned_t<From>;
+  bool is_negative = false;
+  Unsigned magnitude = static_cast<Unsigned>(from);
+  if constexpr (std::is_signed_v<From>) {
+    if (from < 0) {
+      is_negative = true;
+      magnitude = Unsigned{0} - magnitude;  // Also correct for the minimum.
+    }
+  }
+  constexpr int kFloatDigits = std::numeric_limits<float>::digits;
+  int shift = 0;
+  while ((magnitude >> shift) >> kFloatDigits) {
+    ++shift;
+  }
+  Unsigned kept = magnitude >> shift;
+  if (shift > 0 && (magnitude & ((Unsigned{1} << shift) - 1)) != 0) {
+    kept |= 1;
+  }
+  // `kept` fits the float significand, so both conversions are exact.
+  const float result = std::ldexp(static_cast<float>(kept), shift);
+  return is_negative ? -result : result;
+}
+
+// Converts a value to float so that a following round-to-nearest conversion to
+// a reduced float type is correctly rounded: exact when the value fits in a
+// float, round-to-odd (see above) when it does not.
+template <typename From>
+float NarrowToFloat(From from) {
+  if constexpr (is_complex_v<From>) {
+    return NarrowToFloat(from.real());
+  } else if constexpr (std::is_floating_point_v<From> &&
+                       sizeof(From) > sizeof(float)) {
+    return NarrowToFloatRoundToOdd(from);
+  } else if constexpr (std::is_integral_v<From> &&
+                       std::numeric_limits<From>::digits >
+                           std::numeric_limits<float>::digits) {
+    return IntegerToFloatRoundToOdd(from);
+  } else {
+    return static_cast<float>(from);
+  }
+}
+
+// Reads a NumPy scalar as the C type behind `numpy_type`. Returns false with a
+// Python error set on failure.
+template <typename C>
+bool ReadNumpyScalar(PyObject* arg, int numpy_type, C* out) {
+  PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
+  // Similar to our code, NumPy accepts the array to be NULL here.
+  const int result = PyDataType_GetArrFuncs(descr)->setitem(arg, out, NULL);
+  Py_DECREF(descr);
+  return result >= 0;
+}
+
 // Converts a Python object to a reduced float value. Returns true on success,
 // returns false and reports a Python error on failure.
 template <typename T>
@@ -94,32 +189,49 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    *output = T(d);
+    *output = static_cast<T>(NarrowToFloat(d));
     return true;
   }
   if (PyLong_Check(arg)) {
-    long l = PyLong_AsLong(arg);  // NOLINT
+    // Read as long long: a long is only 32 bits on Windows.
+    long long l = PyLong_AsLongLong(arg);  // NOLINT
     if (PyErr_Occurred()) {
       return false;
     }
-    // TODO(phawkins): check for overflow
-    *output = T(static_cast<float>(l));
+    *output = static_cast<T>(NarrowToFloat(l));
     return true;
   }
   if (PyArray_IsScalar(arg, Generic)) {
-    // Allow conversion from any NumPy scalar if conversion to float32
-    // is defined.
+    // Allow conversion from any NumPy scalar if conversion to a 64-bit integer
+    // (integer scalars) or to long double is defined. Reading the scalar at
+    // full width and narrowing with NarrowToFloat rounds the same way as an
+    // array cast; reading it as float32 would double-round.
     // NOTE: Should use `PyArray_Pack` with NumPy>=2, which is better and may
     // make even more conversions (ie. casts) work. (May want to use new dtypes
     // then also.) (If a limitation is found, could do this already on NumPy 2
     // at runtime.)
     float c;
-    PyArray_Descr* f_descr = PyArray_DescrFromType(NPY_FLOAT32);
-    // Similar to our code, NumPy accepts the array to be NULL here.
+    if (PyArray_IsScalar(arg, UnsignedInteger)) {
+      unsigned long long value;  // NOLINT
+      if (!ReadNumpyScalar(arg, NPY_ULONGLONG, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    } else if (PyArray_IsScalar(arg, Integer)) {
+      long long value;  // NOLINT
+      if (!ReadNumpyScalar(arg, NPY_LONGLONG, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    } else {
+      long double value;
+      if (!ReadNumpyScalar(arg, NPY_LONGDOUBLE, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    }
     // TODO(phawkins): check for overflow
-    PyDataType_GetArrFuncs(f_descr)->setitem(arg, &c, NULL);
-    Py_DECREF(f_descr);
-    *output = T(c);
+    *output = static_cast<T>(c);
     return true;
   }
   if (PyArray_IsZeroDim(arg)) {
@@ -589,62 +701,14 @@ int NPyCustomFloat_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind,
   return 0;
 }
 
-template <typename T>
-float CastToFloat(T value) {
-  if constexpr (is_complex_v<T>) {
-    return CastToFloat(value.real());
-  } else {
-    return static_cast<float>(value);
-  }
-}
-
 // Performs a NumPy array cast from type 'From' to 'To'.
-// Narrows a wide floating-point value (double, long double) to float with
-// round-to-odd. Converting such a value to a reduced float through an
-// intermediate `float` double-rounds: the first rounding (to float) can land
-// exactly on a midpoint of the target format, and the second rounding then
-// resolves that spurious tie to even, e.g. the double -431.99999999999994 is
-// nearest to the float8_e4m3fn value -416 but rounds to -432.0f (a tie) and
-// then to -448. Rounding the intermediate to *odd* instead makes the following
-// round-to-nearest-even exact for any target with at least two fewer
-// significand bits than float (Boldo & Melquiond, "When double rounding is
-// odd", 2005). This mirrors float8_base::ConvertFrom's handling of long double.
-template <typename From>
-float NarrowToFloatRoundToOdd(From from) {
-  static_assert(std::is_floating_point_v<From> && sizeof(From) > sizeof(float));
-  static_assert(std::numeric_limits<From>::digits >=
-                std::numeric_limits<float>::digits + 2);
-  static_assert(std::numeric_limits<float>::min_exponent >=
-                std::numeric_limits<From>::min_exponent + 2);
-  const bool is_negative = std::signbit(from);
-  const From abs_wide = std::fabs(from);
-  float abs_narrow = static_cast<float>(abs_wide);
-  const From abs_narrow_as_wide = static_cast<From>(abs_narrow);
-  uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
-  // Keep the narrow value if the narrowing was exact, if it is NaN, or if it
-  // is already odd. Otherwise it is the even neighbour of the wide value and
-  // we step to the odd neighbour on the same side.
-  const bool keep_narrow = (abs_wide == abs_narrow_as_wide) ||
-                           std::isnan(abs_narrow) || (narrow_bits & 1);
-  const bool narrow_is_rd = abs_wide > abs_narrow_as_wide;
-  narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
-  abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
-  return is_negative ? -abs_narrow : abs_narrow;
-}
-
 template <typename From, typename To>
 void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
              void* toarr) {
   const auto* from = reinterpret_cast<From*>(from_void);
   auto* to = reinterpret_cast<To*>(to_void);
   for (npy_intp i = 0; i < n; ++i) {
-    if constexpr (std::is_floating_point_v<From> &&
-                  sizeof(From) > sizeof(float)) {
-      // Avoid double rounding through the float intermediate (see above).
-      to[i] = static_cast<To>(NarrowToFloatRoundToOdd(from[i]));
-    } else {
-      to[i] = static_cast<To>(CastToFloat(from[i]));
-    }
+    to[i] = static_cast<To>(NarrowToFloat(from[i]));
   }
 }
 
