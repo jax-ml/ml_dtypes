@@ -59,7 +59,8 @@ FLOAT_TYPES = [
     ml_dtypes.float8_e4m3fnuz,
     ml_dtypes.float8_e5m2,
     ml_dtypes.float8_e5m2fnuz,
-    # No casts to e8m0fnu for now.
+    # No casts to e5m3fnu or e8m0fnu for now.
+    # ml_dtypes.float8_e5m3fnu,
     # ml_dtypes.float8_e8m0fnu,
 ]
 

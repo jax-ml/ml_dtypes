@@ -921,6 +921,7 @@ bool RegisterCustomFloats(PyObject* numpy) {
          RegisterFloatDtype<float8_e5m2>(numpy) &&
          RegisterFloatDtype<float8_e5m2fnuz>(numpy) &&
          RegisterFloatDtype<float8_e3m4>(numpy) &&
+         RegisterFloatDtype<float8_e5m3fnu>(numpy) &&
          RegisterFloatDtype<float8_e8m0fnu>(numpy) &&
          RegisterFloatDtype<float6_e2m3fn>(numpy) &&
          RegisterFloatDtype<float6_e3m2fn>(numpy) &&

@@ -96,6 +96,14 @@ struct CustomFloatTraits<float8_e5m2fnuz> {
 };
 
 template <>
+struct CustomFloatTraits<float8_e5m3fnu> {
+  static constexpr const char* kTypeName = "float8_e5m3fnu";
+  static constexpr const char* kQualifiedTypeName = "ml_dtypes.float8_e5m3fnu";
+  static constexpr const char* kTpDoc = "float8_e5m3fnu floating-point values";
+  static constexpr char kNumPy1DescrType = '6';
+};
+
+template <>
 struct CustomFloatTraits<float6_e2m3fn> {
   static constexpr const char* kTypeName = "float6_e2m3fn";
   static constexpr const char* kQualifiedTypeName = "ml_dtypes.float6_e2m3fn";
