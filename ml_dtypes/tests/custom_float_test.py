@@ -42,6 +42,7 @@ float8_e4m3fn = ml_dtypes.float8_e4m3fn
 float8_e4m3fnuz = ml_dtypes.float8_e4m3fnuz
 float8_e5m2 = ml_dtypes.float8_e5m2
 float8_e5m2fnuz = ml_dtypes.float8_e5m2fnuz
+float8_e5m3fnu = ml_dtypes.float8_e5m3fnu
 float8_e8m0fnu = ml_dtypes.float8_e8m0fnu
 
 
@@ -130,6 +131,7 @@ FLOAT_DTYPES = [
     float8_e4m3fnuz,
     float8_e5m2,
     float8_e5m2fnuz,
+    float8_e5m3fnu,
     float8_e8m0fnu,
 ]
 
@@ -189,6 +191,9 @@ FLOAT_VALUES[float8_e8m0fnu] = [
 FLOAT_VALUES[float4_e2m1fn] = [
     x for x in FLOAT_VALUES[float4_e2m1fn] if x not in {3.5, 5, 7}
 ]
+FLOAT_VALUES[float8_e5m3fnu] = [
+    x for x in FLOAT_VALUES[float8_e5m3fnu] if not np.signbit(x)
+]
 
 # Values that should round trip exactly to integer and back.
 INT_VALUES = {
@@ -227,6 +232,11 @@ INT_VALUES = {
             range(1 << n, 2 << n, 1 << max(0, n - 2)) for n in range(16)
         )
     ),
+    float8_e5m3fnu: list(
+        itertools.chain.from_iterable(
+            range(1 << n, 2 << n, 1 << max(0, n - 3)) for n in range(17)
+        )
+    )[:-1],
     float8_e8m0fnu: [1, 2, 256],
 }
 
@@ -895,13 +905,15 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     self.assertTrue((x == x).all())
 
   def testComparisons(self, float_type):
-    x0, x1, y0 = 6, 1, 3
-    x = np.array([x0, x1, -x0], dtype=np.float32)
-    y = np.array([y0, x1, 0], dtype=np.float32)
+    x = np.array([6, 1, -6], dtype=np.float32)
+    y = np.array([3, 1, 0], dtype=np.float32)
 
     if float_type == float8_e8m0fnu:
       x = np.array([30, 7, 1], dtype=np.float32)
       y = np.array([17, 7, 0.125], dtype=np.float32)
+    elif not dtype_is_signed(float_type):
+      x = np.array([6, 1, 0], dtype=np.float32)
+      y = np.array([3, 1, 0.5], dtype=np.float32)
 
     bx = x.astype(float_type)
     by = y.astype(float_type)
@@ -1022,9 +1034,10 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         .astype(np.float32),
         np.arange(1, 100, dtype=float_type).astype(np.float32),
     )
-    if float_type == float8_e8m0fnu:
-      raise self.skipTest("Skip negative ranges for E8M0.")
 
+  def testArangeNegative(self, float_type):
+    if not dtype_is_signed(float_type):
+      raise self.skipTest("Skip negative ranges for unsigned types.")
     np.testing.assert_equal(
         np.arange(-6, 6, 2, dtype=np.float32)
         .astype(float_type)

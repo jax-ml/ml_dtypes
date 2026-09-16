@@ -269,7 +269,7 @@ TYPED_TEST(FloatMXTest, CompareOperator) {
       std::pair<Type, float8_e4m3>, std::pair<Type, float8_e4m3fn>,          \
       std::pair<Type, float8_e4m3fnuz>, std::pair<Type, float8_e4m3b11fnuz>, \
       std::pair<Type, float8_e5m2>, std::pair<Type, float8_e5m2fnuz>,        \
-      std::pair<Type, float8_e8m0fnu>
+      std::pair<Type, float8_e5m3fnu>, std::pair<Type, float8_e8m0fnu>
 
 #define GEN_TEST_TYPE_PAIRS()                                               \
   GEN_FLOAT_TYPE_PAIRS(float6_e2m3fn), GEN_FLOAT_TYPE_PAIRS(float6_e3m2fn), \

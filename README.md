@@ -18,6 +18,7 @@
   * `float8_e4m3fnuz`
   * `float8_e5m2`
   * `float8_e5m2fnuz`
+  * `float8_e5m3fnu`
   * `float8_e8m0fnu`
 - Microscaling (MX) sub-byte floating point representations:
   * `float4_e2m1fn`
@@ -165,6 +166,12 @@ This type has the following characteristics:
  * infinities: Not supported
  * NaNs: Supported with sign bit set to 1, exponent bits and mantissa bits set to all 0s - `0b10000000`
  * denormals when exponent is 0
+
+### `float8_e5m3fnu`
+
+Exponent: 5, Mantissa: 3, bias: 15, no sign bit.
+
+Extended range: no inf, NaN represented by 0b1111'111.
 
 ### `float8_e8m0fnu`
 
