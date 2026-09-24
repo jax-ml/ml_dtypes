@@ -626,6 +626,12 @@ class CustomFloatTest(parameterized.TestCase):
     self.assertTrue(np.issubdtype(float_type, np.generic))
     self.assertTrue(np.issubdtype(np.dtype(float_type), np.generic))
 
+  def testIsNumeric(self, float_type):
+    self.assertTrue(type(np.dtype(float_type))._is_numeric)
+    if dtype_has_nan(float_type):
+      x = np.array([1.0, float("nan")], dtype=float_type)
+      np.testing.assert_array_equal(x, x)
+
   def testCastToDtype(self, float_type):
     name = float_type.__name__
     dt = np.dtype(float_type)

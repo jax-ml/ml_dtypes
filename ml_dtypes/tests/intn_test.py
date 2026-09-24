@@ -324,6 +324,10 @@ class ScalarTest(parameterized.TestCase):
     self.assertTrue(np.issubdtype(np.dtype(scalar_type), np.generic))
 
   @parameterized.product(scalar_type=INTN_TYPES)
+  def testIsNumeric(self, scalar_type):
+    self.assertTrue(type(np.dtype(scalar_type))._is_numeric)
+
+  @parameterized.product(scalar_type=INTN_TYPES)
   def testCastToDtype(self, scalar_type):
     name = scalar_type.__name__
     dt = np.dtype(scalar_type)

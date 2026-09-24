@@ -841,6 +841,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
   // Implement a better module destructor to handle this.
   CustomIntType<T>::npy_descr =
       PyArray_DescrFromType(CustomIntType<T>::npy_type);
+  NPY_DTYPE(CustomIntType<T>::npy_descr)->flags |= NPY_DT_NUMERIC;
 
   Safe_PyObjectPtr typeDict_obj =
       make_safe(PyObject_GetAttrString(numpy, "sctypeDict"));

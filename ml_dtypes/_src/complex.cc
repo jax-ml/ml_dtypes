@@ -1032,6 +1032,7 @@ int RegisterRealAndImag(PyArray_DTypeMeta* complex_dtype) {
   if (PyArray_RUNTIME_VERSION < 0x16) {
     return 0;
   }
+  complex_dtype->flags |= NPY_DT_NUMERIC;
   if (RegisterRealImag<T, true>(complex_dtype) < 0) {
     return -1;
   }

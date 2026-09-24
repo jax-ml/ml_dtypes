@@ -171,6 +171,17 @@ def test_real_imag_arrays_numpy25_write_through(sctype):
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.skipif(
+    np.lib.NumpyVersion(np.__version__) < "2.5.0",
+    reason="NumPy 2.5 introduced real and imag ufuncs.",
+)
+def test_is_numeric(sctype):
+  assert type(np.dtype(sctype))._is_numeric
+  x = np.array([1 + 2j, complex(float("nan"), float("nan"))], dtype=sctype)
+  np.testing.assert_array_equal(x, x)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 def test_complex_byteswap_round_trip(sctype):
   expected = np.array([1 + 2j, 3 + 4j], dtype=np.complex64)
   arr = expected.astype(sctype)
