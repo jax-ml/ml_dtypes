@@ -23,6 +23,9 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* `np.copysign` of zero no longer returns NaN for the `*fnuz` types, and
+  `np.sign` of the smallest `float8_e8m0fnu` value now returns 1
+  ([#408](https://github.com/jax-ml/ml_dtypes/pull/408)).
 * `arr.real` and `arr.imag` now return correct results for `bcomplex32` and
   `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
 * Fixed byte-swapping of `bcomplex32` and `complex32` arrays
