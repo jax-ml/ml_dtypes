@@ -88,6 +88,8 @@ PyMODINIT_FUNC PyInit__ml_dtypes_ext() {
                              CustomFloatType<float8_e5m2>::type_ptr) < 0 ||
       PyObject_SetAttrString(m.get(), "float8_e5m2fnuz",
                              CustomFloatType<float8_e5m2fnuz>::type_ptr) < 0 ||
+      PyObject_SetAttrString(m.get(), "float8_e5m3fnu",
+                             CustomFloatType<float8_e5m3fnu>::type_ptr) < 0 ||
       PyObject_SetAttrString(m.get(), "float8_e8m0fnu",
                              CustomFloatType<float8_e8m0fnu>::type_ptr) < 0 ||
       PyObject_SetAttrString(m.get(), "bfloat16",

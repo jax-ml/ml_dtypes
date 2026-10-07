@@ -53,6 +53,7 @@ class float8_e4m3fnuz;
 class float8_e4m3b11fnuz;
 class float8_e5m2;
 class float8_e5m2fnuz;
+class float8_e5m3fnu;
 class float8_e8m0fnu;
 
 template <typename Derived>
@@ -415,6 +416,80 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
   }
 
   explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
+};
+
+class float8_e5m3fnu : public float8_base<float8_e5m3fnu> {
+  // 8-bit floating point with 3 bit mantissa and no sign bit.
+  //
+  // See:
+  // https://docs.nvidia.com/cuda/parallel-thread-execution/#alternate-floating-point-data-formats
+  //
+  // An 8-bit floating point type with no sign bit, 5 bits exponent and 3 bits
+  // mantissa. The suffix "fnu" is consistent with LLVM/MLIR naming and is
+  // derived from the differences to IEEE floating point conventions. `F` is
+  // for "finite" (no infinities), `N` for with special NaN encoding, `U` for
+  // unsigned.
+  //
+  // This type has the following characteristics:
+  // * bit encoding: S0E5M3 - `0bEEEEEMMM`
+  // * exponent bias: 15
+  // * infinities: Not supported
+  // * NaNs: Supported with exponent bits and mantissa bits set to all 1s -
+  // `0b11111111`
+  // * denormals when exponent is 0
+ private:
+  using Base = float8_base<float8_e5m3fnu>;
+  friend class float8_base<float8_e5m3fnu>;
+  using Base::Base;
+
+ public:
+  template <typename T, RequiresIsDerivedFromFloat8Base<T> = 0>
+  explicit EIGEN_DEVICE_FUNC float8_e5m3fnu(T f8)
+      : float8_e5m3fnu(ConvertFrom(f8)) {}
+
+  constexpr float8_e5m3fnu operator-() const {
+    // No negative numbers supported in E5M3, so negating zero is a no-op and
+    // negating anything else yields NaN.
+    return rep() == 0x00 ? *this : float8_e5m3fnu::FromRep(0xFF);
+  }
+
+  float8_e5m3fnu operator-(const float8_e5m3fnu& other) const {
+    return Base::operator-(other);
+  }
+
+  explicit EIGEN_DEVICE_FUNC operator bool() const { return rep() != 0; }
+
+  // The encoding is unsigned, so the representation is monotonic and ordering
+  // simplifies to a uint8_t compare. The base class implementation cannot be
+  // used because it treats the MSB as a sign bit.
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(
+      const float8_e5m3fnu& other) const {
+    if (Eigen::numext::isnan(*this) || Eigen::numext::isnan(other)) {
+      return false;
+    }
+    return rep() < other.rep();
+  }
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(
+      const float8_e5m3fnu& other) const {
+    if (Eigen::numext::isnan(*this) || Eigen::numext::isnan(other)) {
+      return false;
+    }
+    return rep() <= other.rep();
+  }
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(
+      const float8_e5m3fnu& other) const {
+    if (Eigen::numext::isnan(*this) || Eigen::numext::isnan(other)) {
+      return false;
+    }
+    return rep() > other.rep();
+  }
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(
+      const float8_e5m3fnu& other) const {
+    if (Eigen::numext::isnan(*this) || Eigen::numext::isnan(other)) {
+      return false;
+    }
+    return rep() >= other.rep();
+  }
 };
 
 class float8_e8m0fnu : public float8_base<float8_e8m0fnu> {
@@ -1000,6 +1075,66 @@ struct numeric_limits_float8_e5m2fnuz : public numeric_limits_float8_base {
   }
 };
 
+struct numeric_limits_float8_e5m3fnu : public numeric_limits_float8_base {
+ private:
+  static inline constexpr const int kExponentBias = 15;
+  static inline constexpr const int kMantissaBits = 3;
+
+ public:
+  // NOLINTBEGIN: these names must match std::numeric_limits.
+  static inline constexpr const bool is_signed = false;
+  static inline constexpr const int digits = kMantissaBits + 1;
+  static inline constexpr const int digits10 = Digits10FromDigits(digits);
+  static inline constexpr const int max_digits10 =
+      MaxDigits10FromDigits(digits);
+  static inline constexpr const int min_exponent = (1 - kExponentBias) + 1;
+  static inline constexpr const int min_exponent10 =
+      MinExponent10FromMinExponent(min_exponent);
+  static inline constexpr const int max_exponent =
+      (0b11111 - kExponentBias) + 1;  // Extended format.
+  static inline constexpr const int max_exponent10 =
+      MaxExponent10FromMaxExponentAndDigits(max_exponent, digits);
+  static inline constexpr const bool is_iec559 = false;
+  static inline constexpr const bool has_infinity = false;
+  static inline constexpr const bool has_signaling_NaN = false;
+  // NOLINTEND
+
+  // 1.0 * 2^(0b00001 - 15) = 1.0 * 2^-14 = 6.103515625e-05 (min normal)
+  static constexpr float8_e5m3fnu min() {
+    return float8_e5m3fnu::FromRep(0b00001 << kMantissaBits);
+  }
+  // Unsigned format, so the lowest value is zero.
+  static constexpr float8_e5m3fnu lowest() {
+    return float8_e5m3fnu::FromRep(0b00000'000);
+  }
+  // (1 + 0b110 * 2^-3) * 2^(0b11111 - 15) = 1.75 * 2^16 = 114688
+  static constexpr float8_e5m3fnu max() {
+    return float8_e5m3fnu::FromRep(0b11111'110);
+  }
+  // 1.0 * 2^-3 = 0.125
+  static constexpr float8_e5m3fnu epsilon() {
+    return float8_e5m3fnu::FromRep((-kMantissaBits + kExponentBias)
+                                   << kMantissaBits);
+  }
+  // 1.0 * 2^-1 = 0.5
+  static constexpr float8_e5m3fnu round_error() {
+    return float8_e5m3fnu::FromRep((-1 + kExponentBias) << kMantissaBits);
+  }
+  static constexpr float8_e5m3fnu infinity() {
+    return float8_e5m3fnu::FromRep(0b11111'111);
+  }  // NaN.
+  static constexpr float8_e5m3fnu quiet_NaN() {
+    return float8_e5m3fnu::FromRep(0b11111'111);
+  }
+  static constexpr float8_e5m3fnu signaling_NaN() {
+    return float8_e5m3fnu::FromRep(0b11111'111);
+  }
+  // 1.0 * 2^(-15 - 3 + 1) = 1.0 * 2^-17 = 7.62939453125e-06 (min denormal)
+  static constexpr float8_e5m3fnu denorm_min() {
+    return float8_e5m3fnu::FromRep(0b00000'001);
+  }
+};
+
 struct numeric_limits_float8_e8m0fnu : public numeric_limits_float8_base {
  private:
   static inline constexpr const int kExponentBias = 127;
@@ -1095,6 +1230,10 @@ struct numeric_limits<ml_dtypes::float8_internal::float8_e5m2fnuz>
     : public ml_dtypes::float8_internal::numeric_limits_float8_e5m2fnuz {};
 
 template <>
+struct numeric_limits<ml_dtypes::float8_internal::float8_e5m3fnu>
+    : public ml_dtypes::float8_internal::numeric_limits_float8_e5m3fnu {};
+
+template <>
 struct numeric_limits<ml_dtypes::float8_internal::float8_e8m0fnu>
     : public ml_dtypes::float8_internal::numeric_limits_float8_e8m0fnu {};
 }  // namespace std
@@ -1164,6 +1303,12 @@ constexpr inline bool(isnan)(const float8_e5m2fnuz& a) {
   return a.rep() == 0x80;
 }
 
+constexpr inline float8_e5m3fnu abs(const float8_e5m3fnu& a) { return a; }
+
+constexpr inline bool(isnan)(const float8_e5m3fnu& a) {
+  return a.rep() == std::numeric_limits<float8_e5m3fnu>::quiet_NaN().rep();
+}
+
 constexpr inline float8_e8m0fnu abs(const float8_e8m0fnu& a) { return a; }
 
 constexpr inline bool(isnan)(const float8_e8m0fnu& a) {
@@ -1201,6 +1346,11 @@ template <int kNumBytes>
 using GetUnsignedInteger =
     typename Eigen::numext::get_integer_by_size<kNumBytes>::unsigned_type;
 
+template <int kNumBits>
+using GetUnsignedIntegerBits =
+    typename Eigen::numext::get_integer_by_size<(kNumBits + 7) /
+                                                8>::unsigned_type;
+
 // Converts between two floating-point types.
 template <typename From, typename To, bool kSaturate, bool kTruncate,
           typename EnableIf = void>
@@ -1233,6 +1383,11 @@ struct TraitsBase {
                                             << kMantissaBits;
   static constexpr BitsType kMantissaMask = (BitsType{1} << kMantissaBits) - 1;
   static constexpr int kExponentBias = (1 << (kExponentBits - 1)) - 1;
+
+  // Type that can hold mantissa, exponent, and one extra (overflow) bit.
+  // This may be larger than BitsType for unsigned types.
+  using WideBitsType =
+      GetUnsignedIntegerBits<kMantissaBits + kExponentBits + 1>;
 };
 
 template <typename Float>
@@ -1354,6 +1509,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
 
   using ToTraits = Traits<To>;
   using ToBits = typename ToTraits::BitsType;
+  using WideToBits = typename ToTraits::WideBitsType;
   static constexpr bool kToIsSigned = ToTraits::kIsSigned;
   static constexpr bool kToHasZero = ToTraits::kHasZero;
   static constexpr int kToMantissaBits = ToTraits::kMantissaBits;
@@ -1457,7 +1613,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
         std::min((kFromMantissaBits - kToMantissaBits) + denormal_adjustment,
                  kFromMantissaBits + 2);
 
-    ToBits aligned_mantissa;
+    WideToBits aligned_mantissa;
     if (alignment_shift > 0) {
       if constexpr (!kTruncate) {
         // Rounding may cause a carry (e.g., 1.11... -> 10.00...).
@@ -1473,8 +1629,8 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
 
     // 6. Pack and Handle Overflow.
     // Clamp the exponent bits to 0 (for subnormals).
-    const ToBits target_exp_bits =
-        static_cast<ToBits>(std::max(0, target_biased_exponent_base));
+    const WideToBits target_exp_bits =
+        static_cast<WideToBits>(std::max(0, target_biased_exponent_base));
 
     // Reassemble the bits using integer addition.
     //
@@ -1489,8 +1645,9 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     //
     // This addition also handles rounding overflow automatically. If rounding
     // created a carry (mantissa = 2.0), it adds an extra 1 to the exponent
-    // (creating `BiasedExp + 1`).
-    ToBits result_bits =
+    // (creating `BiasedExp + 1`). `WideToBits` is required to store the highest
+    // bit in this case.
+    WideToBits result_bits_wide =
         aligned_mantissa + (target_exp_bits << kToMantissaBits);
 
     const ToBits kToMaxFinite =
@@ -1500,15 +1657,18 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     // Condition 1: Exponent calculated exceeds target max.
     // Condition 2: The final packed bits exceed the max finite representation
     // (handles cases where rounding pushed a max-value into infinity).
+    ToBits result_bits;
     if (target_biased_exponent_base >=
             std::numeric_limits<To>::max_exponent + kToExponentBias ||
-        result_bits > kToMaxFinite) {
+        result_bits_wide > kToMaxFinite) {
       if constexpr (kSaturate) {
         result_bits = kToMaxFinite;
       } else {
         result_bits =
             Eigen::numext::bit_cast<ToBits>(Eigen::NumTraits<To>::infinity());
       }
+    } else {
+      result_bits = static_cast<ToBits>(result_bits_wide);
     }
 
     // 7. Apply Sign
@@ -1627,6 +1787,7 @@ using float8_e4m3fnuz = float8_internal::float8_e4m3fnuz;
 using float8_e4m3b11fnuz = float8_internal::float8_e4m3b11fnuz;
 using float8_e5m2 = float8_internal::float8_e5m2;
 using float8_e5m2fnuz = float8_internal::float8_e5m2fnuz;
+using float8_e5m3fnu = float8_internal::float8_e5m3fnu;
 using float8_e8m0fnu = float8_internal::float8_e8m0fnu;
 
 }  // namespace ml_dtypes
@@ -1674,6 +1835,12 @@ EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m2>(
 template <>
 EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m2fnuz>(
     const ml_dtypes::float8_e5m2fnuz& x) {
+  return ml_dtypes::float8_internal::isinf(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline bool isinf_impl<ml_dtypes::float8_e5m3fnu>(
+    const ml_dtypes::float8_e5m3fnu& x) {
   return ml_dtypes::float8_internal::isinf(x);
 }
 
@@ -1726,6 +1893,12 @@ EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e5m2fnuz>(
 }
 
 template <>
+EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e5m3fnu>(
+    const ml_dtypes::float8_e5m3fnu& x) {
+  return ml_dtypes::float8_internal::isnan(x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline bool isnan_impl<ml_dtypes::float8_e8m0fnu>(
     const ml_dtypes::float8_e8m0fnu& x) {
   return ml_dtypes::float8_internal::isnan(x);
@@ -1770,6 +1943,12 @@ EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m2>(
 template <>
 EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m2fnuz>(
     const ml_dtypes::float8_e5m2fnuz& x) {
+  return ml_dtypes::float8_internal::isfinite(x);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline bool isfinite_impl<ml_dtypes::float8_e5m3fnu>(
+    const ml_dtypes::float8_e5m3fnu& x) {
   return ml_dtypes::float8_internal::isfinite(x);
 }
 

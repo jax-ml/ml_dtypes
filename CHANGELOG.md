@@ -23,6 +23,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Added new 8-bit float type: `ml_dtypes.float8_e5m3fnu`.
 * `arr.real` and `arr.imag` now return correct results for `bcomplex32` and
   `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
 * Fixed byte-swapping of `bcomplex32` and `complex32` arrays
