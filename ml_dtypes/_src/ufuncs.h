@@ -330,6 +330,12 @@ struct CopySign {
     }
     auto [a_sign, a_abs_bits] = SignAndMagnitude(a);
     auto [b_sign, b_abs_bits] = SignAndMagnitude(b);
+    if (a_abs_bits == 0) {
+      // Negate instead of setting the sign bit: types without a negative zero
+      // (i.e. *fnuz) use that bit pattern for NaN, and their negation keeps +0.
+      T zero = Eigen::numext::bit_cast<T>(a_abs_bits);
+      return b_sign ? T(-zero) : zero;
+    }
     BitsType<T> rep = a_abs_bits | b_sign;
     return Eigen::numext::bit_cast<T>(rep);
   }
@@ -544,7 +550,9 @@ struct Sign {
       return a;
     }
     auto [sign_a, abs_a] = SignAndMagnitude(a);
-    if (abs_a == 0) {
+    // Compare the value rather than the magnitude bits: in unsigned formats
+    // without a zero (e.g. E8M0), all-zero bits encode the smallest power of 2.
+    if (static_cast<float>(a) == 0.0f) {
       return a;
     }
     return sign_a ? T(-1) : T(1);
