@@ -1376,5 +1376,27 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     )
 
 
+class Float8E8M0LowestBinadeTest(parameterized.TestCase):
+  """Casts to float8_e8m0fnu below 2**-126, where E8M0 has no subnormals."""
+
+  @parameterized.product(src_dtype=[np.float32, np.float64, bfloat16])
+  def testRoundsToNearestCode(self, src_dtype):
+    # Code 0x00 is 2**-127 and code 0x01 is 2**-126.
+    scale = 2.0**-127
+    values = np.array([1.0, 1.0625, 1.25, 1.375, 1.75, 2.0]) * scale
+    expected = np.array([0, 0, 0, 0, 1, 1], dtype=np.uint8)
+    x = values.astype(src_dtype)
+    np.testing.assert_array_equal(
+        x.astype(float8_e8m0fnu).view(np.uint8), expected
+    )
+
+  def testBelowSmallestCode(self):
+    # Values below 2**-127 still map to the smallest code.
+    x = np.array([2.0**-128, 1.5 * 2.0**-128, 2.0**-140], dtype=np.float32)
+    np.testing.assert_array_equal(
+        x.astype(float8_e8m0fnu).view(np.uint8), np.zeros(3, dtype=np.uint8)
+    )
+
+
 if __name__ == "__main__":
   absltest.main()

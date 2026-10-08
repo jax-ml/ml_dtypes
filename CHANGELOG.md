@@ -23,6 +23,10 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Casting values between 2<sup>-127</sup> and 1.5 × 2<sup>-127</sup> to
+  `float8_e8m0fnu` now rounds them down to 2<sup>-127</sup> instead of up to
+  2<sup>-126</sup>
+  ([#406](https://github.com/jax-ml/ml_dtypes/issues/406)).
 * `np.copysign` of zero no longer returns NaN for the `*fnuz` types, and
   `np.sign` of the smallest `float8_e8m0fnu` value now returns 1
   ([#408](https://github.com/jax-ml/ml_dtypes/pull/408)).
