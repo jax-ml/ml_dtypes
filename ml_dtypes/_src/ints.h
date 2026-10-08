@@ -102,8 +102,22 @@ struct CustomIntType {
   static PyType_Slot type_slots[];
 
   static PyArray_ArrFuncs arr_funcs;
+  static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
+
+  // New-style DType metaclass object.
+  static PyArray_DTypeMeta dtype_meta;
 };
+
+// True if `meta` is one of our custom integer DTypes.
+inline bool IsCustomIntDType(const PyArray_DTypeMeta* meta) {
+  return meta == &CustomIntType<int1>::dtype_meta ||
+         meta == &CustomIntType<uint1>::dtype_meta ||
+         meta == &CustomIntType<int2>::dtype_meta ||
+         meta == &CustomIntType<uint2>::dtype_meta ||
+         meta == &CustomIntType<int4>::dtype_meta ||
+         meta == &CustomIntType<uint4>::dtype_meta;
+}
 
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_intn_v<T>>> {

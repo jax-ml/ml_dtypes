@@ -30,7 +30,9 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/dtype_common.h"
 #include "ml_dtypes/_src/floats.h"
+#include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
 #include "ml_dtypes/_src/ufuncs.h"
 #include "ml_dtypes/include/complex_types.h"
@@ -46,7 +48,11 @@ int CustomComplexType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomComplexType<T>::type_ptr = nullptr;
 template <typename T>
+PyArray_DescrProto CustomComplexType<T>::npy_descr_proto;
+template <typename T>
 PyArray_Descr* CustomComplexType<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta CustomComplexType<T>::dtype_meta = {};
 
 namespace {
 
@@ -1038,6 +1044,123 @@ int RegisterRealAndImag(PyArray_DTypeMeta* complex_dtype) {
   return RegisterRealImag<T, false>(complex_dtype);
 }
 
+// ---------------------------------------------------------------------------
+// New-style DType slot functions for CustomComplex types
+// ---------------------------------------------------------------------------
+
+template <typename T>
+static PyObject* NPyCustomComplex_NewStyleGetItem(PyArray_Descr* /*descr*/,
+                                                  char* data) {
+  return NPyCustomComplex_GetItem<T>(data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static int NPyCustomComplex_NewStyleSetItem(PyArray_Descr* /*descr*/,
+                                            PyObject* item, char* data) {
+  return NPyCustomComplex_SetItem<T>(item, data, /*arr=*/nullptr);
+}
+
+// Ensure native-byte order (preserve metadata for identity for now)
+template <typename T>
+static PyArray_Descr* NPyCustomComplex_EnsureCanonical(PyArray_Descr* self) {
+  if (PyDataType_ISNOTSWAPPED(self)) {
+    Py_INCREF(self);
+    return self;
+  }
+  PyArray_Descr* singleton = NPY_DTYPE(self)->singleton;
+  Py_INCREF(singleton);
+  return singleton;
+}
+
+template <typename T>
+static PyArray_Descr* NPyCustomComplex_DefaultDescr(PyArray_DTypeMeta* cls) {
+  Py_INCREF(cls->singleton);
+  return cls->singleton;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
+    PyArray_DTypeMeta* cls, PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type.
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType ||
+      other == &PyArray_PyComplexDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // Real component of our complex type: bfloat16 or half. Both fit in float,
+  // so any real type we cannot hold exactly widens us to complex64.
+  using real_type = typename T::value_type;
+
+  if (PyTypeNum_ISINTEGER(other->type_num)) {
+    /* Our precision is irrelevant, the integer one is higher. */
+    return PyArray_CommonDType(&PyArray_CFloatDType, other);
+  }
+
+  switch (other->type_num) {
+    case NPY_BOOL:
+      Py_INCREF(cls);
+      return cls;
+    case NPY_HALF:
+      if constexpr (CustomFloatSafeTo<half, real_type>()) {
+        Py_INCREF(cls);
+        return cls;
+      }
+      [[fallthrough]];
+    case NPY_FLOAT:
+      Py_INCREF(&PyArray_CFloatDType);
+      return &PyArray_CFloatDType;
+    case NPY_DOUBLE:
+      Py_INCREF(&PyArray_CDoubleDType);
+      return &PyArray_CDoubleDType;
+    case NPY_LONGDOUBLE:
+      Py_INCREF(&PyArray_CLongDoubleDType);
+      return &PyArray_CLongDoubleDType;
+    // Built-in complex: our types are smaller, return other.
+    case NPY_CFLOAT:
+    case NPY_CDOUBLE:
+    case NPY_CLONGDOUBLE:
+      Py_INCREF(other);
+      return other;
+    default:
+      break;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Custom float: stay complex when our real component holds it exactly,
+  // otherwise widen to complex64.
+  if (PyArray_DTypeMeta* common =
+          CommonCustomFloatDType<real_type>(cls, other)) {
+    if (common == cls) {
+      Py_INCREF(cls);
+      return cls;
+    }
+    Py_INCREF(&PyArray_CFloatDType);
+    return &PyArray_CFloatDType;
+  }
+
+  // Custom int: every intN fits exactly in either component type.
+  if (IsCustomIntDType(other)) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // The other custom complex: bfloat16 and half do not contain each other,
+  // so both sides agree on complex64.
+  if (IsCustomComplexDType(other)) {
+    Py_INCREF(&PyArray_CFloatDType);
+    return &PyArray_CFloatDType;
+  }
+
+  // Unknown user type: return NotImplemented.
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
 template <typename T>
 bool RegisterComplexDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
@@ -1062,7 +1185,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
     return false;
   }
 
-  // Initializes the NumPy descriptor.
+  // Initializes the NumPy ArrFuncs (used by legacy code paths after the swap).
   PyArray_ArrFuncs& arr_funcs = CustomComplexType<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
   arr_funcs.getitem = NPyCustomComplex_GetItem<T>;
@@ -1071,23 +1194,43 @@ bool RegisterComplexDtype(PyObject* numpy) {
   arr_funcs.copyswapn = NPyCustomComplex_CopySwapN<T>;
   arr_funcs.copyswap = NPyCustomComplex_CopySwap<T>;
   arr_funcs.nonzero = NPyCustomComplex_NonZero<T>;
-  arr_funcs.fill = nullptr;  // NPyCustomComplex_Fill<T>;
+  arr_funcs.fill = nullptr;
   arr_funcs.dotfunc = NPyCustomComplex_DotFunc<T>;
   arr_funcs.compare = NPyCustomComplex_CompareFunc<T>;
-  arr_funcs.argmax = nullptr;  // NumPy defines them, but it's shaky
+  arr_funcs.argmax = nullptr;
   arr_funcs.argmin = nullptr;
 
-  PyArray_DescrProto descr_proto = GetCustomComplexDescrProto<T>();
+  // Prepare the legacy descriptor proto referenced by the DType spec below.
+  PyArray_DescrProto& descr_proto = CustomComplexType<T>::npy_descr_proto;
+  descr_proto = GetCustomComplexDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
+  descr_proto.f = &arr_funcs;
 
-  CustomComplexType<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (CustomComplexType<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = CustomComplexType<T>::dtype_meta;
+  if (!InitDTypeMeta(&dm, CustomComplexTraits<T>::kTypeName)) {
     return false;
   }
 
-  // TODO(phawkins): We intentionally leak the pointer to the descriptor.
-  // Implement a better module destructor to handle this.
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem,
+       reinterpret_cast<void*>(NPyCustomComplex_NewStyleGetItem<T>)},
+      {NPY_DT_setitem,
+       reinterpret_cast<void*>(NPyCustomComplex_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical,
+       reinterpret_cast<void*>(NPyCustomComplex_EnsureCanonical<T>)},
+      {NPY_DT_default_descr,
+       reinterpret_cast<void*>(NPyCustomComplex_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
+      {0, nullptr}};
+  if (InitDTypeFromSlots<T>(&dm, reinterpret_cast<PyTypeObject*>(type),
+                            dtype_slots) < 0) {
+    return false;
+  }
+  CustomComplexType<T>::npy_type = dm.type_num;
+
   CustomComplexType<T>::npy_descr =
       PyArray_DescrFromType(CustomComplexType<T>::npy_type);
 

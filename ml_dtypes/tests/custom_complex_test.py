@@ -445,10 +445,9 @@ def test_unimplemented_binary_ufuncs(sctype, func):
 @np.errstate(all="ignore")
 def test_unary_ufuncs(sctype, ufunc):
   """Test all unary ufuncs, we expect them to just use the float32 version."""
+  rng = np.random.RandomState(seed=42)
   x = np.array(COMPLEX_VALUES)
-  x = np.concatenate(
-      [x, np.random.random(20).astype(np.float32).view(np.complex64)]
-  )
+  x = np.concatenate([x, rng.random(20).astype(np.float32).view(np.complex64)])
   x = x.astype(sctype)
 
   result = ufunc(x)
@@ -525,10 +524,9 @@ def test_unary_ufuncs(sctype, ufunc):
 @np.errstate(all="ignore")
 def test_binary_ufuncs(sctype, ufunc):
   """Test binary ufuncs."""
+  rng = np.random.RandomState(seed=42)
   x = np.array(COMPLEX_VALUES)
-  x = np.concatenate(
-      [x, np.random.random(20).astype(np.float32).view(np.complex64)]
-  )
+  x = np.concatenate([x, rng.random(20).astype(np.float32).view(np.complex64)])
   x = x.astype(sctype)
 
   if ufunc in [np.power, np.float_power]:

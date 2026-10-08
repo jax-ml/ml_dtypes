@@ -30,6 +30,8 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/dtype_common.h"
+#include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
 #include "ml_dtypes/_src/ufuncs.h"
 
@@ -44,7 +46,11 @@ int CustomFloatType<T>::npy_type = NPY_NOTYPE;
 template <typename T>
 PyObject* CustomFloatType<T>::type_ptr = nullptr;
 template <typename T>
+PyArray_DescrProto CustomFloatType<T>::npy_descr_proto;
+template <typename T>
 PyArray_Descr* CustomFloatType<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta CustomFloatType<T>::dtype_meta = {};
 
 namespace {
 
@@ -837,6 +843,114 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// ---------------------------------------------------------------------------
+// New-style DType slot functions for CustomFloat types
+// ---------------------------------------------------------------------------
+
+// New-style getitem: (PyArray_Descr*, char*) -> PyObject*
+template <typename T>
+static PyObject* NPyCustomFloat_NewStyleGetItem(PyArray_Descr* /*descr*/,
+                                                char* data) {
+  return NPyCustomFloat_GetItem<T>(data, /*arr=*/nullptr);
+}
+
+// New-style setitem: (PyArray_Descr*, PyObject*, char*) -> int
+template <typename T>
+static int NPyCustomFloat_NewStyleSetItem(PyArray_Descr* /*descr*/,
+                                          PyObject* item, char* data) {
+  return NPyCustomFloat_SetItem<T>(item, data, /*arr=*/nullptr);
+}
+
+// Ensure native-byte order (preserve metadata for identity for now)
+template <typename T>
+static PyArray_Descr* NPyCustomFloat_EnsureCanonical(PyArray_Descr* self) {
+  if (PyDataType_ISNOTSWAPPED(self)) {
+    Py_INCREF(self);
+    return self;
+  }
+  PyArray_Descr* singleton = NPY_DTYPE(self)->singleton;
+  Py_INCREF(singleton);
+  return singleton;
+}
+
+// default_descr: return the singleton.
+// This avoids use_new_as_default calling dm() -> arraydescr_new, which fails
+// for legacy-flagged DTypes because the legacy-check branch errors out.
+template <typename T>
+static PyArray_Descr* NPyCustomFloat_DefaultDescr(PyArray_DTypeMeta* cls) {
+  Py_INCREF(cls->singleton);
+  return cls->singleton;
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
+                                                     PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type. (should add complex
+  // here)
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  constexpr bool is_bfloat16 = std::is_same_v<T, bfloat16>;
+
+  if (PyTypeNum_ISINTEGER(other->type_num)) {
+    if (is_bfloat16 &&
+        (other->type_num == NPY_BYTE || other->type_num == NPY_UBYTE)) {
+      Py_INCREF(cls);
+      return cls;
+    }
+    /* Our precision is irrelevant, the integer one is higher. */
+    return PyArray_CommonDType(&PyArray_PyFloatDType, other);
+  }
+
+  switch (other->type_num) {
+    case NPY_BOOL:
+      Py_INCREF(cls);
+      return cls;
+    case NPY_HALF:
+      if constexpr (!CustomFloatSafeTo<T, half>()) {
+        Py_INCREF(&PyArray_FloatDType);
+        return &PyArray_FloatDType;
+      }
+      [[fallthrough]];
+    case NPY_FLOAT:
+    case NPY_DOUBLE:
+    case NPY_LONGDOUBLE:
+      [[fallthrough]];
+    case NPY_CFLOAT:
+    case NPY_CDOUBLE:
+    case NPY_CLONGDOUBLE:
+      Py_INCREF(other);
+      return other;
+    default:
+      break;
+  }
+
+  // ---- Our own custom DTypes ----
+  // Another custom float: whichever contains the other, else float32.
+  if (PyArray_DTypeMeta* common = CommonCustomFloatDType<T>(cls, other)) {
+    Py_INCREF(common);
+    return common;
+  }
+
+  // Custom int: float dominates. NPyIntN_CommonDType returns NotImplemented
+  // for user types it can't see, so we handle this side explicitly.
+  if (IsCustomIntDType(other)) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // Custom complex or unknown user type: swapping will work (NPyCustomComplex
+  // handles complex+float and returns the appropriate complex result).
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
 template <typename T>
 bool RegisterFloatDtype(PyObject* numpy) {
   // bases must be a tuple for Python 3.9 and earlier. Change to just pass
@@ -861,7 +975,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
     return false;
   }
 
-  // Initializes the NumPy descriptor.
+  // Initializes the NumPy ArrFuncs (used by legacy code paths after the swap).
   PyArray_ArrFuncs& arr_funcs = CustomFloatType<T>::arr_funcs;
   PyArray_InitArrFuncs(&arr_funcs);
   arr_funcs.getitem = NPyCustomFloat_GetItem<T>;
@@ -876,17 +990,39 @@ bool RegisterFloatDtype(PyObject* numpy) {
   arr_funcs.argmax = NPyCustomFloat_ArgMaxFunc<T>;
   arr_funcs.argmin = NPyCustomFloat_ArgMinFunc<T>;
 
-  PyArray_DescrProto descr_proto = GetCustomFloatDescrProto<T>();
+  // Prepare the legacy descriptor proto referenced by the DType spec below.
+  PyArray_DescrProto& descr_proto = CustomFloatType<T>::npy_descr_proto;
+  descr_proto = GetCustomFloatDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
+  descr_proto.f = &arr_funcs;
 
-  CustomFloatType<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (CustomFloatType<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = CustomFloatType<T>::dtype_meta;
+  if (!InitDTypeMeta(&dm, CustomFloatTraits<T>::kTypeName)) {
     return false;
   }
 
-  // TODO(phawkins): We intentionally leak the pointer to the descriptor.
-  // Implement a better module destructor to handle this.
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem,
+       reinterpret_cast<void*>(NPyCustomFloat_NewStyleGetItem<T>)},
+      {NPY_DT_setitem,
+       reinterpret_cast<void*>(NPyCustomFloat_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical,
+       reinterpret_cast<void*>(NPyCustomFloat_EnsureCanonical<T>)},
+      {NPY_DT_default_descr,
+       reinterpret_cast<void*>(NPyCustomFloat_DefaultDescr<T>)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyCustomFloat_CommonDType<T>)},
+      {0, nullptr}};
+  if (InitDTypeFromSlots<T>(&dm, reinterpret_cast<PyTypeObject*>(type),
+                            dtype_slots) < 0) {
+    return false;
+  }
+  CustomFloatType<T>::npy_type = dm.type_num;
+
+  // The singleton is owned by dm; grab a borrowed reference for npy_descr.
+  // PyArray_DescrFromType returns a new reference — intentionally leaked.
   CustomFloatType<T>::npy_descr =
       PyArray_DescrFromType(CustomFloatType<T>::npy_type);
 

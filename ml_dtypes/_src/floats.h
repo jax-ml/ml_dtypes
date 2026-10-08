@@ -17,6 +17,7 @@ limitations under the License.
 #define ML_DTYPES_FLOATS_H_
 
 #include <cstring>
+#include <limits>
 #include <type_traits>
 
 #include "Eigen/Core"
@@ -138,6 +139,25 @@ struct is_custom_float<T,
 template <typename T>
 inline constexpr bool is_custom_float_v = is_custom_float<T>::value;
 
+// True if every value of Src is exactly representable in Dst.
+// Ignore has_signaling_NaN since NumPy doesn't use it.
+template <typename Src, typename Dst>
+inline constexpr bool CustomFloatSafeTo() {
+  return (!std::numeric_limits<Src>::is_signed ||
+          std::numeric_limits<Dst>::is_signed) &&
+         std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
+         std::numeric_limits<Dst>::min_exponent -
+                 std::numeric_limits<Dst>::digits <=
+             std::numeric_limits<Src>::min_exponent -
+                 std::numeric_limits<Src>::digits &&
+         std::numeric_limits<Dst>::max_exponent >=
+             std::numeric_limits<Src>::max_exponent &&
+         (!std::numeric_limits<Src>::has_infinity ||
+          std::numeric_limits<Dst>::has_infinity) &&
+         (!std::numeric_limits<Src>::has_quiet_NaN ||
+          std::numeric_limits<Dst>::has_quiet_NaN);
+}
+
 template <typename T>
 struct CustomFloatType {
   static int Dtype() { return npy_type; }
@@ -155,8 +175,52 @@ struct CustomFloatType {
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
   static PyArray_ArrFuncs arr_funcs;
+  static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
+
+  // New-style DType metaclass object.  Zero-initialized; fields are filled in
+  // at registration time before PyType_Ready is called.
+  static PyArray_DTypeMeta dtype_meta;
 };
+
+// Recovers the C++ type behind the runtime DType `other` by walking the type
+// list, so that the containment checks stay compile-time constants.
+template <typename T>
+inline PyArray_DTypeMeta* CommonCustomFloatDTypeImpl(
+    PyArray_DTypeMeta* /*self*/, PyArray_DTypeMeta* /*other*/) {
+  return nullptr;
+}
+
+template <typename T, typename OtherT, typename... Rest>
+inline PyArray_DTypeMeta* CommonCustomFloatDTypeImpl(PyArray_DTypeMeta* self,
+                                                     PyArray_DTypeMeta* other) {
+  if (other != &CustomFloatType<OtherT>::dtype_meta) {
+    return CommonCustomFloatDTypeImpl<T, Rest...>(self, other);
+  }
+  if constexpr (CustomFloatSafeTo<OtherT, T>()) {
+    // Checked first so equal types (both true) keep `self`. Complex relies on
+    // that: promoting bcomplex32 with bfloat16 must not return the float.
+    return self;
+  } else if constexpr (CustomFloatSafeTo<T, OtherT>()) {
+    return other;
+  } else {
+    return &PyArray_FloatDType;
+  }
+}
+
+// Promotes the statically-known float type `T` against the DType `other`.
+// Returns `self` when `other` fits in `T`, `other` when `T` fits in it, and
+// float32 when neither contains the other.  Returns nullptr when `other` is
+// not one of our float DTypes.
+// `T` can be `half`, but `other` is only checked against our custom floats.
+template <typename T>
+inline PyArray_DTypeMeta* CommonCustomFloatDType(PyArray_DTypeMeta* self,
+                                                 PyArray_DTypeMeta* other) {
+  return CommonCustomFloatDTypeImpl<
+      T, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz, float8_e4m3fn,
+      float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz, float6_e2m3fn,
+      float6_e3m2fn, float4_e2m1fn, float8_e8m0fnu>(self, other);
+}
 
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
