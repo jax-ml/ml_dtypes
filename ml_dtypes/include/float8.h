@@ -1448,7 +1448,13 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     // mantissa.
     // Positive shift: Right shift (truncation/rounding needed).
     // Negative shift: Left shift (padding needed).
-    const int denormal_adjustment = std::max(0, -target_biased_exponent_base);
+    //
+    // A target without mantissa bits (e.g., E8M0) has no subnormal range: its
+    // smallest code is an ordinary power of two, so values just below it are
+    // rounded like normal values instead of being denormalized.
+    constexpr bool kToHasSubnormals = kToMantissaBits > 0;
+    const int denormal_adjustment =
+        kToHasSubnormals ? std::max(0, -target_biased_exponent_base) : 0;
     // A shift of `kFromMantissaBits + 1` removes the implicit bit, but the
     // result may still round to 1. A shift of `kFromMantissaBits + 2`
     // guarantees a result of 0 after rounding. We clamp the shift to this
@@ -1492,6 +1498,16 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     // (creating `BiasedExp + 1`).
     ToBits result_bits =
         aligned_mantissa + (target_exp_bits << kToMantissaBits);
+    if constexpr (!kToHasSubnormals) {
+      // Without subnormals a negative `target_biased_exponent_base` is not
+      // clamped above; it lowers the result, and anything below the smallest
+      // code clamps to it.
+      if (target_biased_exponent_base < 0) {
+        result_bits =
+            static_cast<ToBits>(std::max(0, static_cast<int>(aligned_mantissa) +
+                                                target_biased_exponent_base));
+      }
+    }
 
     const ToBits kToMaxFinite =
         Eigen::numext::bit_cast<ToBits>(Eigen::NumTraits<To>::highest());
