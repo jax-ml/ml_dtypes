@@ -1260,6 +1260,27 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         val_with_sign_bits = val_with_sign.view(bits_type)
         self.assertEqual(bits | bit_sign, val_with_sign_bits)
 
+  def testCopySignZero(self, float_type):
+    if not dtype_is_signed(float_type):
+      raise self.skipTest("Skip copy sign test for unsigned floating formats.")
+
+    # Types without a negative zero (*fnuz) must not turn -0 into NaN.
+    negative_zero = np.negative(float_type(0))
+    for sign in [-1, 1]:
+      with self.subTest(sign):
+        result = np.copysign(float_type(0), float_type(sign))
+        self.assertEqual(float(result), 0.0)
+        expected = negative_zero if sign < 0 else float_type(0)
+        self.assertEqual(np.signbit(result), np.signbit(expected))
+
+  def testSignOfSmallestValue(self, float_type):
+    # In unsigned formats without a zero (e.g. E8M0), all-zero bits are the
+    # smallest positive value rather than zero.
+    bits_type = np.uint16 if float_type == bfloat16 else np.uint8
+    value = bits_type(0).view(float_type)
+    expected = np.sign(np.float32(value))
+    np.testing.assert_equal(np.sign(value), float_type(expected))
+
   def testNextAfter(self, float_type):
     one = np.array(1.0, dtype=float_type)
     two = np.array(2.0, dtype=float_type)
