@@ -93,7 +93,7 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    *output = T(d);
+    *output = ToReducedFloat<T>(d);
     return true;
   }
   if (PyLong_Check(arg)) {
@@ -102,8 +102,20 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
       return false;
     }
     // TODO(phawkins): check for overflow
-    *output = T(static_cast<float>(l));
+    *output = ToReducedFloat<T>(l);
     return true;
+  }
+  if (PyArray_IsScalar(arg, Number)) {
+    // Convert NumPy numeric scalars with the same casts as arrays. Going
+    // through float32 (as below) would round wide integers and floats twice.
+    if (PyArray_IsScalar(arg, ComplexFloating) && GiveComplexWarning() < 0) {
+      return false;
+    }
+    Safe_PyObjectPtr arr = make_safe(PyArray_FromScalar(arg, nullptr));
+    if (!arr) {
+      return false;
+    }
+    return CastToCustomFloat<T>(arr.get(), output);
   }
   if (PyArray_IsScalar(arg, Generic)) {
     // Allow conversion from any NumPy scalar if conversion to float32
@@ -588,15 +600,6 @@ int NPyCustomFloat_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind,
   return 0;
 }
 
-template <typename T>
-float CastToFloat(T value) {
-  if constexpr (is_complex_v<T>) {
-    return CastToFloat(value.real());
-  } else {
-    return static_cast<float>(value);
-  }
-}
-
 // Performs a NumPy array cast from type 'From' to 'To'.
 template <typename From, typename To>
 void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
@@ -604,7 +607,12 @@ void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
   const auto* from = reinterpret_cast<From*>(from_void);
   auto* to = reinterpret_cast<To*>(to_void);
   for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(CastToFloat(from[i]));
+    if constexpr (is_custom_float_v<To>) {
+      to[i] = ToReducedFloat<To>(from[i]);
+    } else {
+      // Custom float values are exactly representable as floats.
+      to[i] = static_cast<To>(static_cast<float>(from[i]));
+    }
   }
 }
 

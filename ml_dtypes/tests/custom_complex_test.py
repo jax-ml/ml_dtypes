@@ -346,6 +346,51 @@ def test_cast_to_bool(sctype):
   np.testing.assert_array_equal(y, [False, True, True, True])
 
 
+@pytest.mark.parametrize("from_type", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("to_type", COMPLEX_SCTYPES)
+def test_casts_between_custom_complex(from_type, to_type):
+  x = np.array([1.5 + 2j, -3 - 0.5j, 0j], dtype=from_type)
+  np.testing.assert_array_equal(
+      x.astype(to_type).astype(np.complex64), x.astype(np.complex64)
+  )
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_casts_from_wide_floats_round_once(sctype):
+  # Values just below and above the midpoint between 1 and the next larger
+  # value of the component type. Rounding them to float32 first would produce
+  # the midpoint itself.
+  eps = float(ml_dtypes.finfo(sctype).eps)
+  midpoint = 1 + eps / 2
+  below, above = midpoint - 2**-40, midpoint + 2**-40
+  expected = complex(1, 1 + eps)
+  assert complex(sctype(complex(below, above))) == expected
+  assert complex(sctype(below, above)) == expected
+  assert complex(sctype(above)) == 1 + eps
+  for dtype in [np.complex128, np.clongdouble]:
+    x = np.array([complex(below, above)], dtype=dtype)
+    assert complex(x.astype(sctype)[0]) == expected
+    assert complex(sctype(x[0])) == expected
+  for dtype in [np.float64, np.longdouble]:
+    x = np.array([below, above], dtype=dtype)
+    np.testing.assert_array_equal(
+        x.astype(sctype).astype(np.complex128), [1, 1 + eps]
+    )
+    assert complex(sctype(x[1])) == 1 + eps
+
+
+def test_bcomplex32_casts_from_wide_integers_round_once():
+  # 2**30 + 2**22 + 1 rounds to 2**30 + 2**22 as a float32, which is halfway
+  # between two bfloat16 values.
+  value = 2**30 + 2**22 + 1
+  expected = 2**30 + 2**23
+  assert complex(ml_dtypes.bcomplex32(value)) == expected
+  assert complex(ml_dtypes.bcomplex32(np.int64(value))) == expected
+  for dtype in [np.int32, np.int64, np.uint64]:
+    x = np.array([value], dtype=dtype)
+    assert complex(x.astype(ml_dtypes.bcomplex32)[0]) == expected
+
+
 # ==========================
 # UFunc/array function tests
 # ==========================

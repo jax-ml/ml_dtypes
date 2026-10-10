@@ -118,6 +118,18 @@ def dtype_is_signed(dtype):
   return ml_dtypes.finfo(dtype).min < 0
 
 
+def round_int_to_digits(x, digits):
+  """Rounds the positive integer `x` to `digits` significant bits."""
+  shift = x.bit_length() - digits
+  if shift <= 0:
+    return x
+  quotient, remainder = divmod(x, 1 << shift)
+  half = 1 << (shift - 1)
+  if remainder > half or (remainder == half and quotient % 2 == 1):
+    quotient += 1
+  return quotient << shift
+
+
 FLOAT_DTYPES = [
     bfloat16,
     float4_e2m1fn,
@@ -845,6 +857,7 @@ BINARY_PREDICATE_UFUNCS = [
         "testBinaryUfunc",
         "testCanCast",
         "testCasts",
+        "testCastsFromWideFloatsRoundOnce",
         "testConformNumpyComplex",
         "testCopySign",  # pytest 9.0.1's subtest appears not to be thread-safe
         "testDivmod",
@@ -1012,6 +1025,51 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       z_np = y_np.astype(dtype)
       z_tf = y_tf.astype(dtype)
       numpy_assert_allclose(z_np, z_tf, atol=2e-2, float_type=float_type)
+
+  @ignore_warning(category=ComplexWarning)
+  def testCastsFromWideFloatsRoundOnce(self, float_type):
+    # Values just below and above the midpoint between 1 and the next larger
+    # value of `float_type`. Rounding them to float32 first would produce the
+    # midpoint itself.
+    eps = float(ml_dtypes.finfo(float_type).eps)
+    midpoint = 1 + eps / 2
+    for value, expected in [
+        (midpoint - 2**-40, 1.0),
+        (midpoint + 2**-40, 1.0 + eps),
+    ]:
+      msg = f"{value=}"
+      self.assertEqual(float(float_type(value)), expected, msg)
+      for dtype in [np.float64, np.longdouble, np.complex128, np.clongdouble]:
+        x = np.array([value], dtype=dtype)
+        self.assertEqual(float(x.astype(float_type)[0]), expected, msg)
+        self.assertEqual(float(float_type(x[0])), expected, msg)
+
+  def testCastsFromWideIntegersRoundOnce(self, float_type):
+    # Integers next to a rounding boundary of `float_type` that are too wide to
+    # be exactly representable as float32 must round as if they were converted
+    # directly.
+    finfo = ml_dtypes.finfo(float_type)
+    digits = finfo.nmant + 1
+    max_exponent = math.floor(math.log2(float(finfo.max)))
+    values = []
+    for exponent in range(25, min(max_exponent, 63)):
+      halfway = (1 << exponent) + (1 << (exponent - digits))
+      values += [halfway - 1, halfway + 1]
+    if not values:
+      self.skipTest("Integers this large overflow.")
+    expected = [float(round_int_to_digits(v, digits)) for v in values]
+    for dtype in [np.int32, np.int64, np.uint64]:
+      x = np.array([v for v in values if v <= np.iinfo(dtype).max], dtype)
+      np.testing.assert_array_equal(
+          x.astype(float_type).astype(np.float64), expected[: len(x)]
+      )
+      np.testing.assert_array_equal(
+          [float(float_type(v)) for v in x], expected[: len(x)]
+      )
+    # Python integers are converted via C long, which may only have 32 bits.
+    for v, e in zip(values, expected):
+      if v <= np.iinfo(np.int32).max:
+        self.assertEqual(float(float_type(v)), e, f"{v=}")
 
   def testArange(self, float_type):
     # TODO(phawkins): remove the casts to float32 once NumPy considers our float

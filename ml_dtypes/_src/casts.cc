@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include <cstdint>
+#include <limits>
 
 #include "ml_dtypes/_src/complex.h"
 #include "ml_dtypes/_src/floats.h"
@@ -23,6 +24,16 @@ limitations under the License.
 namespace ml_dtypes {
 namespace {
 
+// Converts `x` to `To` via `Via`. Converting to `Via` must be exact so that the
+// conversion to `To` is the only one that rounds; otherwise we could round
+// twice.
+template <typename To, typename Via, typename From>
+To ConvertVia(From x) {
+  static_assert(std::numeric_limits<From>::digits <=
+                std::numeric_limits<Via>::digits);
+  return static_cast<To>(static_cast<Via>(x));
+}
+
 // Performs a NumPy array cast from type 'From' to 'To' via `Via`.
 template <typename From, typename To, typename Via>
 void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
@@ -30,16 +41,22 @@ void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
   const auto* from = static_cast<From*>(from_void);
   auto* to = static_cast<To*>(to_void);
 
-  if constexpr (is_complex_v<From> && !is_complex_v<To>) {
+  if constexpr (is_complex_v<From> && is_complex_v<To>) {
+    using ToReal = typename To::value_type;
+    for (npy_intp i = 0; i < n; ++i) {
+      to[i] = To(ConvertVia<ToReal, Via>(from[i].real()),
+                 ConvertVia<ToReal, Via>(from[i].imag()));
+    }
+  } else if constexpr (is_complex_v<From>) {
     if (GiveComplexWarningNoGIL() < 0) {
       return;
     }
     for (npy_intp i = 0; i < n; ++i) {
-      to[i] = static_cast<To>(static_cast<Via>(from[i].real()));
+      to[i] = ConvertVia<To, Via>(from[i].real());
     }
   } else {
     for (npy_intp i = 0; i < n; ++i) {
-      to[i] = static_cast<To>(static_cast<Via>(from[i]));
+      to[i] = ConvertVia<To, Via>(from[i]);
     }
   }
 }
@@ -107,7 +124,6 @@ bool RegisterCustomCasts() {
       float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
   // Only registering to/from BF16 and FP32 for float8_e8m0fnu.
   success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bfloat16, float>();
-  success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();
   success &= RegisterOneWayCustomCast<int1, int2, int4>();
   success &= RegisterOneWayCustomCast<uint1, uint2, uint4>();
   success &= RegisterOneWayCustomCast<int1, int4, int8_t>();

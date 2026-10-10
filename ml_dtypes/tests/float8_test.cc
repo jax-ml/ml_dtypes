@@ -16,6 +16,7 @@ limitations under the License.
 #include "ml_dtypes/include/float8.h"
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -584,6 +585,87 @@ TYPED_TEST(Float8Test, DoubleRound) {
       std::numeric_limits<long double>::max());
   EXPECT_EQ(max, saturated);
 #endif
+}
+
+// Integers are converted by narrowing them to float first. Check that this does
+// not round twice: integers next to a rounding boundary that are too wide to be
+// exactly representable as floats must round as if they were converted
+// directly.
+TYPED_TEST(Float8Test, ConvertFromIntegerRoundsOnce) {
+  using Float8 = TypeParam;
+  // Conversions from double round once, and are exact for the integers below.
+  auto check = [](auto i) {
+    const double d = static_cast<double>(i);
+    EXPECT_EQ(Float8(i).rep(), Float8(d).rep()) << i;
+    EXPECT_EQ(
+        (Float8::template ConvertFrom</*kSaturate=*/true, /*kTruncate=*/false>(
+             i)
+             .rep()),
+        (Float8::template ConvertFrom</*kSaturate=*/true, /*kTruncate=*/false>(
+             d)
+             .rep()))
+        << i;
+    EXPECT_EQ(
+        (Float8::template ConvertFrom</*kSaturate=*/false, /*kTruncate=*/true>(
+             i)
+             .rep()),
+        (Float8::template ConvertFrom</*kSaturate=*/false, /*kTruncate=*/true>(
+             d)
+             .rep()))
+        << i;
+    EXPECT_EQ(
+        (Float8::template ConvertFrom</*kSaturate=*/true, /*kTruncate=*/true>(i)
+             .rep()),
+        (Float8::template ConvertFrom</*kSaturate=*/true, /*kTruncate=*/true>(d)
+             .rep()))
+        << i;
+  };
+  constexpr int kDigits = std::numeric_limits<Float8>::digits;
+  for (int exponent = kDigits; exponent < std::numeric_limits<double>::digits;
+       ++exponent) {
+    // Halfway between 2^exponent and the next larger float8 value.
+    const int64_t halfway =
+        (int64_t{1} << exponent) + (int64_t{1} << (exponent - kDigits));
+    for (int64_t i : {halfway - 1, halfway, halfway + 1}) {
+      check(i);
+      check(-i);
+      check(static_cast<uint64_t>(i));
+      if (i <= std::numeric_limits<int32_t>::max()) {
+        check(static_cast<int32_t>(i));
+        check(static_cast<int32_t>(-i));
+        check(static_cast<uint32_t>(i));
+      }
+    }
+  }
+  // These are exactly representable as doubles.
+  check(std::numeric_limits<int64_t>::min());
+  check(std::numeric_limits<int32_t>::min());
+  check(std::numeric_limits<int32_t>::max());
+  check(std::numeric_limits<uint32_t>::max());
+}
+
+TEST(Float8E8m0fnuTest, ConvertFromWideIntegers) {
+  // 2^24 + 2^23 - 1 rounds to 2^24 + 2^23 as a float, which is halfway between
+  // 2^24 and 2^25.
+  EXPECT_EQ(static_cast<float>(float8_e8m0fnu(int32_t{0x17F'FFFF})), 0x1p24);
+  EXPECT_EQ(static_cast<float>(float8_e8m0fnu(int32_t{0x180'0001})), 0x1p25);
+  EXPECT_EQ(
+      static_cast<float>(float8_e8m0fnu(uint64_t{0xBFFF'FFFF'FFFF'FFFF})),
+      0x1p63);
+  EXPECT_EQ(
+      static_cast<float>(float8_e8m0fnu(std::numeric_limits<uint64_t>::max())),
+      0x1p64);
+  // Truncation must not be affected by rounding up when narrowing to float.
+  EXPECT_EQ(static_cast<float>(
+                float8_e8m0fnu::ConvertFrom</*kSaturate=*/false,
+                                            /*kTruncate=*/true>(
+                    std::numeric_limits<int64_t>::max())),
+            0x1p62);
+  EXPECT_EQ(static_cast<float>(
+                float8_e8m0fnu::ConvertFrom</*kSaturate=*/false,
+                                            /*kTruncate=*/true>(
+                    std::numeric_limits<uint64_t>::max())),
+            0x1p63);
 }
 
 TEST(Float8Test, Float8E5m2_To_Float8E4m3fn) {
