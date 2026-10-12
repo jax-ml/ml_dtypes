@@ -90,6 +90,19 @@ inline const Py_complex to_python(const std::complex<double> p) {
   return Py_complex{p.real(), p.imag()};
 }
 
+// Converts `value` to the custom complex type `T`, rounding each component only
+// once.
+template <typename T, typename From>
+T ToCustomComplex(const From& value) {
+  using real_type = typename T::value_type;
+  if constexpr (is_complex_v<From>) {
+    return T(ToReducedFloat<real_type>(value.real()),
+             ToReducedFloat<real_type>(value.imag()));
+  } else {
+    return T(ToReducedFloat<real_type>(value), real_type(0));
+  }
+}
+
 // Converts a Python object to a reduced float value. Returns true on success,
 // returns false and reports a Python error on failure.
 template <typename T>
@@ -107,7 +120,7 @@ bool CastToCustomComplex(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    *output = T(c);
+    *output = ToCustomComplex<T>(c);
     return true;
   }
   if (PyFloat_Check(arg)) {
@@ -115,7 +128,7 @@ bool CastToCustomComplex(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    output->real(static_cast<real_type>(d));
+    output->real(ToReducedFloat<real_type>(d));
     return true;
   }
   if (PyLong_Check(arg)) {
@@ -124,8 +137,17 @@ bool CastToCustomComplex(PyObject* arg, T* output) {
       return false;
     }
     // TODO(phawkins): check for overflow
-    output->real(static_cast<real_type>(l));
+    output->real(ToReducedFloat<real_type>(l));
     return true;
+  }
+  if (PyArray_IsScalar(arg, Number)) {
+    // Convert NumPy numeric scalars with the same casts as arrays. Going
+    // through complex64 (as below) would round wide integers and floats twice.
+    Safe_PyObjectPtr arr = make_safe(PyArray_FromScalar(arg, nullptr));
+    if (!arr) {
+      return false;
+    }
+    return CastToCustomComplex<T>(arr.get(), output);
   }
   if (PyArray_IsScalar(arg, Generic)) {
     // Allow conversion from any NumPy scalar if conversion to complex float
@@ -711,8 +733,13 @@ void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
     // TODO(seberg): Casts from complex to float are dubious anyway, maybe error
     // if imaginary (rather than warn?)
     if constexpr (is_complex_v<From> && is_complex_v<To>) {
-      auto via = static_cast<std::complex<float>>(from[i]);
-      to[i] = static_cast<To>(via);
+      if constexpr (is_custom_complex_v<To>) {
+        to[i] = ToCustomComplex<To>(from[i]);
+      } else {
+        // Custom complex values are exactly representable as complex floats.
+        auto via = static_cast<std::complex<float>>(from[i]);
+        to[i] = static_cast<To>(via);
+      }
     } else if constexpr (is_complex_v<From> && !is_complex_v<To>) {
       if constexpr (std::is_same_v<To, bool>) {
         to[i] =
@@ -726,8 +753,7 @@ void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
         to[i] = static_cast<To>(via);
       }
     } else if constexpr (!is_complex_v<From> && is_complex_v<To>) {
-      auto via = static_cast<float>(from[i]);
-      to[i] = static_cast<To>(via);
+      to[i] = ToCustomComplex<To>(from[i]);
     } else {
       static_assert(is_complex_v<From>);  // template dependent, always false
     }

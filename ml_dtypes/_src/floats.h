@@ -17,6 +17,7 @@ limitations under the License.
 #define ML_DTYPES_FLOATS_H_
 
 #include <cstring>
+#include <limits>
 #include <type_traits>
 
 #include "Eigen/Core"
@@ -162,6 +163,30 @@ template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
   static int Dtype() { return CustomFloatType<T>::Dtype(); }
 };
+
+// Converts `value` to the reduced precision floating-point type `T` (e.g. a
+// custom float type or half), rounding only once.
+//
+// Rounding `value` to the nearest float and then to `T` would round twice,
+// which gives incorrect results for some values that aren't exactly
+// representable as floats (e.g. large integers or doubles). Narrowing to float
+// with round-to-odd instead is safe since `T` has at least two fewer
+// significand bits than float.
+template <typename T, typename From>
+T ToReducedFloat(From value) {
+  static_assert(std::numeric_limits<T>::digits + 2 <=
+                std::numeric_limits<float>::digits);
+  if constexpr (is_complex_v<From>) {
+    // Following the NumPy convention, the imaginary part is dropped.
+    return ToReducedFloat<T>(value.real());
+  } else if constexpr (std::is_integral_v<From> ||
+                       std::is_floating_point_v<From>) {
+    return static_cast<T>(float8_internal::RoundToOddFloat(value));
+  } else {
+    // The remaining types (e.g. half) are exactly representable as floats.
+    return static_cast<T>(static_cast<float>(value));
+  }
+}
 
 bool RegisterCustomFloats(PyObject* numpy);
 

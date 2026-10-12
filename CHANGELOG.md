@@ -30,6 +30,12 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
   `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
 * Fixed byte-swapping of `bcomplex32` and `complex32` arrays
   ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
+* Conversions to the custom float and complex types now round correctly when
+  the input is not exactly representable as a float32 (e.g. large integers, or
+  float64 and longdouble values). Previously such values were rounded twice,
+  which could round them in the wrong direction.
+* Fixed casts between `bcomplex32` and `complex32` arrays, which produced 0 or 1
+  instead of the converted values.
 
 ## [0.6.0] - 2026-08-13
 
