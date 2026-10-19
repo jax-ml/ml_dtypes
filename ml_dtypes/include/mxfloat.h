@@ -272,19 +272,19 @@ constexpr inline float6_e2m3fn abs(const float6_e2m3fn& a) {
   return float6_e2m3fn::FromRep(a.rep() & 0b0'11'111);
 }
 
-constexpr inline bool(isnan)(const float6_e2m3fn& a) { return false; }
+constexpr bool(isnan)(const float6_e2m3fn&) { return false; }
 
 constexpr inline float6_e3m2fn abs(const float6_e3m2fn& a) {
   return float6_e3m2fn::FromRep(a.rep() & 0b0'111'11);
 }
 
-constexpr inline bool(isnan)(const float6_e3m2fn& a) { return false; }
+constexpr bool(isnan)(const float6_e3m2fn&) { return false; }
 
 constexpr inline float4_e2m1fn abs(const float4_e2m1fn& a) {
   return float4_e2m1fn::FromRep(a.rep() & 0b0'11'1);
 }
 
-constexpr inline bool(isnan)(const float4_e2m1fn& a) { return false; }
+constexpr bool(isnan)(const float4_e2m1fn&) { return false; }
 
 // Define traits required for floating point conversion.
 template <typename T, int E, int M>
