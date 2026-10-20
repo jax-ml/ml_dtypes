@@ -29,6 +29,7 @@ __all__ = [
     "float8_e4m3fnuz",
     "float8_e5m2",
     "float8_e5m2fnuz",
+    "float8_e5m3fnu",
     "float8_e8m0fnu",
     "iinfo",
     "int1",
@@ -56,6 +57,7 @@ from ml_dtypes._ml_dtypes_ext import float8_e4m3fn
 from ml_dtypes._ml_dtypes_ext import float8_e4m3fnuz
 from ml_dtypes._ml_dtypes_ext import float8_e5m2
 from ml_dtypes._ml_dtypes_ext import float8_e5m2fnuz
+from ml_dtypes._ml_dtypes_ext import float8_e5m3fnu
 from ml_dtypes._ml_dtypes_ext import float8_e8m0fnu
 from ml_dtypes._ml_dtypes_ext import int1
 from ml_dtypes._ml_dtypes_ext import int2
@@ -76,6 +78,7 @@ float8_e4m3fn: type[_np.generic]
 float8_e4m3fnuz: type[_np.generic]
 float8_e5m2: type[_np.generic]
 float8_e5m2fnuz: type[_np.generic]
+float8_e5m3fnu: type[_np.generic]
 float8_e8m0fnu: type[_np.generic]
 int1: type[_np.generic]
 int2: type[_np.generic]

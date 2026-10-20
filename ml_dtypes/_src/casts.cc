@@ -103,8 +103,8 @@ bool RegisterCustomCasts() {
   // Register casts between pairs of custom float dtypes.
   bool success = RegisterAllFloatCasts<
       bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz, float8_e4m3fn,
-      float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz, float6_e2m3fn,
-      float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
+      float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz, float8_e5m3fnu,
+      float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
   // Only registering to/from BF16 and FP32 for float8_e8m0fnu.
   success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bfloat16, float>();
   success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();

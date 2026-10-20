@@ -23,6 +23,7 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Added new 8-bit float type: `ml_dtypes.float8_e5m3fnu`.
 * `float8.h` no longer depends on `Eigen::numext::get_integer_by_size`, which is
   unavailable in Eigen 3.4.x.
 * `np.copysign` of zero no longer returns NaN for the `*fnuz` types, and
