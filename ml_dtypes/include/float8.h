@@ -1197,9 +1197,37 @@ std::ostream& operator<<(std::ostream& os, const float8_base<Float8>& f8) {
 //==============================================================================
 
 // Helper for getting a bit representation provided a byte size.
+//
+// Defined here instead of using Eigen::numext::get_integer_by_size, which is
+// not available in Eigen 3.4.x releases. As in Eigen, unsupported sizes map to
+// void.
 template <int kNumBytes>
-using GetUnsignedInteger =
-    typename Eigen::numext::get_integer_by_size<kNumBytes>::unsigned_type;
+struct UnsignedIntegerBySize {
+  using type = void;
+};
+
+template <>
+struct UnsignedIntegerBySize<1> {
+  using type = uint8_t;
+};
+
+template <>
+struct UnsignedIntegerBySize<2> {
+  using type = uint16_t;
+};
+
+template <>
+struct UnsignedIntegerBySize<4> {
+  using type = uint32_t;
+};
+
+template <>
+struct UnsignedIntegerBySize<8> {
+  using type = uint64_t;
+};
+
+template <int kNumBytes>
+using GetUnsignedInteger = typename UnsignedIntegerBySize<kNumBytes>::type;
 
 // Converts between two floating-point types.
 template <typename From, typename To, bool kSaturate, bool kTruncate,
