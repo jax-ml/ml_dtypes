@@ -314,7 +314,8 @@ class float8_e4m3b11fnuz : public float8_base<float8_e4m3b11fnuz> {
     return Base::operator-();
   }
 
-  float8_e4m3b11fnuz operator-(const float8_e4m3b11fnuz& other) const {
+  EIGEN_DEVICE_FUNC float8_e4m3b11fnuz
+  operator-(const float8_e4m3b11fnuz& other) const {
     return Base::operator-(other);
   }
 
@@ -357,7 +358,8 @@ class float8_e4m3fnuz : public float8_base<float8_e4m3fnuz> {
     return Base::operator-();
   }
 
-  float8_e4m3fnuz operator-(const float8_e4m3fnuz& other) const {
+  EIGEN_DEVICE_FUNC float8_e4m3fnuz
+  operator-(const float8_e4m3fnuz& other) const {
     return Base::operator-(other);
   }
 
@@ -410,7 +412,8 @@ class float8_e5m2fnuz : public float8_base<float8_e5m2fnuz> {
     return Base::operator-();
   }
 
-  float8_e5m2fnuz operator-(const float8_e5m2fnuz& other) const {
+  EIGEN_DEVICE_FUNC float8_e5m2fnuz
+  operator-(const float8_e5m2fnuz& other) const {
     return Base::operator-(other);
   }
 
@@ -449,7 +452,8 @@ class float8_e8m0fnu : public float8_base<float8_e8m0fnu> {
     return float8_e8m0fnu::FromRep(0xFF);
   }
 
-  float8_e8m0fnu operator-(const float8_e8m0fnu& other) const {
+  EIGEN_DEVICE_FUNC float8_e8m0fnu
+  operator-(const float8_e8m0fnu& other) const {
     return Base::operator-(other);
   }
 
