@@ -392,12 +392,11 @@ struct Heaviside {
     if (Eigen::numext::isnan(x)) {
       return x;
     }
-    auto [sign_x, abs_x] = SignAndMagnitude(x);
-    // x == 0
-    if (abs_x == 0) {
+    const float x_value = to_system(x);
+    if (x_value == 0.0f) {
       return h0;
     }
-    return sign_x ? T(0.0f) : T(1.0f);
+    return x_value < 0.0f ? T(0.0f) : T(1.0f);
   }
 };
 
