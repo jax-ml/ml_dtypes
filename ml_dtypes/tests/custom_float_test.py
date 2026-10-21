@@ -1294,6 +1294,14 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     expected = np.sign(np.float32(value))
     np.testing.assert_equal(np.sign(value), float_type(expected))
 
+  def testHeavisideOfSmallestValue(self, float_type):
+    value = float_type(0)
+    if np.isnan(value):  # zero not representable
+      value = ml_dtypes.finfo(float_type).smallest_normal
+    h0 = float_type(0.5)
+    expected = np.heaviside(np.float32(value), np.float32(h0))
+    np.testing.assert_equal(np.heaviside(value, h0), float_type(expected))
+
   def testNextAfter(self, float_type):
     one = np.array(1.0, dtype=float_type)
     two = np.array(2.0, dtype=float_type)
