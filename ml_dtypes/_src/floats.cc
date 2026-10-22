@@ -30,6 +30,8 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/dtype_common.h"
+#include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
 #include "ml_dtypes/_src/ufuncs.h"
 
@@ -45,6 +47,8 @@ template <typename T>
 PyObject* CustomFloatType<T>::type_ptr = nullptr;
 template <typename T>
 PyArray_Descr* CustomFloatType<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta CustomFloatType<T>::dtype_meta = {};
 
 namespace {
 
@@ -426,23 +430,54 @@ PyArray_DescrProto GetCustomFloatDescrProto() {
 
 // Implementations of NumPy array methods.
 
+// Reads a value using the descriptor's byte order.
 template <typename T>
-PyObject* NPyCustomFloat_GetItem(void* data, void* arr) {
+static PyObject* NPyCustomFloat_NewStyleGetItem(PyArray_Descr* descr,
+                                                char* data) {
   T x;
   memcpy(&x, data, sizeof(T));
+  if constexpr (sizeof(T) == sizeof(int16_t)) {
+    if (!PyDataType_ISNOTSWAPPED(descr)) {
+      ByteSwap16(&x);
+    }
+  }
   return PyFloat_FromDouble(static_cast<double>(static_cast<float>(x)));
 }
 
+// Writes a value using the descriptor's byte order.
 template <typename T>
-int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
+static int NPyCustomFloat_NewStyleSetItem(PyArray_Descr* descr, PyObject* item,
+                                          char* data) {
   T x;
   if (!CastToCustomFloat<T>(item, &x)) {
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;
   }
+  if constexpr (sizeof(T) == sizeof(int16_t)) {
+    if (!PyDataType_ISNOTSWAPPED(descr)) {
+      ByteSwap16(&x);
+    }
+  }
   memcpy(data, &x, sizeof(T));
   return 0;
+}
+
+template <typename T>
+PyObject* NPyCustomFloat_GetItem(void* data, void* arr) {
+  PyArray_Descr* descr = arr == nullptr
+                             ? CustomFloatType<T>::npy_descr
+                             : PyArray_DESCR(static_cast<PyArrayObject*>(arr));
+  return NPyCustomFloat_NewStyleGetItem<T>(descr, static_cast<char*>(data));
+}
+
+template <typename T>
+int NPyCustomFloat_SetItem(PyObject* item, void* data, void* arr) {
+  PyArray_Descr* descr = arr == nullptr
+                             ? CustomFloatType<T>::npy_descr
+                             : PyArray_DESCR(static_cast<PyArrayObject*>(arr));
+  return NPyCustomFloat_NewStyleSetItem<T>(descr, item,
+                                           static_cast<char*>(data));
 }
 
 template <typename T>
@@ -686,6 +721,9 @@ bool RegisterFloatCasts() {
   }
 
   // Safe casts from T to other types
+  // NumPy < 2.6 probes half for Python floats; omitting safe casts to half
+  // makes legacy ufunc resolution select float32 instead.
+  // TODO(seberg): Use precise float16 and byte-integer casting levels.
   if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_FLOAT,
                               NPY_NOSCALAR) < 0) {
     return false;
@@ -712,6 +750,8 @@ bool RegisterFloatCasts() {
   }
 
   // Safe casts to T from other types
+  // NumPy < 2.6 probes uint8 for Python ints. These casts retain the custom
+  // dtype for array + Python int, despite being lossy for narrow formats.
   if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
                               CustomFloatType<T>::Dtype(), NPY_NOSCALAR) < 0) {
     return false;
@@ -837,10 +877,78 @@ bool RegisterFloatUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// DType promotion.
+
+template <typename T>
+static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
+                                                     PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type.
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if (other == &PyArray_PyComplexDType) {
+    Py_INCREF(&PyArray_CFloatDType);
+    return &PyArray_CFloatDType;
+  }
+
+  if (PyTypeNum_ISINTEGER(other->type_num)) {
+    // Match the legacy safe-cast table, even for lossy byte-integer casts.
+    if (other->type_num == NPY_BYTE || other->type_num == NPY_UBYTE) {
+      Py_INCREF(cls);
+      return cls;
+    }
+    // All our floats fit in float32; use its integer promotion rules.
+    return PyArray_CommonDType(&PyArray_FloatDType, other);
+  }
+
+  switch (other->type_num) {
+    case NPY_BOOL:
+      Py_INCREF(cls);
+      return cls;
+    case NPY_HALF:
+      // The legacy cast table has no safe casts to half, so float32 is the
+      // smallest built-in float reachable from both inputs by safe casting.
+      Py_INCREF(&PyArray_FloatDType);
+      return &PyArray_FloatDType;
+    case NPY_FLOAT:
+    case NPY_DOUBLE:
+    case NPY_LONGDOUBLE:
+    case NPY_CFLOAT:
+    case NPY_CDOUBLE:
+    case NPY_CLONGDOUBLE:
+      Py_INCREF(other);
+      return other;
+    default:
+      break;
+  }
+
+  // Another custom float: whichever contains the other, else float32.
+  if (PyArray_DTypeMeta* common =
+          CommonCustomFloatDType<T, /*defer=*/true>(cls, other)) {
+    Py_INCREF(common);
+    return common;
+  }
+
+  // Custom int: keep the float only when it represents every intN value.
+  if (IsCustomIntDType(other)) {
+    PyArray_DTypeMeta* common =
+        CustomIntSafeToFloat<T>(other) ? cls : &PyArray_FloatDType;
+    Py_INCREF(common);
+    return common;
+  }
+
+  // Custom complex and unknown DTypes handle promotion on the other side.
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
 template <typename T>
 bool RegisterFloatDtype(PyObject* numpy) {
-  // bases must be a tuple for Python 3.9 and earlier. Change to just pass
-  // the base type directly when dropping Python 3.9 support.
   // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
   // PyFloatingArrType, but this breaks some assumptions made by NumPy, because
   // dtype.kind='V' is then interpreted as a 'void' type in some contexts.
@@ -880,10 +988,27 @@ bool RegisterFloatDtype(PyObject* numpy) {
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
-  CustomFloatType<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (CustomFloatType<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = CustomFloatType<T>::dtype_meta;
+  if (!InitDTypeMeta(&dm, CustomFloatTraits<T>::kTypeName)) {
     return false;
   }
+
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem,
+       reinterpret_cast<void*>(NPyCustomFloat_NewStyleGetItem<T>)},
+      {NPY_DT_setitem,
+       reinterpret_cast<void*>(NPyCustomFloat_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical, reinterpret_cast<void*>(EnsureCanonical)},
+      {NPY_DT_default_descr, reinterpret_cast<void*>(DefaultDescr)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyCustomFloat_CommonDType<T>)},
+      {0, nullptr}};
+  if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
+                         dtype_slots) < 0) {
+    return false;
+  }
+  CustomFloatType<T>::npy_type = dm.type_num;
 
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.

@@ -27,6 +27,7 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/dtype_common.h"
 #include "ml_dtypes/_src/numpy.h"
 #include "ml_dtypes/_src/ufuncs.h"
 
@@ -40,6 +41,8 @@ template <typename T>
 PyObject* CustomIntType<T>::type_ptr = nullptr;
 template <typename T>
 PyArray_Descr* CustomIntType<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta CustomIntType<T>::dtype_meta = {};
 
 namespace {
 
@@ -789,10 +792,71 @@ bool RegisterIntNUFuncs(PyObject* numpy) {
   return ok;
 }
 
+// DType slots.
+
+template <typename T>
+static PyObject* NPyIntN_NewStyleGetItem(PyArray_Descr* /*descr*/, char* data) {
+  return NPyIntN_GetItem<T>(data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static int NPyIntN_NewStyleSetItem(PyArray_Descr* /*descr*/, PyObject* item,
+                                   char* data) {
+  return NPyIntN_SetItem<T>(item, data, /*arr=*/nullptr);
+}
+
+template <typename T>
+static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
+                                              PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Keep float/complex abstract so concrete inputs determine precision;
+  // without one, NumPy uses float64/complex128.
+  if (other == &PyArray_PyLongDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if (other == &PyArray_PyFloatDType || other == &PyArray_PyComplexDType) {
+    Py_INCREF(other);
+    return other;
+  }
+
+  // Our intN types are smaller than every NumPy built-in except bool.
+  if (other->type_num == NPY_BOOL) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  if constexpr (std::numeric_limits<T>::is_signed) {
+    if (PyTypeNum_ISUNSIGNED(other->type_num)) {
+      return PyArray_CommonDType(&PyArray_ByteDType, other);
+    }
+  }
+  if (other->type_num >= 0 && other->type_num < NPY_NTYPES_LEGACY &&
+      PyTypeNum_ISNUMBER(other->type_num)) {
+    Py_INCREF(other);
+    return other;
+  }
+
+  // Another custom int: type_num defines a consistent dispatch order.
+  if (IsCustomIntDType(other)) {
+    if (cls->type_num < other->type_num) {
+      Py_INCREF(Py_NotImplemented);
+      return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+    }
+    // int8 contains every intN, including mixed signed/unsigned pairs.
+    Py_INCREF(&PyArray_Int8DType);
+    return &PyArray_Int8DType;
+  }
+
+  // Custom float/complex DTypes handle promotion on the other side.
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
 template <typename T>
 bool RegisterIntNDtype(PyObject* numpy) {
-  // bases must be a tuple for Python 3.9 and earlier. Change to just pass
-  // the base type directly when dropping Python 3.9 support.
   // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
   // PyIntegerArrType, but this breaks some assumptions made by NumPy, because
   // dtype.kind='V' is then interpreted as a 'void' type in some contexts.
@@ -833,10 +897,25 @@ bool RegisterIntNDtype(PyObject* numpy) {
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
-  CustomIntType<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (CustomIntType<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = CustomIntType<T>::dtype_meta;
+  if (!InitDTypeMeta(&dm, CustomIntTraits<T>::kTypeName)) {
     return false;
   }
+
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem, reinterpret_cast<void*>(NPyIntN_NewStyleGetItem<T>)},
+      {NPY_DT_setitem, reinterpret_cast<void*>(NPyIntN_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical, reinterpret_cast<void*>(EnsureCanonical)},
+      {NPY_DT_default_descr, reinterpret_cast<void*>(DefaultDescr)},
+      {NPY_DT_common_dtype, reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
+      {0, nullptr}};
+  if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
+                         dtype_slots) < 0) {
+    return false;
+  }
+  CustomIntType<T>::npy_type = dm.type_num;
+
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.
   CustomIntType<T>::npy_descr =

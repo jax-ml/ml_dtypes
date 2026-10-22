@@ -76,6 +76,38 @@ def test_dtype_from_string(sctype):
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("byteorder", ["=", "S"])
+@pytest.mark.parametrize(
+    "start, stop, step",
+    [
+        (0, 0, 1),
+        (0, 1, 1),
+        (0, 2, 1),
+        (0, 5, 1),
+        (1, 4, 0.5),
+        (4, 0, -1),
+    ],
+)
+def test_arange(sctype, byteorder, start, stop, step):
+  dtype = np.dtype(sctype).newbyteorder(byteorder)
+  result = np.arange(start, stop, step, dtype=dtype)
+  expected = np.arange(start, stop, step, dtype=np.complex64)
+  assert result.dtype == dtype
+  np.testing.assert_array_equal(result.astype(np.complex64), expected)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("start, stop", [(1, 4), (1 + 2j, 4 + 8j), (4j, 1j)])
+@pytest.mark.parametrize("num", [0, 1, 2, 4])
+@pytest.mark.parametrize("dtype", [None, np.complex64])
+def test_linspace(sctype, start, stop, num, dtype):
+  result = np.linspace(sctype(start), sctype(stop), num, dtype=dtype)
+  expected = np.linspace(start, stop, num, dtype=np.complex64)
+  assert result.dtype == np.dtype(sctype if dtype is None else dtype)
+  np.testing.assert_array_equal(result.astype(np.complex64), expected)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 def test_pickleable(sctype):
   # Create complex array from real and imaginary parts
   x = np.asarray(COMPLEX_VALUES, dtype=sctype)
@@ -445,10 +477,9 @@ def test_unimplemented_binary_ufuncs(sctype, func):
 @np.errstate(all="ignore")
 def test_unary_ufuncs(sctype, ufunc):
   """Test all unary ufuncs, we expect them to just use the float32 version."""
+  rng = np.random.RandomState(seed=42)
   x = np.array(COMPLEX_VALUES)
-  x = np.concatenate(
-      [x, np.random.random(20).astype(np.float32).view(np.complex64)]
-  )
+  x = np.concatenate([x, rng.random(20).astype(np.float32).view(np.complex64)])
   x = x.astype(sctype)
 
   result = ufunc(x)
@@ -525,10 +556,9 @@ def test_unary_ufuncs(sctype, ufunc):
 @np.errstate(all="ignore")
 def test_binary_ufuncs(sctype, ufunc):
   """Test binary ufuncs."""
+  rng = np.random.RandomState(seed=42)
   x = np.array(COMPLEX_VALUES)
-  x = np.concatenate(
-      [x, np.random.random(20).astype(np.float32).view(np.complex64)]
-  )
+  x = np.concatenate([x, rng.random(20).astype(np.float32).view(np.complex64)])
   x = x.astype(sctype)
 
   if ufunc in [np.power, np.float_power]:
