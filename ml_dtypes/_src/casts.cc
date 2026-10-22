@@ -13,7 +13,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <complex>
 #include <cstdint>
+#include <limits>
 
 #include "ml_dtypes/_src/complex.h"
 #include "ml_dtypes/_src/floats.h"
@@ -30,7 +32,11 @@ void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
   const auto* from = static_cast<From*>(from_void);
   auto* to = static_cast<To*>(to_void);
 
-  if constexpr (is_complex_v<From> && !is_complex_v<To>) {
+  if constexpr (is_complex_v<From> && is_complex_v<To>) {
+    for (npy_intp i = 0; i < n; ++i) {
+      to[i] = static_cast<To>(static_cast<std::complex<Via>>(from[i]));
+    }
+  } else if constexpr (is_complex_v<From>) {
     if (GiveComplexWarningNoGIL() < 0) {
       return;
     }
@@ -44,33 +50,59 @@ void PyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
   }
 }
 
-template <typename Type1, typename Type2, typename Via>
-bool RegisterTwoWayCustomCast() {
-  int nptype1 = DtypeTraits<Type1>::Dtype();
-  int nptype2 = DtypeTraits<Type2>::Dtype();
-  PyArray_Descr* descr1 = PyArray_DescrFromType(nptype1);
-  if (PyArray_RegisterCastFunc(descr1, nptype2, PyCast<Type1, Type2, Via>) <
-      0) {
+// Semantic safety for explicit cast registrations. Legacy NumPy also infers
+// safe casts from equal kind/itemsize, even when this predicate is false.
+template <typename From, typename To>
+constexpr bool CustomCastIsSafe() {
+  if constexpr (is_complex_v<To>) {
+    if constexpr (is_complex_v<From>) {
+      return CustomFloatSafeTo<typename From::value_type,
+                               typename To::value_type>();
+    } else {
+      return CustomCastIsSafe<From, typename To::value_type>();
+    }
+  } else if constexpr (is_complex_v<From>) {
+    return false;
+  } else if constexpr (is_intn_v<From>) {
+    if constexpr (is_intn_v<To>) {
+      return (!std::numeric_limits<From>::is_signed ||
+              std::numeric_limits<To>::is_signed) &&
+             std::numeric_limits<To>::digits >=
+                 std::numeric_limits<From>::digits;
+    } else {
+      return IntNSafeToFloat<From, To>();
+    }
+  } else if constexpr (is_intn_v<To>) {
+    return false;
+  } else {
+    return CustomFloatSafeTo<From, To>();
+  }
+}
+
+template <typename From, typename To, typename Via>
+bool RegisterOneWayCustomCast() {
+  const int to_type = DtypeTraits<To>::Dtype();
+  Safe_PyObjectPtr descr_obj = make_safe(reinterpret_cast<PyObject*>(
+      PyArray_DescrFromType(DtypeTraits<From>::Dtype())));
+  if (!descr_obj) {
     return false;
   }
-  PyArray_Descr* descr2 = PyArray_DescrFromType(nptype2);
-  if (PyArray_RegisterCastFunc(descr2, nptype1, PyCast<Type2, Type1, Via>) <
-      0) {
+  auto* descr = reinterpret_cast<PyArray_Descr*>(descr_obj.get());
+  if (PyArray_RegisterCastFunc(descr, to_type, PyCast<From, To, Via>) < 0) {
     return false;
+  }
+  if constexpr (CustomCastIsSafe<From, To>()) {
+    if (PyArray_RegisterCanCast(descr, to_type, NPY_NOSCALAR) < 0) {
+      return false;
+    }
   }
   return true;
 }
 
 template <typename Type1, typename Type2, typename Via>
-bool RegisterOneWayCustomCast() {
-  int nptype1 = DtypeTraits<Type1>::Dtype();
-  int nptype2 = DtypeTraits<Type2>::Dtype();
-  PyArray_Descr* descr1 = PyArray_DescrFromType(nptype1);
-  if (PyArray_RegisterCastFunc(descr1, nptype2, PyCast<Type1, Type2, Via>) <
-      0) {
-    return false;
-  }
-  return true;
+bool RegisterTwoWayCustomCast() {
+  return RegisterOneWayCustomCast<Type1, Type2, Via>() &&
+         RegisterOneWayCustomCast<Type2, Type1, Via>();
 }
 
 // Register two-way floating point casts between the first and the other types.
@@ -105,9 +137,11 @@ bool RegisterCustomCasts() {
       bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz, float8_e4m3fn,
       float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz, float8_e5m3fnu,
       float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
-  // Only registering to/from BF16 and FP32 for float8_e8m0fnu.
+  // The exponent-only format has direct custom casts only to bfloat16 and
+  // the complex types. Other combinations use a built-in common dtype.
   success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bfloat16, float>();
-  success &= RegisterTwoWayCustomCast<bfloat16, float8_e8m0fnu, float>();
+  success &= RegisterTwoWayCustomCast<float8_e8m0fnu, bcomplex32, float>();
+  success &= RegisterTwoWayCustomCast<float8_e8m0fnu, complex32, float>();
   success &= RegisterOneWayCustomCast<int1, int2, int4>();
   success &= RegisterOneWayCustomCast<uint1, uint2, uint4>();
   success &= RegisterOneWayCustomCast<int1, int4, int8_t>();
@@ -116,6 +150,8 @@ bool RegisterCustomCasts() {
   success &= RegisterOneWayCustomCast<uint2, uint4, uint8_t>();
 
   // Int -> float casts.
+  success &= RegisterTwoWayFloatCasts<float8_e5m3fnu, int1, uint1, int2, uint2,
+                                      int4, uint4>();
   success &= RegisterTwoWayFloatCasts<
       int1, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
       float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
@@ -132,16 +168,15 @@ bool RegisterCustomCasts() {
       uint2, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
       float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
       float6_e2m3fn, float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
+  // int4/uint4 <-> float6_e2m3fn has no direct cast; promotion uses float32.
   success &= RegisterTwoWayFloatCasts<
       int4, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
       float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
       float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
-  // int4 -> float6_e2m3fn is not safe and we only register safe casts.
   success &= RegisterTwoWayFloatCasts<
       uint4, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz,
       float8_e4m3fn, float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz,
       float6_e3m2fn, float4_e2m1fn, bcomplex32, complex32>();
-  // uint4 -> float6_e2m3fn is not safe and we only register safe casts.
   return success;
 }
 

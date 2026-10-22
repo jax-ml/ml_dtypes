@@ -30,7 +30,9 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/dtype_common.h"
 #include "ml_dtypes/_src/floats.h"
+#include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
 #include "ml_dtypes/_src/ufuncs.h"
 #include "ml_dtypes/include/complex_types.h"
@@ -47,6 +49,8 @@ template <typename T>
 PyObject* CustomComplexType<T>::type_ptr = nullptr;
 template <typename T>
 PyArray_Descr* CustomComplexType<T>::npy_descr = nullptr;
+template <typename T>
+PyArray_DTypeMeta CustomComplexType<T>::dtype_meta = {};
 
 namespace {
 
@@ -565,23 +569,67 @@ PyArray_DescrProto GetCustomComplexDescrProto() {
 
 // Implementations of NumPy array methods.
 
+// Swaps the byte order of each complex component.
 template <typename T>
-PyObject* NPyCustomComplex_GetItem(void* data, void* arr) {
+void ByteSwapComplexComponents(void* value) {
+  using real_type = typename T::value_type;
+  static_assert(sizeof(T) == 2 * sizeof(real_type),
+                "complex value must contain exactly two components");
+  static_assert(sizeof(real_type) == sizeof(int16_t) ||
+                    sizeof(real_type) == sizeof(int8_t),
+                "Not supported");
+
+  if constexpr (sizeof(real_type) == sizeof(int16_t)) {
+    char* data = reinterpret_cast<char*>(value);
+    ByteSwap16(data);
+    ByteSwap16(data + sizeof(real_type));
+  }
+}
+
+// Reads a value using the descriptor's byte order.
+template <typename T>
+static PyObject* NPyCustomComplex_NewStyleGetItem(PyArray_Descr* descr,
+                                                  char* data) {
   T x;
   memcpy(&x, data, sizeof(T));
+  if (!PyDataType_ISNOTSWAPPED(descr)) {
+    ByteSwapComplexComponents<T>(&x);
+  }
   return PyComplex_FromCComplex(to_python(static_cast<std::complex<float>>(x)));
 }
 
+// Writes a value using the descriptor's byte order.
 template <typename T>
-int NPyCustomComplex_SetItem(PyObject* item, void* data, void* arr) {
+static int NPyCustomComplex_NewStyleSetItem(PyArray_Descr* descr,
+                                            PyObject* item, char* data) {
   T x;
   if (!CastToCustomComplex<T>(item, &x)) {
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;
   }
+  if (!PyDataType_ISNOTSWAPPED(descr)) {
+    ByteSwapComplexComponents<T>(&x);
+  }
   memcpy(data, &x, sizeof(T));
   return 0;
+}
+
+template <typename T>
+PyObject* NPyCustomComplex_GetItem(void* data, void* arr) {
+  PyArray_Descr* descr = arr == nullptr
+                             ? CustomComplexType<T>::npy_descr
+                             : PyArray_DESCR(static_cast<PyArrayObject*>(arr));
+  return NPyCustomComplex_NewStyleGetItem<T>(descr, static_cast<char*>(data));
+}
+
+template <typename T>
+int NPyCustomComplex_SetItem(PyObject* item, void* data, void* arr) {
+  PyArray_Descr* descr = arr == nullptr
+                             ? CustomComplexType<T>::npy_descr
+                             : PyArray_DESCR(static_cast<PyArrayObject*>(arr));
+  return NPyCustomComplex_NewStyleSetItem<T>(descr, item,
+                                             static_cast<char*>(data));
 }
 
 // TODO: If float ocmpare supports byte-swapping this'll be wrong.
@@ -600,22 +648,6 @@ int NPyCustomComplex_Compare(const void* a, const void* b, void* arr) {
   }
   return CompareFloats(static_cast<float>(x.imag()),
                        static_cast<float>(y.imag()));
-}
-
-template <typename T>
-void ByteSwapComplexComponents(void* value) {
-  using real_type = typename T::value_type;
-  static_assert(sizeof(T) == 2 * sizeof(real_type),
-                "complex value must contain exactly two components");
-  static_assert(sizeof(real_type) == sizeof(int16_t) ||
-                    sizeof(real_type) == sizeof(int8_t),
-                "Not supported");
-
-  if constexpr (sizeof(real_type) == sizeof(int16_t)) {
-    char* data = reinterpret_cast<char*>(value);
-    ByteSwap16(data);
-    ByteSwap16(data + sizeof(real_type));
-  }
 }
 
 template <typename T>
@@ -662,6 +694,17 @@ npy_bool NPyCustomComplex_NonZero(void* data, void* arr) {
   T x;
   memcpy(&x, data, sizeof(x));
   return x != static_cast<T>(0);
+}
+
+template <typename T>
+int NPyCustomComplex_Fill(void* buffer_raw, npy_intp length, void* ignored) {
+  T* const buffer = reinterpret_cast<T*>(buffer_raw);
+  const auto start = static_cast<std::complex<float>>(buffer[0]);
+  const auto delta = static_cast<std::complex<float>>(buffer[1]) - start;
+  for (npy_intp i = 2; i < length; ++i) {
+    buffer[i] = static_cast<T>(start + static_cast<float>(i) * delta);
+  }
+  return 0;
 }
 
 template <typename T>
@@ -825,6 +868,15 @@ bool RegisterComplexCasts() {
   }
 
   // Safe casts to T from other types
+  if constexpr (CustomFloatSafeTo<half, typename T::value_type>()) {
+    Safe_PyObjectPtr half_descr =
+        make_safe(reinterpret_cast<PyObject*>(PyArray_DescrFromType(NPY_HALF)));
+    if (!half_descr || PyArray_RegisterCanCast(
+                           reinterpret_cast<PyArray_Descr*>(half_descr.get()),
+                           CustomComplexType<T>::Dtype(), NPY_NOSCALAR) < 0) {
+      return false;
+    }
+  }
   if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
                               CustomComplexType<T>::Dtype(),
                               NPY_NOSCALAR) < 0) {
@@ -1038,10 +1090,93 @@ int RegisterRealAndImag(PyArray_DTypeMeta* complex_dtype) {
   return RegisterRealImag<T, false>(complex_dtype);
 }
 
+// DType promotion.
+
+template <typename T>
+static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
+    PyArray_DTypeMeta* cls, PyArray_DTypeMeta* other) {
+  if (cls == other) {
+    Py_INCREF(cls);
+    return cls;
+  }
+  // Python abstract scalars defer to the concrete type.
+  if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType ||
+      other == &PyArray_PyComplexDType) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // Both component types fit in float32.
+  using real_type = typename T::value_type;
+
+  if (PyTypeNum_ISINTEGER(other->type_num)) {
+    // Both component types represent every int8/uint8 value exactly.
+    if (other->type_num == NPY_BYTE || other->type_num == NPY_UBYTE) {
+      Py_INCREF(cls);
+      return cls;
+    }
+    // Wider integers follow the built-in complex64 promotion rules.
+    return PyArray_CommonDType(&PyArray_CFloatDType, other);
+  }
+
+  switch (other->type_num) {
+    case NPY_BOOL:
+      Py_INCREF(cls);
+      return cls;
+    case NPY_HALF:
+      if constexpr (CustomFloatSafeTo<half, real_type>()) {
+        Py_INCREF(cls);
+        return cls;
+      }
+      [[fallthrough]];
+    case NPY_FLOAT:
+      Py_INCREF(&PyArray_CFloatDType);
+      return &PyArray_CFloatDType;
+    case NPY_DOUBLE:
+      Py_INCREF(&PyArray_CDoubleDType);
+      return &PyArray_CDoubleDType;
+    case NPY_LONGDOUBLE:
+      Py_INCREF(&PyArray_CLongDoubleDType);
+      return &PyArray_CLongDoubleDType;
+    case NPY_CFLOAT:
+    case NPY_CDOUBLE:
+    case NPY_CLONGDOUBLE:
+      Py_INCREF(other);
+      return other;
+    default:
+      break;
+  }
+
+  // Custom float: stay complex when our real component holds it exactly,
+  // otherwise widen to complex64.
+  if (PyArray_DTypeMeta* common =
+          CommonCustomFloatDType<real_type>(cls, other)) {
+    if (common == cls) {
+      Py_INCREF(cls);
+      return cls;
+    }
+    Py_INCREF(&PyArray_CFloatDType);
+    return &PyArray_CFloatDType;
+  }
+
+  // Custom int: every intN fits exactly in either component type.
+  if (IsCustomIntDType(other)) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // bfloat16 and half do not contain each other, so use complex64.
+  if (IsCustomComplexDType(other)) {
+    Py_INCREF(&PyArray_CFloatDType);
+    return &PyArray_CFloatDType;
+  }
+
+  Py_INCREF(Py_NotImplemented);
+  return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+}
+
 template <typename T>
 bool RegisterComplexDtype(PyObject* numpy) {
-  // bases must be a tuple for Python 3.9 and earlier. Change to just pass
-  // the base type directly when dropping Python 3.9 support.
   // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
   // PyFloatingArrType, but this breaks some assumptions made by NumPy, because
   // dtype.kind='V' is then interpreted as a 'void' type in some contexts.
@@ -1071,20 +1206,37 @@ bool RegisterComplexDtype(PyObject* numpy) {
   arr_funcs.copyswapn = NPyCustomComplex_CopySwapN<T>;
   arr_funcs.copyswap = NPyCustomComplex_CopySwap<T>;
   arr_funcs.nonzero = NPyCustomComplex_NonZero<T>;
-  arr_funcs.fill = nullptr;  // NPyCustomComplex_Fill<T>;
+  arr_funcs.fill = NPyCustomComplex_Fill<T>;
   arr_funcs.dotfunc = NPyCustomComplex_DotFunc<T>;
   arr_funcs.compare = NPyCustomComplex_CompareFunc<T>;
-  arr_funcs.argmax = nullptr;  // NumPy defines them, but it's shaky
+  arr_funcs.argmax = nullptr;
   arr_funcs.argmin = nullptr;
 
   PyArray_DescrProto descr_proto = GetCustomComplexDescrProto<T>();
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
-  CustomComplexType<T>::npy_type = PyArray_RegisterDataType(&descr_proto);
-  if (CustomComplexType<T>::npy_type < 0) {
+  PyArray_DTypeMeta& dm = CustomComplexType<T>::dtype_meta;
+  if (!InitDTypeMeta(&dm, CustomComplexTraits<T>::kTypeName)) {
     return false;
   }
+
+  PyType_Slot dtype_slots[] = {
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem,
+       reinterpret_cast<void*>(NPyCustomComplex_NewStyleGetItem<T>)},
+      {NPY_DT_setitem,
+       reinterpret_cast<void*>(NPyCustomComplex_NewStyleSetItem<T>)},
+      {NPY_DT_ensure_canonical, reinterpret_cast<void*>(EnsureCanonical)},
+      {NPY_DT_default_descr, reinterpret_cast<void*>(DefaultDescr)},
+      {NPY_DT_common_dtype,
+       reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
+      {0, nullptr}};
+  if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
+                         dtype_slots) < 0) {
+    return false;
+  }
+  CustomComplexType<T>::npy_type = dm.type_num;
 
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.

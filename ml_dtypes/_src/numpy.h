@@ -22,6 +22,7 @@ limitations under the License.
 
 // Disallow Numpy 2.0 deprecated symbols.
 #define NPY_NO_DEPRECATED_API NPY_2_0_API_VERSION
+#define NPY_TARGET_VERSION NPY_2_0_API_VERSION
 
 // We import_array and import_umath in the ml_dtypes init function only.
 #define PY_ARRAY_UNIQUE_SYMBOL _ml_dtypes_numpy_array_api
@@ -37,6 +38,8 @@ limitations under the License.
 #include "numpy/arrayscalars.h"
 #include "numpy/dtype_api.h"
 #include "numpy/ufuncobject.h"
+
+#include "ml_dtypes/_src/npy_2_compat_new_dtypes.h"
 
 #ifndef PyUFunc_AddLoopsFromSpecs
 // Backport `PyUFunc_AddLoopsFromSpecs` for conditional use if we are

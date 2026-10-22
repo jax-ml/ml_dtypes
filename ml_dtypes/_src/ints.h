@@ -16,9 +16,11 @@ limitations under the License.
 #ifndef ML_DTYPES_INTS_H_
 #define ML_DTYPES_INTS_H_
 
+#include <limits>
 #include <type_traits>
 
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/include/float8.h"
 #include "ml_dtypes/include/intn.h"
 
 namespace ml_dtypes {
@@ -103,7 +105,56 @@ struct CustomIntType {
 
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_Descr* npy_descr;
+
+  // DType class populated during registration.
+  static PyArray_DTypeMeta dtype_meta;
 };
+
+// Returns true if meta is one of our custom integer DTypes.
+inline bool IsCustomIntDType(const PyArray_DTypeMeta* meta) {
+  return meta == &CustomIntType<int1>::dtype_meta ||
+         meta == &CustomIntType<uint1>::dtype_meta ||
+         meta == &CustomIntType<int2>::dtype_meta ||
+         meta == &CustomIntType<uint2>::dtype_meta ||
+         meta == &CustomIntType<int4>::dtype_meta ||
+         meta == &CustomIntType<uint4>::dtype_meta;
+}
+
+inline bool IsUnsignedCustomIntDType(const PyArray_DTypeMeta* meta) {
+  return meta == &CustomIntType<uint1>::dtype_meta ||
+         meta == &CustomIntType<uint2>::dtype_meta ||
+         meta == &CustomIntType<uint4>::dtype_meta;
+}
+
+// All intN values fit exactly when the float has enough precision and range.
+// The exponent-only format cannot represent zero.
+template <typename Int, typename Float>
+inline constexpr bool IntNSafeToFloat() {
+  return (!std::numeric_limits<Int>::is_signed ||
+          std::numeric_limits<Float>::is_signed) &&
+         !std::is_same_v<Float, float8_e8m0fnu> &&
+         std::numeric_limits<Float>::digits >=
+             std::numeric_limits<Int>::digits &&
+         std::numeric_limits<Float>::max_exponent >=
+             std::numeric_limits<Int>::digits +
+                 std::numeric_limits<Int>::is_signed;
+}
+
+template <typename Float>
+inline bool CustomIntSafeToFloat(const PyArray_DTypeMeta* meta) {
+  return (meta == &CustomIntType<int1>::dtype_meta &&
+          IntNSafeToFloat<int1, Float>()) ||
+         (meta == &CustomIntType<int2>::dtype_meta &&
+          IntNSafeToFloat<int2, Float>()) ||
+         (meta == &CustomIntType<int4>::dtype_meta &&
+          IntNSafeToFloat<int4, Float>()) ||
+         (meta == &CustomIntType<uint1>::dtype_meta &&
+          IntNSafeToFloat<uint1, Float>()) ||
+         (meta == &CustomIntType<uint2>::dtype_meta &&
+          IntNSafeToFloat<uint2, Float>()) ||
+         (meta == &CustomIntType<uint4>::dtype_meta &&
+          IntNSafeToFloat<uint4, Float>());
+}
 
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_intn_v<T>>> {

@@ -73,7 +73,16 @@ struct CustomComplexType {
   static PyGetSetDef getset[];
   static PyArray_ArrFuncs arr_funcs;
   static PyArray_Descr* npy_descr;
+
+  // DType class populated during registration.
+  static PyArray_DTypeMeta dtype_meta;
 };
+
+// Returns true if meta is one of our custom complex DTypes.
+inline bool IsCustomComplexDType(const PyArray_DTypeMeta* meta) {
+  return meta == &CustomComplexType<bcomplex32>::dtype_meta ||
+         meta == &CustomComplexType<complex32>::dtype_meta;
+}
 
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_complex_v<T>>> {

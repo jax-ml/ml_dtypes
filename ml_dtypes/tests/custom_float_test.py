@@ -678,6 +678,23 @@ class CustomFloatTest(parameterized.TestCase):
       # 8-bit types should be unchanged
       self.assertEqual(original_bytes, swapped.tobytes())
 
+  def testAstypeByteSwapped(self, float_type):
+    """Casting to a byte-swapped dtype goes through the within-dtype cast."""
+    dt = np.dtype(float_type)
+    swapped_dt = dt.newbyteorder("S")
+    self.assertIs(swapped_dt.type, float_type)
+
+    arr = np.arange(1, 31).astype(float_type)
+    swapped = arr.astype(swapped_dt)
+    self.assertIs(swapped.dtype.type, float_type)
+
+    np.testing.assert_array_equal(swapped.astype(float_type), arr)
+
+    if dt.itemsize > 1:
+      self.assertEqual(swapped.tobytes(), arr.byteswap().tobytes())
+    else:
+      self.assertEqual(swapped.tobytes(), arr.tobytes())
+
 
 _INCOMPATIBLE_VALUES = [
     None,
@@ -1383,6 +1400,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.testing.assert_equal(np.spacing(inf), np.spacing(np.float32(inf)))
 
   def testLinspace(self, float_type):
+    if float_type == float8_e8m0fnu:
+      self.skipTest("linspace evaluation starts from zero, which e8m0 lacks")
     start = np.array([0.5, 1.0], dtype=float_type)
     stop = np.array([1.0, 2.0], dtype=float_type)
     out, _ = np.linspace(
