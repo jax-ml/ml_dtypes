@@ -71,16 +71,19 @@ inline Safe_PyObjectPtr make_safe(PyObject* object) {
 template <typename T, typename Enable = void>
 struct DtypeTraits {
   // static int Dtype() { return NPY_...; }  // Numpy type number for T.
+  // static PyArray_DTypeMeta* DTypeMeta();  // Numpy DTypeMeta for T.
 };
 
 template <>
 struct DtypeTraits<unsigned char> {
   static int Dtype() { return NPY_UBYTE; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_UByteDType; }
 };
 
 template <>
 struct DtypeTraits<unsigned short> {  // NOLINT
   static int Dtype() { return NPY_USHORT; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_UShortDType; }
 };
 
 // We register "int", "long", and "long long" types for portability across
@@ -89,81 +92,97 @@ struct DtypeTraits<unsigned short> {  // NOLINT
 template <>
 struct DtypeTraits<unsigned int> {
   static int Dtype() { return NPY_UINT; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_UIntDType; }
 };
 
 template <>
 struct DtypeTraits<unsigned long> {  // NOLINT
   static int Dtype() { return NPY_ULONG; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_ULongDType; }
 };
 
 template <>
 struct DtypeTraits<unsigned long long> {  // NOLINT
   static int Dtype() { return NPY_ULONGLONG; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_ULongLongDType; }
 };
 
 template <>
 struct DtypeTraits<signed char> {
   static int Dtype() { return NPY_BYTE; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_ByteDType; }
 };
 
 template <>
 struct DtypeTraits<short> {  // NOLINT
   static int Dtype() { return NPY_SHORT; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_ShortDType; }
 };
 
 template <>
 struct DtypeTraits<int> {
   static int Dtype() { return NPY_INT; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_IntDType; }
 };
 
 template <>
 struct DtypeTraits<long> {  // NOLINT
   static int Dtype() { return NPY_LONG; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_LongDType; }
 };
 
 template <>
 struct DtypeTraits<long long> {  // NOLINT
   static int Dtype() { return NPY_LONGLONG; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_LongLongDType; }
 };
 
 template <>
 struct DtypeTraits<bool> {
   static int Dtype() { return NPY_BOOL; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_BoolDType; }
 };
 
 template <>
 struct DtypeTraits<ml_dtypes::half> {
   static int Dtype() { return NPY_HALF; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_HalfDType; }
 };
 
 template <>
 struct DtypeTraits<float> {
   static int Dtype() { return NPY_FLOAT; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_FloatDType; }
 };
 
 template <>
 struct DtypeTraits<double> {
   static int Dtype() { return NPY_DOUBLE; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_DoubleDType; }
 };
 
 template <>
 struct DtypeTraits<long double> {
   static int Dtype() { return NPY_LONGDOUBLE; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_LongDoubleDType; }
 };
 
 template <>
 struct DtypeTraits<std::complex<float>> {
   static int Dtype() { return NPY_CFLOAT; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_CFloatDType; }
 };
 
 template <>
 struct DtypeTraits<std::complex<double>> {
   static int Dtype() { return NPY_CDOUBLE; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_CDoubleDType; }
 };
 
 template <>
 struct DtypeTraits<std::complex<long double>> {
   static int Dtype() { return NPY_CLONGDOUBLE; }
+  static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_CLongDoubleDType; }
 };
 
 template <class T>
