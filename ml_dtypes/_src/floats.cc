@@ -29,6 +29,7 @@ limitations under the License.
 #include <vector>
 
 #include "Eigen/Core"
+#include "ml_dtypes/_src/casts.h"
 #include "ml_dtypes/_src/common.h"
 #include "ml_dtypes/_src/dtype_common.h"
 #include "ml_dtypes/_src/ints.h"
@@ -624,151 +625,6 @@ int NPyCustomFloat_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind,
 }
 
 template <typename T>
-float CastToFloat(T value) {
-  if constexpr (is_complex_v<T>) {
-    return CastToFloat(value.real());
-  } else {
-    return static_cast<float>(value);
-  }
-}
-
-// Performs a NumPy array cast from type 'From' to 'To'.
-template <typename From, typename To>
-void NPyCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-             void* toarr) {
-  const auto* from = reinterpret_cast<From*>(from_void);
-  auto* to = reinterpret_cast<To*>(to_void);
-  for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(CastToFloat(from[i]));
-  }
-}
-
-// Registers a cast between T (a reduced float) and type 'OtherT'.
-// 'numpy_type' is the NumPy type corresponding to 'OtherT'.
-template <typename T, typename OtherT>
-bool RegisterCustomFloatCast(int numpy_type = DtypeTraits<OtherT>::Dtype()) {
-  PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
-  if (PyArray_RegisterCastFunc(descr, CustomFloatType<T>::Dtype(),
-                               NPyCast<OtherT, T>) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCastFunc(CustomFloatType<T>::npy_descr, numpy_type,
-                               NPyCast<T, OtherT>) < 0) {
-    return false;
-  }
-  return true;
-}
-
-template <typename T>
-bool RegisterFloatCasts() {
-  if (!RegisterCustomFloatCast<T, half>(NPY_HALF)) {
-    return false;
-  }
-
-  if (!RegisterCustomFloatCast<T, float>(NPY_FLOAT)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, double>(NPY_DOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, long double>(NPY_LONGDOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, bool>(NPY_BOOL)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned char>(NPY_UBYTE)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned short>(NPY_USHORT)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned int>(NPY_UINT)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned long>(NPY_ULONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, unsigned long long>(  // NOLINT
-          NPY_ULONGLONG)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, signed char>(NPY_BYTE)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, short>(NPY_SHORT)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, int>(NPY_INT)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, long>(NPY_LONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, long long>(NPY_LONGLONG)) {  // NOLINT
-    return false;
-  }
-  // Following the numpy convention. imag part is dropped when converting to
-  // float.
-  if (!RegisterCustomFloatCast<T, std::complex<float>>(NPY_CFLOAT)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, std::complex<double>>(NPY_CDOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomFloatCast<T, std::complex<long double>>(NPY_CLONGDOUBLE)) {
-    return false;
-  }
-
-  // Safe casts from T to other types
-  // NumPy < 2.6 probes half for Python floats; omitting safe casts to half
-  // makes legacy ufunc resolution select float32 instead.
-  // TODO(seberg): Use precise float16 and byte-integer casting levels.
-  if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_FLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_DOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_LONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_CFLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_CDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomFloatType<T>::npy_descr, NPY_CLONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  // Safe casts to T from other types
-  // NumPy < 2.6 probes uint8 for Python ints. These casts retain the custom
-  // dtype for array + Python int, despite being lossy for narrow formats.
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
-                              CustomFloatType<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_UBYTE),
-                              CustomFloatType<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BYTE),
-                              CustomFloatType<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  return true;
-}
-
-template <typename T>
 bool RegisterFloatUFuncs(PyObject* numpy) {
   bool ok =
       RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>, T>(numpy, "add") &&
@@ -1004,8 +860,9 @@ bool RegisterFloatDtype(PyObject* numpy) {
       {NPY_DT_common_dtype,
        reinterpret_cast<void*>(NPyCustomFloat_CommonDType<T>)},
       {0, nullptr}};
+  CastSpecList cast_specs = BuildCastSpecs<T>();
   if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
-                         dtype_slots) < 0) {
+                         dtype_slots, cast_specs.specs()) < 0) {
     return false;
   }
   CustomFloatType<T>::npy_type = dm.type_num;
@@ -1032,7 +889,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
     return false;
   }
 
-  return RegisterFloatCasts<T>() && RegisterFloatUFuncs<T>(numpy);
+  return RegisterFloatUFuncs<T>(numpy);
 }
 
 }  // namespace

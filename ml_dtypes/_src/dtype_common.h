@@ -18,11 +18,14 @@ limitations under the License.
 #ifndef ML_DTYPES_DTYPE_COMMON_H_
 #define ML_DTYPES_DTYPE_COMMON_H_
 
+#include <Python.h>
+
+#include <vector>
+
 // clang-format off
-#include "ml_dtypes/_src/numpy.h"  // NOLINT (must be first)
+#include "ml_dtypes/_src/numpy.h"  // NOLINT (must precede numpy/*)
 // clang-format on
 
-#include <Python.h>
 #include "numpy/arrayobject.h"
 #include "numpy/dtype_api.h"
 
@@ -109,9 +112,10 @@ static NPY_CASTING WithinDTypeCastResolve(
 
 // DType registration.
 
-// Registers a fixed-size DType with its self-cast ArrayMethod.
-inline int InitDTypeFromSlots(PyArray_DTypeMeta* dm, PyTypeObject* scalar_type,
-                              PyType_Slot* slots) {
+// Registers a fixed-size DType with its self-cast and cross-dtype ArrayMethods.
+inline int InitDTypeFromSlots(
+    PyArray_DTypeMeta* dm, PyTypeObject* scalar_type, PyType_Slot* slots,
+    const std::vector<PyArrayMethod_Spec*>& cross_casts = {}) {
   PyArray_DTypeMeta* self_cast_dtypes[2] = {nullptr, nullptr};
   PyType_Slot self_cast_slots[] = {
       {NPY_METH_resolve_descriptors,
@@ -130,13 +134,17 @@ inline int InitDTypeFromSlots(PyArray_DTypeMeta* dm, PyTypeObject* scalar_type,
       NPY_METH_SUPPORTS_UNALIGNED | NPY_METH_NO_FLOATINGPOINT_ERRORS);
   self_cast_spec.dtypes = self_cast_dtypes;
   self_cast_spec.slots = self_cast_slots;
-  // TODO(seberg): Register the remaining casts as ArrayMethods.
-  PyArrayMethod_Spec* casts[] = {&self_cast_spec, nullptr};
+
+  std::vector<PyArrayMethod_Spec*> casts;
+  casts.reserve(cross_casts.size() + 2);
+  casts.push_back(&self_cast_spec);
+  casts.insert(casts.end(), cross_casts.begin(), cross_casts.end());
+  casts.push_back(nullptr);
 
   PyArrayDTypeMeta_Spec dtype_spec;
   dtype_spec.typeobj = scalar_type;
   dtype_spec.flags = NPY_DT_NUMERIC;
-  dtype_spec.casts = casts;
+  dtype_spec.casts = casts.data();
   dtype_spec.slots = slots;
   dtype_spec.baseclass = nullptr;
 
