@@ -23,6 +23,7 @@ Python_add_library(_ml_dtypes_ext MODULE WITH_SOABI
     ml_dtypes/_src/floats.cc
     ml_dtypes/_src/ints.cc
     ml_dtypes/_src/numpy.cc
+    ml_dtypes/_src/ufuncs.cc
 )
 
 target_include_directories(_ml_dtypes_ext PRIVATE
