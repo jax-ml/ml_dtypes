@@ -87,6 +87,9 @@ inline bool IsCustomComplexDType(const PyArray_DTypeMeta* meta) {
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_complex_v<T>>> {
   static int Dtype() { return CustomComplexType<T>::Dtype(); }
+  static PyArray_DTypeMeta* DTypeMeta() {
+    return &CustomComplexType<T>::dtype_meta;
+  }
 };
 
 bool RegisterCustomComplex(PyObject* numpy);

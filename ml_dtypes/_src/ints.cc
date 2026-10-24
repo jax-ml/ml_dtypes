@@ -26,6 +26,7 @@ limitations under the License.
 #include <type_traits>
 
 #include "Eigen/Core"
+#include "ml_dtypes/_src/casts.h"
 #include "ml_dtypes/_src/common.h"
 #include "ml_dtypes/_src/dtype_common.h"
 #include "ml_dtypes/_src/numpy.h"
@@ -424,21 +425,19 @@ PyArray_ArrFuncs CustomIntType<T>::arr_funcs;
 
 namespace {
 
-// Constructs the legacy NumPy 1.x descriptor prototype for custom integer
-// types.
+// Constructs the descriptor prototype for custom integer types.
 //
-// Note on kind and type character in NumPy 1.x:
-// 1. Custom integer types use kind='V' (Void) to prevent collisions with
-//    built-in integer types sharing the same itemsize.
-// 2. Type characters (e.g. 'e', 'E', 'c', 'C', 'a', 'A') are arbitrary
-//    single-character codes assigned on a best-effort basis; NumPy 1.x does
-//    not guarantee character uniqueness.
+// Custom integer types use kind='i' (signed) or kind='u' (unsigned);
+// ArrayMethod casts and NPY_DT_common_dtype prevent legacy kind/itemsize
+// equivalence with int8/uint8 or between distinct sub-byte widths. Type
+// characters (e.g. 'e', 'E', 'c', 'C', 'a', 'A') are arbitrary single-character
+// codes assigned on a best-effort basis.
 template <typename T>
 PyArray_DescrProto GetIntNDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/'V',
+      /*kind=*/std::numeric_limits<T>::is_signed ? 'i' : 'u',
       /*type=*/CustomIntTraits<T>::kNumPy1DescrType,
       /*byteorder=*/'=',
       /*flags=*/NPY_USE_SETITEM,
@@ -600,184 +599,6 @@ int NPyIntN_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind, void* arr) {
 }
 
 template <typename T>
-int CastToInt(T value) {
-  if constexpr (is_complex_v<T>) {
-    return CastToInt(value.real());
-  } else {
-    static_assert(std::numeric_limits<T>::is_specialized);
-    if constexpr (!std::numeric_limits<T>::is_integer) {
-      if (std::isnan(value) || std::isinf(value) ||
-          value < std::numeric_limits<int>::lowest() ||
-          value > std::numeric_limits<int>::max()) {
-        return 0;
-      }
-    }
-    return static_cast<int>(value);
-  }
-}
-
-// Performs a NumPy array cast from type 'From' to 'To'.
-template <typename From, typename To>
-void IntegerCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-                 void* toarr) {
-  const auto* from = reinterpret_cast<From*>(from_void);
-  auto* to = reinterpret_cast<To*>(to_void);
-  for (npy_intp i = 0; i < n; ++i) {
-    to[i] = static_cast<To>(CastToInt(from[i]));
-  }
-}
-
-// Registers a cast between T (a reduced float) and type 'OtherT'. 'numpy_type'
-// is the NumPy type corresponding to 'OtherT'.
-template <typename T, typename OtherT>
-bool RegisterCustomIntCast(int numpy_type = DtypeTraits<OtherT>::Dtype()) {
-  PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
-  if (PyArray_RegisterCastFunc(descr, CustomIntType<T>::Dtype(),
-                               IntegerCast<OtherT, T>) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCastFunc(CustomIntType<T>::npy_descr, numpy_type,
-                               IntegerCast<T, OtherT>) < 0) {
-    return false;
-  }
-  return true;
-}
-
-template <typename T>
-bool RegisterIntNCasts() {
-  if (!RegisterCustomIntCast<T, half>(NPY_HALF)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, float>(NPY_FLOAT)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, double>(NPY_DOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, long double>(NPY_LONGDOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, bool>(NPY_BOOL)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, unsigned char>(NPY_UBYTE)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, unsigned short>(NPY_USHORT)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, unsigned int>(NPY_UINT)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, unsigned long>(NPY_ULONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, unsigned long long>(  // NOLINT
-          NPY_ULONGLONG)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, signed char>(NPY_BYTE)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, short>(NPY_SHORT)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, int>(NPY_INT)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, long>(NPY_LONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, long long>(NPY_LONGLONG)) {  // NOLINT
-    return false;
-  }
-  // Following the numpy convention. imag part is dropped when converting to
-  // float.
-  if (!RegisterCustomIntCast<T, std::complex<float>>(NPY_CFLOAT)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, std::complex<double>>(NPY_CDOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomIntCast<T, std::complex<long double>>(NPY_CLONGDOUBLE)) {
-    return false;
-  }
-
-  // Safe casts from T to other types
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT8,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT16,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT32,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_INT64,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  if (!std::numeric_limits<T>::is_signed) {
-    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT8,
-                                NPY_NOSCALAR) < 0) {
-      return false;
-    }
-    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT16,
-                                NPY_NOSCALAR) < 0) {
-      return false;
-    }
-    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT32,
-                                NPY_NOSCALAR) < 0) {
-      return false;
-    }
-    if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_UINT64,
-                                NPY_NOSCALAR) < 0) {
-      return false;
-    }
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_HALF,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_FLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_DOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_LONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_CFLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_CDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomIntType<T>::npy_descr, NPY_CLONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  // Safe casts to T from other types
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
-                              CustomIntType<T>::Dtype(), NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  return true;
-}
-
-template <typename T>
 bool RegisterIntNUFuncs(PyObject* numpy) {
   bool ok = RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>, T>(numpy, "add") &&
             RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>, T>(numpy,
@@ -863,11 +684,11 @@ static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
 
 template <typename T>
 bool RegisterIntNDtype(PyObject* numpy) {
-  // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
-  // PyIntegerArrType, but this breaks some assumptions made by NumPy, because
-  // dtype.kind='V' is then interpreted as a 'void' type in some contexts.
+  PyTypeObject* base_type = std::numeric_limits<T>::is_signed
+                                ? &PySignedIntegerArrType_Type
+                                : &PyUnsignedIntegerArrType_Type;
   Safe_PyObjectPtr bases(
-      PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
+      PyTuple_Pack(1, reinterpret_cast<PyObject*>(base_type)));
   PyObject* type =
       PyType_FromSpecWithBases(&CustomIntType<T>::type_spec, bases.get());
   if (!type) {
@@ -916,8 +737,9 @@ bool RegisterIntNDtype(PyObject* numpy) {
       {NPY_DT_default_descr, reinterpret_cast<void*>(DefaultDescr)},
       {NPY_DT_common_dtype, reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
       {0, nullptr}};
+  CastSpecList cast_specs = BuildCastSpecs<T>();
   if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
-                         dtype_slots) < 0) {
+                         dtype_slots, cast_specs.specs()) < 0) {
     return false;
   }
   CustomIntType<T>::npy_type = dm.type_num;
@@ -944,7 +766,7 @@ bool RegisterIntNDtype(PyObject* numpy) {
     return false;
   }
 
-  return RegisterIntNCasts<T>() && RegisterIntNUFuncs<T>(numpy);
+  return RegisterIntNUFuncs<T>(numpy);
 }
 
 }  // namespace

@@ -89,17 +89,12 @@ def _custom_casting_level(source, target):
     return "no"
   if not _has_custom_cast(source, target):
     return None
-  src, dst = np.dtype(source), np.dtype(target)
-  # Legacy kind/itemsize equivalence produces false-positive safe casts,
-  # e.g. float8 -> float4 and int4 -> float4. Explicit safe-cast registrations
-  # cannot override this heuristic.
-  if (
-      src.kind == dst.kind and src.itemsize == dst.itemsize
-  ) or _exactly_representable(source, target):
+  if _exactly_representable(source, target):
     return "safe"
+  src, dst = np.dtype(source), np.dtype(target)
   return (
       "same_kind"
-      if "buifcV".index(src.kind) <= "buifcV".index(dst.kind)
+      if "buifc".index(src.kind) <= "buifc".index(dst.kind)
       else "unsafe"
   )
 
@@ -168,7 +163,7 @@ def _numpy_casting_level(custom, builtin, to_custom):
     return "safe"
   return (
       "same_kind"
-      if "buifcV".index(source.kind) <= "buifcV".index(target.kind)
+      if "buifc".index(source.kind) <= "buifc".index(target.kind)
       else "unsafe"
   )
 
@@ -192,23 +187,32 @@ def test_numpy_can_cast(custom, builtin, to_custom):
     [
         (np.int8, ml_dtypes.float4_e2m1fn),
         (np.uint8, e8m0),
-        (ml_dtypes.float8_e4m3fn, ml_dtypes.float4_e2m1fn),
-        (ml_dtypes.float8_e4m3, ml_dtypes.float8_e4m3fn),
     ],
 )
 def test_legacy_safe_casts_are_lossy(source, target):
-  # The safe-cast registrations and kind/itemsize heuristic allow data loss.
+  # Byte-integer safe casts are retained temporarily while ufuncs use legacy
+  # loop selection.
   assert np.can_cast(source, target, casting="safe")
-  if source in [np.int8, np.uint8]:
-    info = np.iinfo(source)
-    values = np.arange(info.min, info.max + 1, dtype=source).astype(np.float64)
-  else:
-    values = _values(source)
+  info = np.iinfo(source)
+  values = np.arange(info.min, info.max + 1, dtype=source).astype(np.float64)
   with np.errstate(over="ignore", invalid="ignore"):
     converted = values.astype(target).astype(np.float64)
   assert not np.all(
       (values == converted) | (np.isnan(values) & np.isnan(converted))
   )
+
+
+@pytest.mark.parametrize(
+    "source, target",
+    [
+        (ml_dtypes.float8_e4m3fn, ml_dtypes.float4_e2m1fn),
+        (ml_dtypes.float8_e4m3, ml_dtypes.float8_e4m3fn),
+        (ml_dtypes.int4, ml_dtypes.float4_e2m1fn),
+    ],
+)
+def test_lossy_same_itemsize_custom_casts_are_not_safe(source, target):
+  assert not np.can_cast(source, target, casting="safe")
+  assert np.can_cast(source, target, casting="same_kind")
 
 
 @pytest.mark.parametrize("dtype", CUSTOM_DTYPES, ids=lambda t: t.__name__)

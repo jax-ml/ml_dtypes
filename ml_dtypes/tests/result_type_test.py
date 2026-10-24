@@ -527,14 +527,15 @@ def test_promoted_custom_pairs_support_array_operations(a, b):
 @pytest.mark.parametrize(
     "a, b, expected",
     [
-        (f8_e4m3, f8_e4m3fn, f8_e4m3),
-        (f8_e4m3fn, f8_e4m3, f8_e4m3fn),
+        (f8_e4m3, f8_e4m3fn, np.float32),
+        (f8_e4m3fn, f8_e4m3, np.float32),
         (f8_e3m4, f8_e5m2, np.float32),
         (i2, i4, i4),
     ],
 )
 def test_legacy_ufunc_loop_selection(a, b, expected):
-  # Legacy loop selection and kind/itemsize equivalence bypass CommonDType.
+  # Legacy loop selection checks safe casts in registration order rather than
+  # CommonDType, so int2 + int4 still selects int4 instead of int8.
   assert np.add(np.ones(2, a), np.ones(2, b)).dtype == np.dtype(expected)
 
 

@@ -18,11 +18,14 @@ limitations under the License.
 #ifndef ML_DTYPES_DTYPE_COMMON_H_
 #define ML_DTYPES_DTYPE_COMMON_H_
 
+#include <Python.h>
+
+#include <vector>
+
 // clang-format off
-#include "ml_dtypes/_src/numpy.h"  // NOLINT (must be first)
+#include "ml_dtypes/_src/numpy.h"  // NOLINT (must precede numpy/*)
 // clang-format on
 
-#include <Python.h>
 #include "numpy/arrayobject.h"
 #include "numpy/dtype_api.h"
 
@@ -38,8 +41,35 @@ inline PyObject* DTypeStr(PyObject* self) {
   return PyArrayDescr_Type.tp_str(self);
 }
 
+// Returns the custom DType name (prefixed with byteorder when byte-swapped)
+// instead of legacy "<f2"/"<i1" type strings, so np.dtype(dt.str) and
+// np.save/np.load round-trip back to the custom ml_dtypes dtype.
+inline PyObject* DTypeTypestrGet(PyObject* self, void* /*closure*/) {
+  auto* descr = reinterpret_cast<PyArray_Descr*>(self);
+  if (descr->elsize > 1 && !PyDataType_ISNOTSWAPPED(descr)) {
+    return PyUnicode_FromFormat("%c%s", descr->byteorder,
+                                Py_TYPE(self)->tp_name);
+  }
+  return PyUnicode_FromString(Py_TYPE(self)->tp_name);
+}
+
+inline PyObject* DTypeDescrGet(PyObject* self, void* /*closure*/) {
+  PyObject* typestr = DTypeTypestrGet(self, nullptr);
+  if (typestr == nullptr) {
+    return nullptr;
+  }
+  PyObject* res = Py_BuildValue("[(sO)]", "", typestr);
+  Py_DECREF(typestr);
+  return res;
+}
+
 // Initializes the DType class and calls PyType_Ready.
 inline bool InitDTypeMeta(PyArray_DTypeMeta* dm, const char* name) {
+  static PyGetSetDef getset[] = {
+      {const_cast<char*>("str"), DTypeTypestrGet, nullptr, nullptr, nullptr},
+      {const_cast<char*>("descr"), DTypeDescrGet, nullptr, nullptr, nullptr},
+      {nullptr, nullptr, nullptr, nullptr, nullptr},
+  };
   auto* tp = reinterpret_cast<PyTypeObject*>(dm);
   tp->tp_name = name;
   tp->tp_base = &PyArrayDescr_Type;
@@ -47,6 +77,7 @@ inline bool InitDTypeMeta(PyArray_DTypeMeta* dm, const char* name) {
   tp->tp_basicsize = sizeof(_PyArray_LegacyDescr);
   tp->tp_repr = DTypeRepr;
   tp->tp_str = DTypeStr;
+  tp->tp_getset = getset;
   return PyType_Ready(tp) >= 0;
 }
 
@@ -109,9 +140,10 @@ static NPY_CASTING WithinDTypeCastResolve(
 
 // DType registration.
 
-// Registers a fixed-size DType with its self-cast ArrayMethod.
-inline int InitDTypeFromSlots(PyArray_DTypeMeta* dm, PyTypeObject* scalar_type,
-                              PyType_Slot* slots) {
+// Registers a fixed-size DType with its self-cast and cross-dtype ArrayMethods.
+inline int InitDTypeFromSlots(
+    PyArray_DTypeMeta* dm, PyTypeObject* scalar_type, PyType_Slot* slots,
+    const std::vector<PyArrayMethod_Spec*>& cross_casts = {}) {
   PyArray_DTypeMeta* self_cast_dtypes[2] = {nullptr, nullptr};
   PyType_Slot self_cast_slots[] = {
       {NPY_METH_resolve_descriptors,
@@ -130,13 +162,17 @@ inline int InitDTypeFromSlots(PyArray_DTypeMeta* dm, PyTypeObject* scalar_type,
       NPY_METH_SUPPORTS_UNALIGNED | NPY_METH_NO_FLOATINGPOINT_ERRORS);
   self_cast_spec.dtypes = self_cast_dtypes;
   self_cast_spec.slots = self_cast_slots;
-  // TODO(seberg): Register the remaining casts as ArrayMethods.
-  PyArrayMethod_Spec* casts[] = {&self_cast_spec, nullptr};
+
+  std::vector<PyArrayMethod_Spec*> casts;
+  casts.reserve(cross_casts.size() + 2);
+  casts.push_back(&self_cast_spec);
+  casts.insert(casts.end(), cross_casts.begin(), cross_casts.end());
+  casts.push_back(nullptr);
 
   PyArrayDTypeMeta_Spec dtype_spec;
   dtype_spec.typeobj = scalar_type;
   dtype_spec.flags = NPY_DT_NUMERIC;
-  dtype_spec.casts = casts;
+  dtype_spec.casts = casts.data();
   dtype_spec.slots = slots;
   dtype_spec.baseclass = nullptr;
 
