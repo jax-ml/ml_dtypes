@@ -14,6 +14,7 @@
 
 """Test cases for custom complex types."""
 
+import io
 import operator
 import pickle
 import sys
@@ -67,6 +68,11 @@ def assert_expected_dtype(result, expected, sctype):
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 def test_module_name(sctype):
   assert sctype.__module__ == "ml_dtypes"
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_kind(sctype):
+  assert np.dtype(sctype).kind == "c"
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
@@ -714,3 +720,35 @@ def test_accumulate_with_output_dtype(sctype):
 def test_zero_size_reduction(sctype, op, expected):
   x = np.array([], dtype=sctype)
   np.testing.assert_equal(op.reduce(x), sctype(expected))
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_issubdtype(sctype):
+  assert np.issubdtype(sctype, np.generic)
+  assert np.issubdtype(sctype, np.number)
+  assert np.issubdtype(sctype, np.inexact)
+  assert np.issubdtype(sctype, np.complexfloating)
+  assert not np.issubdtype(sctype, np.floating)
+  assert not np.issubdtype(sctype, np.integer)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_npy_save_load_round_trip(sctype):
+  name = sctype.__name__
+  dt = np.dtype(sctype)
+  assert dt.str == name
+  assert dt.descr == [("", name)]
+  swapped_dt = dt.newbyteorder("S")
+  expected_swapped = f"{swapped_dt.byteorder}{name}"
+  assert swapped_dt.str == expected_swapped
+  assert swapped_dt.descr == [("", expected_swapped)]
+  assert str(swapped_dt) == expected_swapped
+  arr = np.asarray(COMPLEX_VALUES, dtype=sctype)
+  buf = io.BytesIO()
+  np.save(buf, arr, allow_pickle=False)
+  buf.seek(0)
+  loaded = np.load(buf, allow_pickle=False)
+  assert loaded.dtype == dt
+  np.testing.assert_array_equal(
+      loaded.astype(np.complex64), arr.astype(np.complex64)
+  )

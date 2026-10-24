@@ -249,6 +249,9 @@ inline PyArray_DTypeMeta* CommonCustomFloatDType(PyArray_DTypeMeta* self,
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
   static int Dtype() { return CustomFloatType<T>::Dtype(); }
+  static PyArray_DTypeMeta* DTypeMeta() {
+    return &CustomFloatType<T>::dtype_meta;
+  }
 };
 
 bool RegisterCustomFloats(PyObject* numpy);

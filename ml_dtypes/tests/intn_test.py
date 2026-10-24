@@ -18,6 +18,7 @@
 
 import contextlib
 import copy
+import io
 import operator
 import pickle
 import warnings
@@ -79,6 +80,11 @@ class ScalarTest(parameterized.TestCase):
   @parameterized.product(scalar_type=INTN_TYPES)
   def testModuleName(self, scalar_type):
     self.assertEqual(scalar_type.__module__, "ml_dtypes")
+
+  @parameterized.product(scalar_type=INTN_TYPES)
+  def testKind(self, scalar_type):
+    expected_kind = "i" if scalar_type in [int1, int2, int4] else "u"
+    self.assertEqual(np.dtype(scalar_type).kind, expected_kind)
 
   @parameterized.product(scalar_type=INTN_TYPES)
   def testPickleable(self, scalar_type):
@@ -220,6 +226,7 @@ class ScalarTest(parameterized.TestCase):
       np.int_,
       np.longlong,
       np.uintc,
+      np.uint,
       np.ulonglong,
   ] + INTN_TYPES
 
@@ -236,6 +243,9 @@ class ScalarTest(parameterized.TestCase):
         (int1, np.int16),
         (int1, np.int32),
         (int1, np.int64),
+        (int1, np.intc),
+        (int1, np.int_),
+        (int1, np.longlong),
         (int1, np.float16),
         (int1, np.float32),
         (int1, np.float64),
@@ -246,6 +256,9 @@ class ScalarTest(parameterized.TestCase):
         (int2, np.int16),
         (int2, np.int32),
         (int2, np.int64),
+        (int2, np.intc),
+        (int2, np.int_),
+        (int2, np.longlong),
         (int2, np.float16),
         (int2, np.float32),
         (int2, np.float64),
@@ -257,6 +270,9 @@ class ScalarTest(parameterized.TestCase):
         (int4, np.int16),
         (int4, np.int32),
         (int4, np.int64),
+        (int4, np.intc),
+        (int4, np.int_),
+        (int4, np.longlong),
         (int4, np.float16),
         (int4, np.float32),
         (int4, np.float64),
@@ -272,10 +288,16 @@ class ScalarTest(parameterized.TestCase):
         (uint1, np.int16),
         (uint1, np.int32),
         (uint1, np.int64),
+        (uint1, np.intc),
+        (uint1, np.int_),
+        (uint1, np.longlong),
         (uint1, np.uint8),
         (uint1, np.uint16),
         (uint1, np.uint32),
         (uint1, np.uint64),
+        (uint1, np.uintc),
+        (uint1, np.uint),
+        (uint1, np.ulonglong),
         (uint1, np.float16),
         (uint1, np.float32),
         (uint1, np.float64),
@@ -286,10 +308,16 @@ class ScalarTest(parameterized.TestCase):
         (uint2, np.int16),
         (uint2, np.int32),
         (uint2, np.int64),
+        (uint2, np.intc),
+        (uint2, np.int_),
+        (uint2, np.longlong),
         (uint2, np.uint8),
         (uint2, np.uint16),
         (uint2, np.uint32),
         (uint2, np.uint64),
+        (uint2, np.uintc),
+        (uint2, np.uint),
+        (uint2, np.ulonglong),
         (uint2, np.float16),
         (uint2, np.float32),
         (uint2, np.float64),
@@ -301,10 +329,16 @@ class ScalarTest(parameterized.TestCase):
         (uint4, np.int16),
         (uint4, np.int32),
         (uint4, np.int64),
+        (uint4, np.intc),
+        (uint4, np.int_),
+        (uint4, np.longlong),
         (uint4, np.uint8),
         (uint4, np.uint16),
         (uint4, np.uint32),
         (uint4, np.uint64),
+        (uint4, np.uintc),
+        (uint4, np.uint),
+        (uint4, np.ulonglong),
         (uint4, np.float16),
         (uint4, np.float32),
         (uint4, np.float64),
@@ -636,6 +670,33 @@ class ArrayTest(parameterized.TestCase):
     for op, expected in [(np.add, 0), (np.multiply, 1)]:
       with self.subTest(op.__name__):
         np.testing.assert_equal(op.reduce(x), scalar_type(expected))
+
+  @parameterized.parameters(INTN_TYPES)
+  def testIssubdtype(self, scalar_type):
+    self.assertTrue(np.issubdtype(scalar_type, np.generic))
+    self.assertTrue(np.issubdtype(scalar_type, np.number))
+    self.assertTrue(np.issubdtype(scalar_type, np.integer))
+    self.assertFalse(np.issubdtype(scalar_type, np.inexact))
+    if scalar_type in (int1, int2, int4):
+      self.assertTrue(np.issubdtype(scalar_type, np.signedinteger))
+      self.assertFalse(np.issubdtype(scalar_type, np.unsignedinteger))
+    else:
+      self.assertTrue(np.issubdtype(scalar_type, np.unsignedinteger))
+      self.assertFalse(np.issubdtype(scalar_type, np.signedinteger))
+
+  @parameterized.parameters(INTN_TYPES)
+  def testNpySaveLoadRoundTrip(self, scalar_type):
+    name = scalar_type.__name__
+    dt = np.dtype(scalar_type)
+    self.assertEqual(dt.str, name)
+    self.assertEqual(dt.descr, [("", name)])
+    arr = np.array(VALUES[scalar_type], dtype=scalar_type)
+    buf = io.BytesIO()
+    np.save(buf, arr, allow_pickle=False)
+    buf.seek(0)
+    loaded = np.load(buf, allow_pickle=False)
+    self.assertEqual(loaded.dtype, dt)
+    np.testing.assert_array_equal(loaded, arr)
 
 
 if __name__ == "__main__":
