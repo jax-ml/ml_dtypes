@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_OTHER_INEXACT_H_
-#define ML_DTYPES_OTHER_INEXACT_H_
+#ifndef ML_DTYPES_COMPLEX_TYPES_H_
+#define ML_DTYPES_COMPLEX_TYPES_H_
 
 // Extensions for half and bfloat16 and their corresponding complex types.
 
@@ -22,7 +22,7 @@ limitations under the License.
 #include <limits>
 
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/_src/cpp_common.h"
 
 namespace ml_dtypes {
 
@@ -165,4 +165,4 @@ inline constexpr bool is_complex_v<complex32> = true;
 
 }  // namespace ml_dtypes
 
-#endif  // ML_DTYPES_OTHER_INEXACT_H_
+#endif  // ML_DTYPES_COMPLEX_TYPES_H_

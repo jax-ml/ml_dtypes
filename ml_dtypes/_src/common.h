@@ -22,12 +22,10 @@ limitations under the License.
 #include <memory>
 
 #include "Eigen/Core"
+#include "ml_dtypes/_src/cpp_common.h"
 #include "ml_dtypes/_src/numpy.h"
 
 namespace ml_dtypes {
-
-using half = Eigen::half;
-using bfloat16 = Eigen::bfloat16;
 
 inline void ByteSwap16(void* value) {
   char* p = reinterpret_cast<char*>(value);
@@ -165,14 +163,6 @@ template <>
 struct DtypeTraits<std::complex<long double>> {
   static int Dtype() { return NPY_CLONGDOUBLE; }
 };
-
-template <class T>
-struct is_complex : std::false_type {};
-template <class T>
-struct is_complex<std::complex<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_complex_v = is_complex<T>::value;
 
 }  // namespace ml_dtypes
 
