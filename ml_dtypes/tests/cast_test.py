@@ -584,12 +584,22 @@ def _expected_cast(arr, source, target):
 def _assert_cast_equal(actual, expected, target):
   """Asserts `actual` has `target` dtype and matches `expected` elementwise."""
   assert actual.dtype == np.dtype(target)
+  assert expected.dtype == np.dtype(target)
+  # NumPy 2.0.0's assert_array_equal only treats NaNs as equal for built-in
+  # numeric dtype.char codes, so widen custom float values to float32 (which
+  # represents every custom float value and NaN losslessly).
   if target in CUSTOM_COMPLEX:
     np.testing.assert_array_equal(
-        ml_dtypes.real(actual), ml_dtypes.real(expected)
+        ml_dtypes.real(actual).astype(np.float32),
+        ml_dtypes.real(expected).astype(np.float32),
     )
     np.testing.assert_array_equal(
-        ml_dtypes.imag(actual), ml_dtypes.imag(expected)
+        ml_dtypes.imag(actual).astype(np.float32),
+        ml_dtypes.imag(expected).astype(np.float32),
+    )
+  elif target in CUSTOM_FLOATS:
+    np.testing.assert_array_equal(
+        actual.astype(np.float32), expected.astype(np.float32)
     )
   else:
     np.testing.assert_array_equal(actual, expected)
