@@ -17,6 +17,7 @@
 import collections
 import contextlib
 import copy
+import io
 import itertools
 import math
 import operator
@@ -30,6 +31,7 @@ from absl.testing import parameterized
 import ml_dtypes
 from multi_thread_utils import multi_threaded
 import numpy as np
+import numpy.ma
 
 bfloat16 = ml_dtypes.bfloat16
 float4_e2m1fn = ml_dtypes.float4_e2m1fn
@@ -267,8 +269,7 @@ class CustomFloatTest(parameterized.TestCase):
     self.assertEqual(float_type.__module__, "ml_dtypes")
 
   def testKind(self, float_type):
-    expected_kind = "f" if float_type is float8_e5m2 else "V"
-    self.assertEqual(np.dtype(float_type).kind, expected_kind)
+    self.assertEqual(np.dtype(float_type).kind, "f")
 
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPickleable(self, float_type):
@@ -630,18 +631,40 @@ class CustomFloatTest(parameterized.TestCase):
     assert np.dtype(float_type.__name__) == np.dtype(float_type)
 
   def testIssubdtype(self, float_type):
-    # In the future, we may want to make these more specific (e.g. use
-    # np.number or np.floating instead of np.generic) by changing the
-    # base in RegisterFloatDtype.
     self.assertTrue(np.issubdtype(float_type, np.generic))
     self.assertTrue(np.issubdtype(np.dtype(float_type), np.generic))
+    self.assertTrue(np.issubdtype(float_type, np.number))
+    self.assertTrue(np.issubdtype(float_type, np.inexact))
+    self.assertTrue(np.issubdtype(float_type, np.floating))
+    self.assertTrue(np.issubdtype(np.dtype(float_type), np.floating))
+    self.assertFalse(np.issubdtype(float_type, np.integer))
+    self.assertFalse(np.issubdtype(float_type, np.complexfloating))
 
   def testCastToDtype(self, float_type):
     name = float_type.__name__
     dt = np.dtype(float_type)
     self.assertIs(dt.type, float_type)
     self.assertEqual(dt.name, name)
+    self.assertEqual(dt.str, name)
+    self.assertEqual(dt.descr, [("", name)])
     self.assertEqual(repr(dt), f"dtype({name})")
+    swapped_dt = dt.newbyteorder("S")
+    expected_swapped = (
+        f"{swapped_dt.byteorder}{name}" if dt.itemsize > 1 else name
+    )
+    self.assertEqual(swapped_dt.str, expected_swapped)
+    self.assertEqual(swapped_dt.descr, [("", expected_swapped)])
+    self.assertEqual(str(swapped_dt), expected_swapped)
+    self.assertIsNotNone(numpy.ma.maximum_fill_value(dt))
+
+  def testNpySaveLoadRoundTrip(self, float_type):
+    arr = np.array(FLOAT_VALUES[float_type], dtype=float_type)
+    buf = io.BytesIO()
+    np.save(buf, arr, allow_pickle=False)
+    buf.seek(0)
+    loaded = np.load(buf, allow_pickle=False)
+    self.assertEqual(loaded.dtype, np.dtype(float_type))
+    np.testing.assert_array_equal(loaded, arr)
 
   def testConstructFromDtype(self, float_type):
     for np_dtype in NUMPY_DTYPES:

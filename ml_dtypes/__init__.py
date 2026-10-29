@@ -67,6 +67,9 @@ from ml_dtypes._ml_dtypes_ext import uint2
 from ml_dtypes._ml_dtypes_ext import uint4
 import numpy as _np
 
+# TODO(phawkins): Tighten these annotations to _np.floating, _np.signedinteger,
+# _np.unsignedinteger, and _np.complexfloating once downstream type checks are
+# ready.
 bfloat16: type[_np.generic]
 float4_e2m1fn: type[_np.generic]
 float6_e2m3fn: type[_np.generic]

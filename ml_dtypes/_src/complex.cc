@@ -29,6 +29,7 @@ limitations under the License.
 #include <vector>
 
 #include "Eigen/Core"
+#include "ml_dtypes/_src/casts.h"
 #include "ml_dtypes/_src/common.h"
 #include "ml_dtypes/_src/dtype_common.h"
 #include "ml_dtypes/_src/floats.h"
@@ -536,21 +537,18 @@ PyArray_ArrFuncs CustomComplexType<T>::arr_funcs;
 
 namespace {
 
-// Constructs the legacy NumPy 1.x descriptor prototype for custom complex
-// types.
+// Constructs the descriptor prototype for custom complex types.
 //
-// Note on kind and type character in NumPy 1.x:
-// 1. Custom complex types use kind='V' (Void) to avoid conflation with NumPy's
-//    built-in complex dtypes. The exception is complex32, which uses kind='c'
-//    as the standard complex float16 type.
-// 2. Type characters ('K' for bcomplex32, 'J' for complex32) are assigned on a
-//    best-effort basis; 'E' was already used by bfloat16.
+// Custom complex types use kind='c'; ArrayMethod casts and NPY_DT_common_dtype
+// prevent legacy kind/itemsize equivalence between bcomplex32 and complex32.
+// Type characters ('K' for bcomplex32, 'J' for complex32) are assigned on a
+// best-effort basis; 'E' was already used by bfloat16.
 template <typename T>
 PyArray_DescrProto GetCustomComplexDescrProto() {
   return {
       PyObject_HEAD_INIT(nullptr)
       /*typeobj=*/nullptr,  // Filled in later
-      /*kind=*/std::is_same_v<T, complex32> ? 'c' : 'V',
+      /*kind=*/'c',
       /*type=*/CustomComplexTraits<T>::kNumPy1DescrType,
       /*byteorder=*/'=',
       /*flags=*/NPY_USE_SETITEM,
@@ -742,158 +740,6 @@ int NPyCustomComplex_CompareFunc(const void* v1, const void* v2, void* arr) {
     return 1;
   }
   return 0;
-}
-
-// Performs a NumPy array cast from type 'From' to 'To'.
-template <typename From, typename To>
-void NPyCCast(void* from_void, void* to_void, npy_intp n, void* fromarr,
-              void* toarr) {
-  const auto* from = reinterpret_cast<From*>(from_void);
-  auto* to = reinterpret_cast<To*>(to_void);
-  for (npy_intp i = 0; i < n; ++i) {
-    // TODO(seberg): Casts from complex to float are dubious anyway, maybe error
-    // if imaginary (rather than warn?)
-    if constexpr (is_complex_v<From> && is_complex_v<To>) {
-      auto via = static_cast<std::complex<float>>(from[i]);
-      to[i] = static_cast<To>(via);
-    } else if constexpr (is_complex_v<From> && !is_complex_v<To>) {
-      if constexpr (std::is_same_v<To, bool>) {
-        to[i] =
-            static_cast<To>(from[i].real() != typename From::value_type(0) ||
-                            from[i].imag() != typename From::value_type(0));
-      } else {
-        if (GiveComplexWarningNoGIL() < 0) {
-          return;
-        }
-        auto via = static_cast<float>(from[i].real());
-        to[i] = static_cast<To>(via);
-      }
-    } else if constexpr (!is_complex_v<From> && is_complex_v<To>) {
-      auto via = static_cast<float>(from[i]);
-      to[i] = static_cast<To>(via);
-    } else {
-      static_assert(is_complex_v<From>);  // template dependent, always false
-    }
-  }
-}
-
-// Registers a cast between T (a reduced complex) and type 'OtherT'.
-// 'numpy_type' is the NumPy type corresponding to 'OtherT'.
-template <typename T, typename OtherT>
-bool RegisterCustomComplexCast(int numpy_type = DtypeTraits<OtherT>::Dtype()) {
-  PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
-  if (PyArray_RegisterCastFunc(descr, CustomComplexType<T>::Dtype(),
-                               NPyCCast<OtherT, T>) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCastFunc(CustomComplexType<T>::npy_descr, numpy_type,
-                               NPyCCast<T, OtherT>) < 0) {
-    return false;
-  }
-  return true;
-}
-
-template <typename T>
-bool RegisterComplexCasts() {
-  if (!RegisterCustomComplexCast<T, half>(NPY_HALF)) {
-    return false;
-  }
-
-  if (!RegisterCustomComplexCast<T, float>(NPY_FLOAT)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, double>(NPY_DOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, long double>(NPY_LONGDOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, bool>(NPY_BOOL)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, unsigned char>(NPY_UBYTE)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, unsigned short>(NPY_USHORT)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, unsigned int>(NPY_UINT)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, unsigned long>(NPY_ULONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, unsigned long long>(  // NOLINT
-          NPY_ULONGLONG)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, signed char>(NPY_BYTE)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, short>(NPY_SHORT)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, int>(NPY_INT)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, long>(NPY_LONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, long long>(NPY_LONGLONG)) {  // NOLINT
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, std::complex<float>>(NPY_CFLOAT)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, std::complex<double>>(NPY_CDOUBLE)) {
-    return false;
-  }
-  if (!RegisterCustomComplexCast<T, std::complex<long double>>(
-          NPY_CLONGDOUBLE)) {
-    return false;
-  }
-
-  // Safe casts from T to other types
-  if (PyArray_RegisterCanCast(CustomComplexType<T>::npy_descr, NPY_CFLOAT,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomComplexType<T>::npy_descr, NPY_CDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(CustomComplexType<T>::npy_descr, NPY_CLONGDOUBLE,
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  // Safe casts to T from other types
-  if constexpr (CustomFloatSafeTo<half, typename T::value_type>()) {
-    Safe_PyObjectPtr half_descr =
-        make_safe(reinterpret_cast<PyObject*>(PyArray_DescrFromType(NPY_HALF)));
-    if (!half_descr || PyArray_RegisterCanCast(
-                           reinterpret_cast<PyArray_Descr*>(half_descr.get()),
-                           CustomComplexType<T>::Dtype(), NPY_NOSCALAR) < 0) {
-      return false;
-    }
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BOOL),
-                              CustomComplexType<T>::Dtype(),
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_UBYTE),
-                              CustomComplexType<T>::Dtype(),
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-  if (PyArray_RegisterCanCast(PyArray_DescrFromType(NPY_BYTE),
-                              CustomComplexType<T>::Dtype(),
-                              NPY_NOSCALAR) < 0) {
-    return false;
-  }
-
-  return true;
 }
 
 template <typename T>
@@ -1177,11 +1023,8 @@ static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
 
 template <typename T>
 bool RegisterComplexDtype(PyObject* numpy) {
-  // TODO(jakevdp): it would be better to inherit from PyNumberArrType or
-  // PyFloatingArrType, but this breaks some assumptions made by NumPy, because
-  // dtype.kind='V' is then interpreted as a 'void' type in some contexts.
-  Safe_PyObjectPtr bases(
-      PyTuple_Pack(1, reinterpret_cast<PyObject*>(&PyGenericArrType_Type)));
+  Safe_PyObjectPtr bases(PyTuple_Pack(
+      1, reinterpret_cast<PyObject*>(&PyComplexFloatingArrType_Type)));
   PyObject* type =
       PyType_FromSpecWithBases(&CustomComplexType<T>::type_spec, bases.get());
   if (!type) {
@@ -1232,8 +1075,9 @@ bool RegisterComplexDtype(PyObject* numpy) {
       {NPY_DT_common_dtype,
        reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
       {0, nullptr}};
+  CastSpecList cast_specs = BuildCastSpecs<T>();
   if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
-                         dtype_slots) < 0) {
+                         dtype_slots, cast_specs.specs()) < 0) {
     return false;
   }
   CustomComplexType<T>::npy_type = dm.type_num;
@@ -1265,7 +1109,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
     return false;
   }
 
-  return RegisterComplexCasts<T>() && RegisterComplexUFuncs<T>(numpy);
+  return RegisterComplexUFuncs<T>(numpy);
 }
 
 }  // namespace

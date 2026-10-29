@@ -159,6 +159,9 @@ inline bool CustomIntSafeToFloat(const PyArray_DTypeMeta* meta) {
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_intn_v<T>>> {
   static int Dtype() { return CustomIntType<T>::Dtype(); }
+  static PyArray_DTypeMeta* DTypeMeta() {
+    return &CustomIntType<T>::dtype_meta;
+  }
 };
 
 bool RegisterCustomInts(PyObject* numpy);
