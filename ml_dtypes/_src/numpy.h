@@ -70,7 +70,6 @@ void ImportNumpy();
 
 extern PyObject* ComplexWarning;
 int GiveComplexWarning();
-int GiveComplexWarningNoGIL();
 
 }  // namespace ml_dtypes
 

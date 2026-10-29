@@ -23,6 +23,18 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Migrated cross-dtype casts to NumPy 2 `ArrayMethod`s
+  ([#418](https://github.com/jax-ml/ml_dtypes/pull/418)):
+  * Fixed `np.can_cast` so lossy casts between same-size custom dtypes (such as
+    `float8_e4m3fn` to `float4_e2m1fn`) are no longer reported as `"safe"`, and
+    widening `intN` casts to `longlong` and `ulonglong` are now `"safe"`.
+  * Registered casts between all pairs of custom dtypes, including narrowing and
+    mixed-sign `intN` casts, `int4`/`uint4` <-> `float6_e2m3fn`, and casts
+    between `float8_e8m0fnu` and other custom dtypes.
+  * Casting non-finite or out-of-range floating-point values to integers now
+    consistently returns `0` and raises the `invalid` floating-point warning;
+    casting any complex dtype to a custom float or `intN` dtype now emits
+    `ComplexWarning` once per cast.
 * Added new 8-bit float type: `ml_dtypes.float8_e5m3fnu`.
 * `float8.h` no longer depends on `Eigen::numext::get_integer_by_size`, which is
   unavailable in Eigen 3.4.x.

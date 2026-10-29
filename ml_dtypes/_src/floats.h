@@ -154,6 +154,8 @@ template <typename Src, typename Dst>
 inline constexpr bool CustomFloatSafeTo() {
   return (!std::numeric_limits<Src>::is_signed ||
           std::numeric_limits<Dst>::is_signed) &&
+         (!std::is_same_v<Dst, float8_e8m0fnu> ||
+          std::is_same_v<Src, float8_e8m0fnu>) &&
          std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
          std::numeric_limits<Dst>::min_exponent -
                  std::numeric_limits<Dst>::digits <=
@@ -249,6 +251,9 @@ inline PyArray_DTypeMeta* CommonCustomFloatDType(PyArray_DTypeMeta* self,
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
   static int Dtype() { return CustomFloatType<T>::Dtype(); }
+  static PyArray_DTypeMeta* DTypeMeta() {
+    return &CustomFloatType<T>::dtype_meta;
+  }
 };
 
 bool RegisterCustomFloats(PyObject* numpy);

@@ -511,11 +511,12 @@ def test_promoted_custom_pairs_support_array_operations(a, b):
   # Legacy loop selection can disagree with CommonDType; request it explicitly.
   result = np.add(*arrays, dtype=common)
   assert result.dtype == common
-  reference = (
-      np.complex128
-      if common.kind == "c" or common.type in CUSTOM_COMPLEX
-      else np.float64
-  )
+  if common.kind == "c" or common.type in CUSTOM_COMPLEX:
+    reference = np.complex128
+  elif common.kind in "iu" or common.type in CUSTOM_INTS:
+    reference = np.int64
+  else:
+    reference = np.float64
   expected = np.add(*(array.astype(reference) for array in arrays)).astype(
       common
   )
@@ -527,14 +528,15 @@ def test_promoted_custom_pairs_support_array_operations(a, b):
 @pytest.mark.parametrize(
     "a, b, expected",
     [
-        (f8_e4m3, f8_e4m3fn, f8_e4m3),
-        (f8_e4m3fn, f8_e4m3, f8_e4m3fn),
+        (f8_e4m3, f8_e4m3fn, np.float32),
+        (f8_e4m3fn, f8_e4m3, np.float32),
         (f8_e3m4, f8_e5m2, np.float32),
         (i2, i4, i4),
     ],
 )
 def test_legacy_ufunc_loop_selection(a, b, expected):
-  # Legacy loop selection and kind/itemsize equivalence bypass CommonDType.
+  # Legacy loop selection checks safe casts in registration order rather than
+  # CommonDType, so int2 + int4 still selects int4 instead of int8.
   assert np.add(np.ones(2, a), np.ones(2, b)).dtype == np.dtype(expected)
 
 

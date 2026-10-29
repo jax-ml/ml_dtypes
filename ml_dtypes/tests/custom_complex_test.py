@@ -316,68 +316,6 @@ def test_comparisons(sctype, op, other):
   assert result == expected
 
 
-# =============
-# Casting tests
-# =============
-
-
-@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
-@pytest.mark.parametrize("to_dtype", [np.complex64, np.complex128])
-def test_casts_to_complex(sctype, to_dtype):
-  """Test casting to/from standard complex types."""
-  x = np.array([1 + 2j, 3 + 4j], dtype=sctype)
-  result = x.astype(to_dtype)
-  np.testing.assert_array_equal(x, result)
-
-
-@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
-@pytest.mark.parametrize(
-    "from_dtype", [np.float32, np.float64, ml_dtypes.float4_e2m1fn]
-)
-def test_cast_from_float(sctype, from_dtype):
-  """Test casting from real to complex."""
-  x = np.array([1.0, 2.0, 3.0], dtype=from_dtype)
-  y = x.astype(sctype)
-  assert y.dtype == sctype
-  np.testing.assert_array_equal(ml_dtypes.real(y).astype(np.float32), x)
-  np.testing.assert_array_equal(ml_dtypes.imag(y).astype(np.float32), 0.0)
-
-
-@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
-@pytest.mark.parametrize(
-    "to_dtype", [np.float32, np.float64, ml_dtypes.float4_e2m1fn]
-)
-def test_cast_to_float(sctype, to_dtype):
-  """Test casting from complex to real (should take real part)."""
-  # Make large, so that NumPy may release the GIL.
-  x = np.array([1 + 2j, 3 + 4j] * 500, dtype=sctype)
-  with pytest.warns(ComplexWarning):
-    y = x.astype(to_dtype)
-  np.testing.assert_array_equal(y, [1.0, 3.0] * 500)
-
-
-@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
-def test_cast_from_bool(sctype):
-  """Test casting from bool to complex."""
-  x = np.array([True, False, True], dtype=bool)
-  y = x.astype(sctype)
-  assert y.dtype == sctype
-  np.testing.assert_array_equal(
-      ml_dtypes.real(y).astype(np.float32), [1.0, 0.0, 1.0]
-  )
-  np.testing.assert_array_equal(
-      ml_dtypes.imag(y).astype(np.float32), [0.0, 0.0, 0.0]
-  )
-
-
-@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
-def test_cast_to_bool(sctype):
-  """Test casting from complex to bool."""
-  x = np.array([0 + 0j, 1 + 0j, 0 + 2j, 3 + 4j], dtype=sctype)
-  y = x.astype(bool)
-  np.testing.assert_array_equal(y, [False, True, True, True])
-
-
 # ==========================
 # UFunc/array function tests
 # ==========================

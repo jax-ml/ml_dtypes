@@ -46,9 +46,6 @@ float8_e5m3fnu = ml_dtypes.float8_e5m3fnu
 float8_e8m0fnu = ml_dtypes.float8_e8m0fnu
 
 
-ComplexWarning = np.exceptions.ComplexWarning
-
-
 @contextlib.contextmanager
 def ignore_warning(**kw):
   with warnings.catch_warnings():
@@ -334,19 +331,6 @@ class CustomFloatTest(parameterized.TestCase):
                   dtype
               ),
           )
-
-  def testCastBetweenCustomTypes(self, float_type):
-    for dtype in FLOAT_DTYPES:
-      # float8_e8m0 only registering cast <=> bfloat16
-      if (
-          float_type == float8_e8m0fnu or dtype == float8_e8m0fnu
-      ) and dtype != bfloat16:
-        continue
-
-      x = np.array(FLOAT_VALUES[float_type], dtype=dtype)
-      y = x.astype(float_type)
-      z = x.astype(float).astype(float_type)
-      numpy_assert_allclose(y, z, float_type=float_type)
 
   def testStr(self, float_type):
     for value in FLOAT_VALUES[float_type]:
@@ -870,9 +854,6 @@ BINARY_PREDICATE_UFUNCS = [
     skip_tests=[
         "testBinaryPredicateUfunc",
         "testBinaryUfunc",
-        "testCanCast",
-        "testCasts",
-        "testConformNumpyComplex",
         "testCopySign",  # pytest 9.0.1's subtest appears not to be thread-safe
         "testDivmod",
         "testDivmodCornerCases",
@@ -946,101 +927,6 @@ class CustomFloatNumPyTest(parameterized.TestCase):
     a = np.array([7], float_type)
     b = np.array([3], float_type)
     self.assertFalse(a.__eq__(b))
-
-  def testCanCast(self, float_type):
-    allowed_casts = [
-        (np.bool_, float_type),
-        (np.int8, float_type),
-        (np.uint8, float_type),
-        (float_type, np.float32),
-        (float_type, np.float64),
-        (float_type, np.longdouble),
-        (float_type, np.complex64),
-        (float_type, np.complex128),
-        (float_type, np.clongdouble),
-    ]
-    all_dtypes = [
-        np.float16,
-        np.float32,
-        np.float64,
-        np.longdouble,
-        np.int8,
-        np.int16,
-        np.int32,
-        np.int64,
-        np.complex64,
-        np.complex128,
-        np.clongdouble,
-        np.uint8,
-        np.uint16,
-        np.uint32,
-        np.uint64,
-        np.intc,
-        np.int_,
-        np.longlong,
-        np.uintc,
-        np.ulonglong,
-    ]
-    for d in all_dtypes:
-      with self.subTest(d.__name__):
-        self.assertEqual(
-            (float_type, d) in allowed_casts, np.can_cast(float_type, d)
-        )
-        self.assertEqual(
-            (d, float_type) in allowed_casts, np.can_cast(d, float_type)
-        )
-
-  @ignore_warning(
-      category=RuntimeWarning, message="invalid value encountered in cast"
-  )
-  def testCasts(self, float_type):
-    for dtype in [
-        np.bool_,
-        np.float16,
-        np.float32,
-        np.float64,
-        np.longdouble,
-        np.int8,
-        np.int16,
-        np.int32,
-        np.int64,
-        np.complex64,
-        np.complex128,
-        np.clongdouble,
-        np.uint8,
-        np.uint16,
-        np.uint32,
-        np.uint64,
-        np.intc,
-        np.int_,
-        np.longlong,
-        np.uintc,
-        np.ulonglong,
-    ]:
-      if dtype == np.bool_:
-        # float8_e8m0fnu cannot represent zero.
-        values = [[1, 1, 1]] if float_type == float8_e8m0fnu else [[0, 1, 1]]
-      else:
-        values = [[1, 2, 4]]
-      x = np.array(values, dtype=dtype)
-      y = x.astype(float_type)
-      z = y.astype(dtype)
-      self.assertTrue(np.all(x == y))
-      self.assertEqual(float_type, y.dtype)
-      self.assertTrue(np.all(x == z))
-      self.assertEqual(dtype, z.dtype)
-
-  @ignore_warning(category=ComplexWarning)
-  def testConformNumpyComplex(self, float_type):
-    for dtype in [np.complex64, np.complex128, np.clongdouble]:
-      x = np.array([0.5, 1.0 + 2.0j, 4.0], dtype=dtype)
-      y_np = x.astype(np.float32)
-      y_tf = x.astype(float_type)
-      numpy_assert_allclose(y_np, y_tf, atol=2e-2, float_type=float_type)
-
-      z_np = y_np.astype(dtype)
-      z_tf = y_tf.astype(dtype)
-      numpy_assert_allclose(z_np, z_tf, atol=2e-2, float_type=float_type)
 
   def testArange(self, float_type):
     # TODO(phawkins): remove the casts to float32 once NumPy considers our float

@@ -75,6 +75,17 @@ NUMPY_DTYPES = list(
 )
 
 
+NUMPY_BOOLS = [d for d in NUMPY_DTYPES if d.kind == "b"]
+NUMPY_INTS = [d for d in NUMPY_DTYPES if d.kind in "iu"]
+NUMPY_FLOATS = [d for d in NUMPY_DTYPES if d.kind == "f"]
+NUMPY_COMPLEX = [d for d in NUMPY_DTYPES if d.kind == "c"]
+
+ALL_DTYPES = CUSTOM_DTYPES + NUMPY_DTYPES
+ALL_INTS = CUSTOM_INTS + NUMPY_INTS
+ALL_FLOATS = CUSTOM_FLOATS + NUMPY_FLOATS
+ALL_COMPLEX = CUSTOM_COMPLEX + NUMPY_COMPLEX
+
+
 def operand(dtype, form):
   if form == "type":
     return dtype

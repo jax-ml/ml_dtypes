@@ -21,7 +21,6 @@ limitations under the License.
 #include "ml_dtypes/_src/numpy.h"
 
 namespace ml_dtypes {
-bool RegisterCustomCasts();
 
 // Initializes the module.
 bool Initialize() {
@@ -47,7 +46,7 @@ bool Initialize() {
   }
 
   return RegisterCustomFloats(numpy.get()) && RegisterCustomInts(numpy.get()) &&
-         RegisterCustomComplex(numpy.get()) && RegisterCustomCasts();
+         RegisterCustomComplex(numpy.get());
 }
 
 static PyModuleDef module_def = {
