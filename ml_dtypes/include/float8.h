@@ -1549,18 +1549,33 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static constexpr int kToExponentBias = ToTraits::kExponentBias;
 
   static EIGEN_DEVICE_FUNC inline To run(From from) {
-    const bool from_sign =
-        Eigen::numext::bit_cast<FromBits>(from) >> (kFromBits - 1) &&
-        kFromIsSigned;
-    From from_abs = Eigen::numext::abs(from);
-    FromBits from_abs_bits = Eigen::numext::bit_cast<FromBits>(from_abs);
+    const FromBits from_bits = Eigen::numext::bit_cast<FromBits>(from);
+    const bool from_sign = (from_bits >> (kFromBits - 1)) && kFromIsSigned;
+    FromBits from_abs_bits;
+    bool from_isinf;
+    bool from_isnan;
+    // Check exponent and mantissa bits as integers instead of calling
+    // isinf/isnan on `from`. When auto-vectorizing on ARM64, Clang can compile
+    // `isinf || isnan` into a floating-point `>` comparison against +inf,
+    // which sets the hardware FE_INVALID exception flag on quiet NaNs.
+    // Integer comparisons never raise floating-point exceptions.
+    if constexpr (std::numeric_limits<From>::is_iec559) {
+      from_abs_bits = from_bits & ~(FromBits{1} << (kFromBits - 1));
+      from_isinf = from_abs_bits == FromTraits::kExponentMask;
+      from_isnan = from_abs_bits > FromTraits::kExponentMask;
+    } else {
+      From from_abs = Eigen::numext::abs(from);
+      from_abs_bits = Eigen::numext::bit_cast<FromBits>(from_abs);
+      from_isinf = Eigen::numext::isinf(from_abs);
+      from_isnan = Eigen::numext::isnan(from_abs);
+    }
 
     // 1. Handle non-finite values (Infinity and NaN).
-    if (Eigen::numext::isinf(from_abs)) {
+    if (from_isinf) {
       return from_sign ? -Eigen::NumTraits<To>::infinity()
                        : Eigen::NumTraits<To>::infinity();
     }
-    if (Eigen::numext::isnan(from_abs)) {
+    if (from_isnan) {
       return from_sign ? -Eigen::NumTraits<To>::quiet_NaN()
                        : Eigen::NumTraits<To>::quiet_NaN();
     }
