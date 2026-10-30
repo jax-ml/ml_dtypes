@@ -417,6 +417,20 @@ class ArrayTest(parameterized.TestCase):
 
   @parameterized.product(
       scalar_type=INTN_TYPES,
+      ufunc=[np.floor_divide, np.remainder],
+  )
+  def testZeroDivisionHonorsErrstate(self, scalar_type, ufunc):
+    x = np.zeros(3, dtype=scalar_type)
+    with np.errstate(divide="raise"):
+      with self.assertRaises(FloatingPointError):
+        ufunc(x, x)
+    with warnings.catch_warnings():
+      warnings.simplefilter("error", RuntimeWarning)
+      with np.errstate(divide="ignore"):
+        np.testing.assert_array_equal(ufunc(x, x), x)
+
+  @parameterized.product(
+      scalar_type=INTN_TYPES,
       ufunc=[
           np.logical_and,
           np.logical_or,
