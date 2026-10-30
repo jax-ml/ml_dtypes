@@ -252,6 +252,48 @@ accumulations automatically:
 Array(4992, dtype=bfloat16)
 ```
 
+### Python scalar promotion and finite-only comparisons (NEP 50)
+
+Following NumPy 2's
+[NEP 50](https://numpy.org/neps/nep-0050-scalar-promotion.html) type promotion
+rules, operations mixing an `ml_dtypes` array or scalar with a weakly typed
+Python `int`, `float`, or `complex` scalar convert the Python scalar to the
+`ml_dtypes` dtype rather than promoting the operation to `float64`:
+
+```python
+>>> bfloat16(2.0) + 0.0078125  # evaluated in bfloat16, not float64
+2
+>>> (np.array([1.0, 2.0], dtype=bfloat16) * 0.9).dtype
+dtype(bfloat16)
+```
+
+Take particular care when comparing Python scalars against non-IEEE formats that
+lack infinities or signed values. For IEEE formats like `bfloat16` or
+`numpy.float16`, an out-of-range finite Python `float` overflows to `±inf`,
+which still preserves ordering against finite values. For finite-only or
+unsigned formats, however, casting an out-of-range Python scalar either produces
+`NaN` (on `*fn`, `*fnuz`, and `*fnu` FP8 types) or saturates to the maximum
+finite value (on `float4_e2m1fn`, `float6_e2m3fn`, and `float6_e3m2fn`):
+
+```python
+>>> from ml_dtypes import float4_e2m1fn, float8_e4m3fn
+>>> float8_e4m3fn(1000.0)
+nan
+>>> float8_e4m3fn(448.0) < 1000.0  # compares 448.0 < NaN
+False
+>>> float4_e2m1fn(6.0) == 100.0    # 100.0 saturates to 6.0
+True
+```
+
+When comparing values (such as `ml_dtypes.finfo(dtype).max`) against bounds that
+may exceed the dtype's representable range, explicitly cast to `float` or a
+wider NumPy dtype first:
+
+```python
+>>> float(float8_e4m3fn(448.0)) < 1000.0
+True
+```
+
 ## License
 
 *This is not an officially supported Google product.*

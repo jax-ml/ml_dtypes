@@ -33,24 +33,73 @@ namespace ml_dtypes {
 
 // DType metaclass setup.
 
-// NumPy < 2.5 requires explicit tp_repr and tp_str slots.
+// NumPy < 2.5 requires explicit tp_repr, tp_str, and tp_new slots (NumPy >= 2.5
+// installs legacy_dtype_default_new via NPY_DT_legacy_descriptor_proto).
 inline PyObject* DTypeRepr(PyObject* self) {
   return PyArrayDescr_Type.tp_repr(self);
 }
 inline PyObject* DTypeStr(PyObject* self) {
   return PyArrayDescr_Type.tp_str(self);
 }
+inline PyObject* DTypeNew(PyTypeObject* subtype, PyObject* args,
+                          PyObject* kwds) {
+  if (PyTuple_Size(args) != 0 || (kwds != nullptr && PyDict_Size(kwds) != 0)) {
+    PyErr_SetString(PyExc_TypeError,
+                    "currently only the no-argument instantiation is "
+                    "supported; use `np.dtype` instead.");
+    return nullptr;
+  }
+  auto* dm = reinterpret_cast<PyArray_DTypeMeta*>(subtype);
+  Py_INCREF(dm->singleton);
+  return reinterpret_cast<PyObject*>(dm->singleton);
+}
 
-// Initializes the DType class and calls PyType_Ready.
-inline bool InitDTypeMeta(PyArray_DTypeMeta* dm, const char* name) {
-  auto* tp = reinterpret_cast<PyTypeObject*>(dm);
+// Initializes a DType class under `base` (e.g. `PyArray_FloatAbstractDType`).
+// In NumPy < 2.6, the abstract DTypes are static types and `PyArrayDTypeMeta`
+// forbids heap instances (`dtypemeta_traverse` asserts), so we initialize
+// `static_dm` via `PyType_Ready`. In NumPy >= 2.6, the abstract DTypes are
+// heap types (`Py_TPFLAGS_HEAPTYPE`), so subclasses must also be heap types
+// allocated via `PyType_FromMetaclass`.
+inline PyArray_DTypeMeta* InitDTypeMeta(PyArray_DTypeMeta* static_dm,
+                                        const char* name,
+                                        PyArray_DTypeMeta* base) {
+  auto* base_tp = reinterpret_cast<PyTypeObject*>(base);
+  if (PyType_GetFlags(base_tp) & Py_TPFLAGS_HEAPTYPE) {
+#if PY_VERSION_HEX >= 0x030c0000
+    PyType_Slot slots[] = {
+        {Py_tp_repr, reinterpret_cast<void*>(DTypeRepr)},
+        {Py_tp_str, reinterpret_cast<void*>(DTypeStr)},
+        {Py_tp_new, reinterpret_cast<void*>(DTypeNew)},
+        {0, nullptr},
+    };
+    PyType_Spec spec = {
+        /*.name=*/name,
+        /*.basicsize=*/static_cast<int>(sizeof(_PyArray_LegacyDescr)),
+        /*.itemsize=*/0,
+        /*.flags=*/Py_TPFLAGS_DEFAULT | Py_TPFLAGS_IMMUTABLETYPE,
+        /*.slots=*/slots,
+    };
+    return reinterpret_cast<PyArray_DTypeMeta*>(
+        PyType_FromMetaclass(&PyArrayDTypeMeta_Type, /*module=*/nullptr, &spec,
+                             reinterpret_cast<PyObject*>(base_tp)));
+#else
+    PyErr_SetString(PyExc_RuntimeError,
+                    "Heap-allocated DType base requires Python >= 3.12");
+    return nullptr;
+#endif
+  }
+  auto* tp = reinterpret_cast<PyTypeObject*>(static_dm);
   tp->tp_name = name;
-  tp->tp_base = &PyArrayDescr_Type;
+  tp->tp_base = base_tp;
   tp->tp_flags = Py_TPFLAGS_DEFAULT;
   tp->tp_basicsize = sizeof(_PyArray_LegacyDescr);
   tp->tp_repr = DTypeRepr;
   tp->tp_str = DTypeStr;
-  return PyType_Ready(tp) >= 0;
+  tp->tp_new = DTypeNew;
+  if (PyType_Ready(tp) < 0) {
+    return nullptr;
+  }
+  return static_dm;
 }
 
 // Native descriptors retain their metadata; swapped descriptors normalize

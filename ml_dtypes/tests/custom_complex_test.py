@@ -652,3 +652,16 @@ def test_accumulate_with_output_dtype(sctype):
 def test_zero_size_reduction(sctype, op, expected):
   x = np.array([], dtype=sctype)
   np.testing.assert_equal(op.reduce(x), sctype(expected))
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_multi_axis_reduction_and_byteswap(sctype):
+  x = np.array([[1 + 2j, 3 - 1j], [-1 + 0j, 2 + 1j]], dtype=sctype)
+  res = np.sum(x)
+  assert res.dtype == np.dtype(sctype)
+  np.testing.assert_equal(res, sctype(np.sum(x.astype(np.complex64))))
+
+  x_swapped = x.byteswap().view(x.dtype.newbyteorder())
+  res_swapped = x_swapped + x
+  assert res_swapped.dtype == np.dtype(sctype)
+  np.testing.assert_array_equal(res_swapped, x + x)

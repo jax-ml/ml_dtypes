@@ -405,11 +405,7 @@ def test_custom_float_array_with_python_int(float_t, scalar, reverse):
   array = np.ones((2, 3), dtype=float_t)
   args = (scalar, array) if reverse else (array, scalar)
   result = np.add(*args)
-  expected_dtypes = [np.dtype(float_t)]
-  if _NUMPY_LT_2_6:
-    # NumPy 2.0's legacy ufunc resolver can select float32 instead.
-    expected_dtypes.append(np.dtype(np.float32))
-  assert result.dtype in expected_dtypes
+  assert result.dtype == np.dtype(float_t)
   np.testing.assert_array_equal(
       result.astype(np.float32), result.dtype.type(1 + scalar)
   )
@@ -508,8 +504,7 @@ def test_promoted_custom_pairs_support_array_operations(a, b):
   assert np.can_cast(b, common, casting="safe")
   arrays = [np.ones(2, dtype=a), np.ones(2, dtype=b)]
   assert np.concatenate(arrays).dtype == common
-  # Legacy loop selection can disagree with CommonDType; request it explicitly.
-  result = np.add(*arrays, dtype=common)
+  result = np.add(*arrays)
   assert result.dtype == common
   if common.kind == "c" or common.type in CUSTOM_COMPLEX:
     reference = np.complex128
@@ -531,13 +526,14 @@ def test_promoted_custom_pairs_support_array_operations(a, b):
         (f8_e4m3, f8_e4m3fn, np.float32),
         (f8_e4m3fn, f8_e4m3, np.float32),
         (f8_e3m4, f8_e5m2, np.float32),
-        (i2, i4, i4),
+        (i2, i4, np.int8),
+        (u2, u4, np.uint8),
+        (i2, u2, np.int8),
     ],
 )
-def test_legacy_ufunc_loop_selection(a, b, expected):
-  # Legacy loop selection checks safe casts in registration order rather than
-  # CommonDType, so int2 + int4 still selects int4 instead of int8.
+def test_ufunc_loop_selection_matches_result_type(a, b, expected):
   assert np.add(np.ones(2, a), np.ones(2, b)).dtype == np.dtype(expected)
+  assert np.add(np.ones(2, b), np.ones(2, a)).dtype == np.dtype(expected)
 
 
 @pytest.mark.parametrize("float_t", CUSTOM_FLOATS, ids=lambda t: t.__name__)
@@ -552,12 +548,10 @@ def test_custom_float_with_float16_array_operations(float_t):
 @pytest.mark.parametrize("float_t", CUSTOM_FLOATS, ids=lambda t: t.__name__)
 @pytest.mark.parametrize("reverse", [False, True])
 def test_custom_float_array_with_python_float(float_t, reverse):
-  # NumPy < 2.6 probes float16 before deferring to the custom DType.
   array = np.ones((2, 3), dtype=float_t)
   args = (1.0, array) if reverse else (array, 1.0)
   result = np.add(*args)
-  expected = np.float32 if _NUMPY_LT_2_6 else float_t
-  assert result.dtype == np.dtype(expected)
+  assert result.dtype == np.dtype(float_t)
   np.testing.assert_array_equal(result, 2)
 
 
@@ -733,3 +727,70 @@ def test_containing_bfloat16_argument_permutations_with_four_inputs(
   operands = [operand(dtype, form) for dtype in dtypes]
   for args in itertools.permutations(operands):
     assert np.result_type(*args) == np.dtype(bf16)
+
+
+@pytest.mark.parametrize(
+    "custom_types, reference_dtype",
+    [
+        (CUSTOM_FLOATS, np.float32),
+        ([i1, i2, i4], np.int32),
+        ([u1, u2, u4], np.uint32),
+        (CUSTOM_COMPLEX, np.complex64),
+    ],
+)
+def test_dtype_meta_abstract_base_classes(custom_types, reference_dtype):
+  expected_bases = type(np.dtype(reference_dtype)).__bases__
+  for custom_type in custom_types:
+    dtype_cls = type(np.dtype(custom_type))
+    assert dtype_cls.__bases__ == expected_bases
+    assert dtype_cls.__module__ == "ml_dtypes"
+    assert dtype_cls.__name__ == custom_type.__name__
+    assert dtype_cls() == np.dtype(custom_type)
+    assert dtype_cls.__new__(dtype_cls) == np.dtype(custom_type)
+    with pytest.raises(TypeError):
+      dtype_cls(custom_type)
+
+
+@pytest.mark.skipif(
+    not hasattr(np.dtypes, "FloatingAbstractDType"),
+    reason="np.isdtype abstract DType hierarchy requires NumPy >= 2.6",
+)
+@pytest.mark.parametrize(
+    "custom_types, true_kinds",
+    [
+        (CUSTOM_FLOATS, {"real floating", "numeric"}),
+        ([i1, i2, i4], {"signed integer", "integral", "numeric"}),
+        ([u1, u2, u4], {"unsigned integer", "integral", "numeric"}),
+        (CUSTOM_COMPLEX, {"complex floating", "numeric"}),
+    ],
+)
+def test_isdtype_abstract_hierarchy(custom_types, true_kinds):
+  all_kinds = (
+      "bool",
+      "signed integer",
+      "unsigned integer",
+      "integral",
+      "real floating",
+      "complex floating",
+      "numeric",
+  )
+  for custom_type in custom_types:
+    for arg in (custom_type, np.dtype(custom_type)):
+      for kind in all_kinds:
+        assert np.isdtype(arg, kind) == (kind in true_kinds)
+
+
+def test_ufunc_promoters_with_forced_dtype_and_stringdtype():
+  x = np.array([1.5, 2.5], dtype=bf16)
+  out = np.add(x, x, dtype=np.float32)
+  assert out.dtype == np.dtype(np.float32)
+  np.testing.assert_array_equal(out, np.array([3.0, 5.0], dtype=np.float32))
+
+  assert np.ldexp(ml_dtypes.int4(1), ml_dtypes.int4(2)) == np.float16(4.0)
+
+  s = np.array(["ab", "c"], dtype=np.dtypes.StringDType())
+  n = np.array([2, 3], dtype=ml_dtypes.int4)
+  with pytest.raises(TypeError):
+    _ = s + n
+  with pytest.raises(TypeError):
+    _ = s * n
