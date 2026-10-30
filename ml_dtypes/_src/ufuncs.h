@@ -17,6 +17,7 @@ limitations under the License.
 #define ML_DTYPES_UFUNCS_H_
 
 #include <array>
+#include <cfenv>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -207,8 +208,7 @@ struct FloorDivide {
             std::enable_if_t<std::numeric_limits<U>::is_integer, bool> = true>
   T operator()(T x, T y) {
     if (y == T(0)) {
-      PyErr_WarnEx(PyExc_RuntimeWarning,
-                   "divide by zero encountered in floor_divide", 1);
+      std::feraiseexcept(FE_DIVBYZERO);
       return T(0);
     }
     T v = x / y;
@@ -229,8 +229,7 @@ struct Remainder {
             std::enable_if_t<std::numeric_limits<U>::is_integer, bool> = true>
   T operator()(T x, T y) {
     if (y == 0) {
-      PyErr_WarnEx(PyExc_RuntimeWarning,
-                   "divide by zero encountered in remainder", 1);
+      std::feraiseexcept(FE_DIVBYZERO);
       return T(0);
     }
     T v = x % y;
