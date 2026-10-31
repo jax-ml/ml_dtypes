@@ -53,4 +53,28 @@ endif()
 
 set_target_properties(_ml_dtypes_ext PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
+# Compile-only guard against Python/NumPy deps in include/complex_types.h.
+add_library(ml_dtypes_standalone_check OBJECT
+    ml_dtypes/tests/complex_types_standalone_check.cc
+)
+target_include_directories(ml_dtypes_standalone_check PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(ml_dtypes_standalone_check PRIVATE Eigen3::Eigen)
+set_target_properties(ml_dtypes_standalone_check PROPERTIES
+    CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON
+)
+if(MSVC)
+    target_compile_options(ml_dtypes_standalone_check PRIVATE
+        /std:c++17
+        /DEIGEN_MPL2_ONLY
+        /EHsc
+    )
+else()
+    target_compile_options(ml_dtypes_standalone_check PRIVATE
+        -std=c++17
+        -DEIGEN_MPL2_ONLY
+    )
+endif()
+
 install(TARGETS _ml_dtypes_ext DESTINATION ml_dtypes)
