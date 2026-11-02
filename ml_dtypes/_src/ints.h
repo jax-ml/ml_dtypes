@@ -107,23 +107,23 @@ struct CustomIntType {
   static PyArray_Descr* npy_descr;
 
   // DType class populated during registration.
-  static PyArray_DTypeMeta dtype_meta;
+  static PyArray_DTypeMeta* dtype_meta;
 };
 
 // Returns true if meta is one of our custom integer DTypes.
 inline bool IsCustomIntDType(const PyArray_DTypeMeta* meta) {
-  return meta == &CustomIntType<int1>::dtype_meta ||
-         meta == &CustomIntType<uint1>::dtype_meta ||
-         meta == &CustomIntType<int2>::dtype_meta ||
-         meta == &CustomIntType<uint2>::dtype_meta ||
-         meta == &CustomIntType<int4>::dtype_meta ||
-         meta == &CustomIntType<uint4>::dtype_meta;
+  return meta == CustomIntType<int1>::dtype_meta ||
+         meta == CustomIntType<uint1>::dtype_meta ||
+         meta == CustomIntType<int2>::dtype_meta ||
+         meta == CustomIntType<uint2>::dtype_meta ||
+         meta == CustomIntType<int4>::dtype_meta ||
+         meta == CustomIntType<uint4>::dtype_meta;
 }
 
 inline bool IsUnsignedCustomIntDType(const PyArray_DTypeMeta* meta) {
-  return meta == &CustomIntType<uint1>::dtype_meta ||
-         meta == &CustomIntType<uint2>::dtype_meta ||
-         meta == &CustomIntType<uint4>::dtype_meta;
+  return meta == CustomIntType<uint1>::dtype_meta ||
+         meta == CustomIntType<uint2>::dtype_meta ||
+         meta == CustomIntType<uint4>::dtype_meta;
 }
 
 // All intN values fit exactly when the float has enough precision and range.
@@ -142,26 +142,24 @@ inline constexpr bool IntNSafeToFloat() {
 
 template <typename Float>
 inline bool CustomIntSafeToFloat(const PyArray_DTypeMeta* meta) {
-  return (meta == &CustomIntType<int1>::dtype_meta &&
+  return (meta == CustomIntType<int1>::dtype_meta &&
           IntNSafeToFloat<int1, Float>()) ||
-         (meta == &CustomIntType<int2>::dtype_meta &&
+         (meta == CustomIntType<int2>::dtype_meta &&
           IntNSafeToFloat<int2, Float>()) ||
-         (meta == &CustomIntType<int4>::dtype_meta &&
+         (meta == CustomIntType<int4>::dtype_meta &&
           IntNSafeToFloat<int4, Float>()) ||
-         (meta == &CustomIntType<uint1>::dtype_meta &&
+         (meta == CustomIntType<uint1>::dtype_meta &&
           IntNSafeToFloat<uint1, Float>()) ||
-         (meta == &CustomIntType<uint2>::dtype_meta &&
+         (meta == CustomIntType<uint2>::dtype_meta &&
           IntNSafeToFloat<uint2, Float>()) ||
-         (meta == &CustomIntType<uint4>::dtype_meta &&
+         (meta == CustomIntType<uint4>::dtype_meta &&
           IntNSafeToFloat<uint4, Float>());
 }
 
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_intn_v<T>>> {
   static int Dtype() { return CustomIntType<T>::Dtype(); }
-  static PyArray_DTypeMeta* DTypeMeta() {
-    return &CustomIntType<T>::dtype_meta;
-  }
+  static PyArray_DTypeMeta* DTypeMeta() { return CustomIntType<T>::dtype_meta; }
 };
 
 bool RegisterCustomInts(PyObject* numpy);

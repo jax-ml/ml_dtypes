@@ -51,7 +51,7 @@ PyObject* CustomComplexType<T>::type_ptr = nullptr;
 template <typename T>
 PyArray_Descr* CustomComplexType<T>::npy_descr = nullptr;
 template <typename T>
-PyArray_DTypeMeta CustomComplexType<T>::dtype_meta = {};
+PyArray_DTypeMeta* CustomComplexType<T>::dtype_meta = nullptr;
 
 namespace {
 
@@ -748,78 +748,69 @@ int NPyCustomComplex_CompareFunc(const void* v1, const void* v2, void* arr) {
 template <typename T>
 bool RegisterComplexUFuncs(PyObject* numpy) {
   bool ok =
-      RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>, T>(numpy, "add") &&
-      RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>, T>(numpy,
-                                                            "subtract") &&
-      RegisterUFunc<UFunc<ufuncs::Multiply<T>, T, T, T>, T>(numpy,
-                                                            "multiply") &&
-      RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>, T>(numpy,
-                                                              "divide") &&
-      RegisterUFunc<UFunc<ufuncs::Negative<T>, T, T>, T>(numpy, "negative") &&
-      RegisterUFunc<UFunc<ufuncs::Positive<T>, T, T>, T>(numpy, "positive") &&
-      RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>, T>(numpy,
-                                                              "true_divide") &&
-      RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy, "power") &&
-      RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>, T>(numpy,
-                                                         "float_power") &&
-      RegisterUFunc<UFunc<ufuncs::Abs<T>, typename T::value_type, T>, T>(
+      RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>>(numpy, "add") &&
+      RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>>(numpy, "subtract") &&
+      RegisterUFunc<UFunc<ufuncs::Multiply<T>, T, T, T>>(numpy, "multiply") &&
+      RegisterUFunc<UFunc<ufuncs::TrueDivide<T>, T, T, T>>(numpy, "divide") &&
+      RegisterUFunc<UFunc<ufuncs::Negative<T>, T, T>>(numpy, "negative") &&
+      RegisterUFunc<UFunc<ufuncs::Positive<T>, T, T>>(numpy, "positive") &&
+      RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>>(numpy, "power") &&
+      RegisterUFunc<UFunc<ufuncs::Power<T>, T, T, T>>(numpy, "float_power") &&
+      RegisterUFunc<UFunc<ufuncs::Abs<T>, typename T::value_type, T>>(
           numpy, "absolute") &&
-      RegisterUFunc<UFunc<ufuncs::Rint<T>, T, T>, T>(numpy, "rint") &&
+      RegisterUFunc<UFunc<ufuncs::Rint<T>, T, T>>(numpy, "rint") &&
       // NumPy defines the complex signum as z/|z|.
-      RegisterUFunc<UFunc<ufuncs::Sign<T>, T, T>, T>(numpy, "sign") &&
-      RegisterUFunc<UFunc<ufuncs::Conjugate<T>, T, T>, T>(numpy, "conjugate") &&
-      RegisterUFunc<UFunc<ufuncs::Exp<T>, T, T>, T>(numpy, "exp") &&
-      RegisterUFunc<UFunc<ufuncs::Exp2<T>, T, T>, T>(numpy, "exp2") &&
-      RegisterUFunc<UFunc<ufuncs::Expm1<T>, T, T>, T>(numpy, "expm1") &&
-      RegisterUFunc<UFunc<ufuncs::Log<T>, T, T>, T>(numpy, "log") &&
-      RegisterUFunc<UFunc<ufuncs::Log2<T>, T, T>, T>(numpy, "log2") &&
-      RegisterUFunc<UFunc<ufuncs::Log10<T>, T, T>, T>(numpy, "log10") &&
-      RegisterUFunc<UFunc<ufuncs::Log1p<T>, T, T>, T>(numpy, "log1p") &&
-      RegisterUFunc<UFunc<ufuncs::Sqrt<T>, T, T>, T>(numpy, "sqrt") &&
-      RegisterUFunc<UFunc<ufuncs::Square<T>, T, T>, T>(numpy, "square") &&
-      RegisterUFunc<UFunc<ufuncs::Reciprocal<T>, T, T>, T>(numpy,
-                                                           "reciprocal") &&
+      RegisterUFunc<UFunc<ufuncs::Sign<T>, T, T>>(numpy, "sign") &&
+      RegisterUFunc<UFunc<ufuncs::Conjugate<T>, T, T>>(numpy, "conjugate") &&
+      RegisterUFunc<UFunc<ufuncs::Exp<T>, T, T>>(numpy, "exp") &&
+      RegisterUFunc<UFunc<ufuncs::Exp2<T>, T, T>>(numpy, "exp2") &&
+      RegisterUFunc<UFunc<ufuncs::Expm1<T>, T, T>>(numpy, "expm1") &&
+      RegisterUFunc<UFunc<ufuncs::Log<T>, T, T>>(numpy, "log") &&
+      RegisterUFunc<UFunc<ufuncs::Log2<T>, T, T>>(numpy, "log2") &&
+      RegisterUFunc<UFunc<ufuncs::Log10<T>, T, T>>(numpy, "log10") &&
+      RegisterUFunc<UFunc<ufuncs::Log1p<T>, T, T>>(numpy, "log1p") &&
+      RegisterUFunc<UFunc<ufuncs::Sqrt<T>, T, T>>(numpy, "sqrt") &&
+      RegisterUFunc<UFunc<ufuncs::Square<T>, T, T>>(numpy, "square") &&
+      RegisterUFunc<UFunc<ufuncs::Reciprocal<T>, T, T>>(numpy, "reciprocal") &&
 
       // Trigonometric functions
-      RegisterUFunc<UFunc<ufuncs::Sin<T>, T, T>, T>(numpy, "sin") &&
-      RegisterUFunc<UFunc<ufuncs::Cos<T>, T, T>, T>(numpy, "cos") &&
-      RegisterUFunc<UFunc<ufuncs::Tan<T>, T, T>, T>(numpy, "tan") &&
-      RegisterUFunc<UFunc<ufuncs::Arcsin<T>, T, T>, T>(numpy, "arcsin") &&
-      RegisterUFunc<UFunc<ufuncs::Arccos<T>, T, T>, T>(numpy, "arccos") &&
-      RegisterUFunc<UFunc<ufuncs::Arctan<T>, T, T>, T>(numpy, "arctan") &&
-      RegisterUFunc<UFunc<ufuncs::Sinh<T>, T, T>, T>(numpy, "sinh") &&
-      RegisterUFunc<UFunc<ufuncs::Cosh<T>, T, T>, T>(numpy, "cosh") &&
-      RegisterUFunc<UFunc<ufuncs::Tanh<T>, T, T>, T>(numpy, "tanh") &&
-      RegisterUFunc<UFunc<ufuncs::Arcsinh<T>, T, T>, T>(numpy, "arcsinh") &&
-      RegisterUFunc<UFunc<ufuncs::Arccosh<T>, T, T>, T>(numpy, "arccosh") &&
-      RegisterUFunc<UFunc<ufuncs::Arctanh<T>, T, T>, T>(numpy, "arctanh") &&
+      RegisterUFunc<UFunc<ufuncs::Sin<T>, T, T>>(numpy, "sin") &&
+      RegisterUFunc<UFunc<ufuncs::Cos<T>, T, T>>(numpy, "cos") &&
+      RegisterUFunc<UFunc<ufuncs::Tan<T>, T, T>>(numpy, "tan") &&
+      RegisterUFunc<UFunc<ufuncs::Arcsin<T>, T, T>>(numpy, "arcsin") &&
+      RegisterUFunc<UFunc<ufuncs::Arccos<T>, T, T>>(numpy, "arccos") &&
+      RegisterUFunc<UFunc<ufuncs::Arctan<T>, T, T>>(numpy, "arctan") &&
+      RegisterUFunc<UFunc<ufuncs::Sinh<T>, T, T>>(numpy, "sinh") &&
+      RegisterUFunc<UFunc<ufuncs::Cosh<T>, T, T>>(numpy, "cosh") &&
+      RegisterUFunc<UFunc<ufuncs::Tanh<T>, T, T>>(numpy, "tanh") &&
+      RegisterUFunc<UFunc<ufuncs::Arcsinh<T>, T, T>>(numpy, "arcsinh") &&
+      RegisterUFunc<UFunc<ufuncs::Arccosh<T>, T, T>>(numpy, "arccosh") &&
+      RegisterUFunc<UFunc<ufuncs::Arctanh<T>, T, T>>(numpy, "arctanh") &&
 
       // Comparison functions
-      RegisterUFunc<UFunc<ufuncs::Eq<T>, bool, T, T>, T>(numpy, "equal") &&
-      RegisterUFunc<UFunc<ufuncs::Ne<T>, bool, T, T>, T>(numpy, "not_equal") &&
-      RegisterUFunc<UFunc<ufuncs::Lt<T>, bool, T, T>, T>(numpy, "less") &&
-      RegisterUFunc<UFunc<ufuncs::Gt<T>, bool, T, T>, T>(numpy, "greater") &&
-      RegisterUFunc<UFunc<ufuncs::Le<T>, bool, T, T>, T>(numpy, "less_equal") &&
-      RegisterUFunc<UFunc<ufuncs::Ge<T>, bool, T, T>, T>(numpy,
-                                                         "greater_equal") &&
-      RegisterUFunc<UFunc<ufuncs::Maximum<T>, T, T, T>, T>(numpy, "maximum") &&
-      RegisterUFunc<UFunc<ufuncs::Minimum<T>, T, T, T>, T>(numpy, "minimum") &&
-      RegisterUFunc<UFunc<ufuncs::Fmax<T>, T, T, T>, T>(numpy, "fmax") &&
-      RegisterUFunc<UFunc<ufuncs::Fmin<T>, T, T, T>, T>(numpy, "fmin") &&
-      RegisterUFunc<UFunc<ufuncs::LogicalAnd<T>, bool, T, T>, T>(
-          numpy, "logical_and") &&
-      RegisterUFunc<UFunc<ufuncs::LogicalOr<T>, bool, T, T>, T>(numpy,
-                                                                "logical_or") &&
-      RegisterUFunc<UFunc<ufuncs::LogicalXor<T>, bool, T, T>, T>(
-          numpy, "logical_xor") &&
-      RegisterUFunc<UFunc<ufuncs::LogicalNot<T>, bool, T>, T>(numpy,
-                                                              "logical_not") &&
+      RegisterUFunc<UFunc<ufuncs::Eq<T>, bool, T, T>>(numpy, "equal") &&
+      RegisterUFunc<UFunc<ufuncs::Ne<T>, bool, T, T>>(numpy, "not_equal") &&
+      RegisterUFunc<UFunc<ufuncs::Lt<T>, bool, T, T>>(numpy, "less") &&
+      RegisterUFunc<UFunc<ufuncs::Gt<T>, bool, T, T>>(numpy, "greater") &&
+      RegisterUFunc<UFunc<ufuncs::Le<T>, bool, T, T>>(numpy, "less_equal") &&
+      RegisterUFunc<UFunc<ufuncs::Ge<T>, bool, T, T>>(numpy, "greater_equal") &&
+      RegisterUFunc<UFunc<ufuncs::Maximum<T>, T, T, T>>(numpy, "maximum") &&
+      RegisterUFunc<UFunc<ufuncs::Minimum<T>, T, T, T>>(numpy, "minimum") &&
+      RegisterUFunc<UFunc<ufuncs::Fmax<T>, T, T, T>>(numpy, "fmax") &&
+      RegisterUFunc<UFunc<ufuncs::Fmin<T>, T, T, T>>(numpy, "fmin") &&
+      RegisterUFunc<UFunc<ufuncs::LogicalAnd<T>, bool, T, T>>(numpy,
+                                                              "logical_and") &&
+      RegisterUFunc<UFunc<ufuncs::LogicalOr<T>, bool, T, T>>(numpy,
+                                                             "logical_or") &&
+      RegisterUFunc<UFunc<ufuncs::LogicalXor<T>, bool, T, T>>(numpy,
+                                                              "logical_xor") &&
+      RegisterUFunc<UFunc<ufuncs::LogicalNot<T>, bool, T>>(numpy,
+                                                           "logical_not") &&
 
       // Floating point functions
-      RegisterUFunc<UFunc<ufuncs::IsFinite<T>, bool, T>, T>(numpy,
-                                                            "isfinite") &&
-      RegisterUFunc<UFunc<ufuncs::IsInf<T>, bool, T>, T>(numpy, "isinf") &&
-      RegisterUFunc<UFunc<ufuncs::IsNan<T>, bool, T>, T>(numpy, "isnan");
+      RegisterUFunc<UFunc<ufuncs::IsFinite<T>, bool, T>>(numpy, "isfinite") &&
+      RegisterUFunc<UFunc<ufuncs::IsInf<T>, bool, T>>(numpy, "isinf") &&
+      RegisterUFunc<UFunc<ufuncs::IsNan<T>, bool, T>>(numpy, "isnan");
 
   return ok;
 }
@@ -1065,10 +1056,14 @@ bool RegisterComplexDtype(PyObject* numpy) {
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
-  PyArray_DTypeMeta& dm = CustomComplexType<T>::dtype_meta;
-  if (!InitDTypeMeta(&dm, CustomComplexTraits<T>::kTypeName)) {
+  static PyArray_DTypeMeta static_dtype_meta = {};
+  PyArray_DTypeMeta* dm = InitDTypeMeta(
+      &static_dtype_meta, CustomComplexTraits<T>::kQualifiedTypeName,
+      &PyArray_ComplexAbstractDType);
+  if (!dm) {
     return false;
   }
+  CustomComplexType<T>::dtype_meta = dm;
 
   PyType_Slot dtype_slots[] = {
       {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
@@ -1082,11 +1077,11 @@ bool RegisterComplexDtype(PyObject* numpy) {
        reinterpret_cast<void*>(NPyCustomComplex_CommonDType<T>)},
       {0, nullptr}};
   CastSpecList cast_specs = BuildCastSpecs<T>();
-  if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
-                         dtype_slots, cast_specs.specs()) < 0) {
+  if (InitDTypeFromSlots(dm, reinterpret_cast<PyTypeObject*>(type), dtype_slots,
+                         cast_specs.specs()) < 0) {
     return false;
   }
-  CustomComplexType<T>::npy_type = dm.type_num;
+  CustomComplexType<T>::npy_type = dm->type_num;
 
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.

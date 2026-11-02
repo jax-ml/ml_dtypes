@@ -443,6 +443,59 @@ class ArrayTest(parameterized.TestCase):
       with self.subTest(op.__name__):
         np.testing.assert_equal(op.reduce(x), scalar_type(expected))
 
+  @parameterized.parameters(INTN_TYPES)
+  def testMultiAxisReductions(self, scalar_type):
+    if scalar_type == int1:
+      vals = [-1, 0]
+    elif scalar_type == uint1:
+      vals = [0, 1]
+    else:
+      vals = [1, 1]
+    x = np.array([vals, vals], dtype=scalar_type)
+    for op in [np.add, np.multiply]:
+      res = op.reduce(x, axis=(0, 1))
+      self.assertEqual(res.dtype, np.dtype(scalar_type))
+      expected = np.asarray(op.reduce(x.astype(np.int32), axis=(0, 1))).astype(
+          scalar_type
+      )[()]
+      np.testing.assert_equal(res, expected)
+
+  @parameterized.parameters(INTN_TYPES)
+  def testDivideByZeroWarningAsError(self, scalar_type):
+    val = -1 if scalar_type is int1 else 1
+    x = np.array([val, val], dtype=scalar_type)
+    zero = np.array([0, 0], dtype=scalar_type)
+    for op in [np.floor_divide, np.remainder]:
+      with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", RuntimeWarning)
+        with np.errstate(divide="warn"):
+          np.testing.assert_array_equal(
+              op(x, zero), np.zeros(2, dtype=scalar_type)
+          )
+      self.assertLen(caught, 1)
+
+      with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with np.errstate(divide="ignore"):
+          np.testing.assert_array_equal(
+              op(x, zero), np.zeros(2, dtype=scalar_type)
+          )
+        with np.errstate(divide="warn"):
+          with self.assertRaises(RuntimeWarning):
+            _ = op(x, zero)
+
+      with np.errstate(divide="raise"):
+        with self.assertRaises(FloatingPointError):
+          _ = op(x, zero)
+
+  @parameterized.parameters(INTN_TYPES)
+  def testPythonIntOutOfBoundsComparison(self, scalar_type):
+    x = np.array(VALUES[scalar_type], dtype=scalar_type)
+    self.assertFalse(np.any(x == 1000))
+    self.assertTrue(np.all(x != 1000))
+    self.assertTrue(np.all(x < 1000))
+    self.assertTrue(np.all(1000 > x))
+
 
 if __name__ == "__main__":
   absltest.main()

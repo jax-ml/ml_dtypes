@@ -439,7 +439,7 @@ template <typename Self, typename Other>
 void AddCustomCastsForOne(CastSpecList& list) {
   if constexpr (!std::is_same_v<Self, Other>) {
     PyArray_DTypeMeta* other_dm = DtypeTraits<Other>::DTypeMeta();
-    if (other_dm->singleton == nullptr) {
+    if (other_dm == nullptr || other_dm->singleton == nullptr) {
       return;
     }
     AddCast<Self, Other>(list, "ml_dtypes_custom_cast", /*from=*/nullptr,

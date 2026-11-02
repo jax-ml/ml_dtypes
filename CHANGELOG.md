@@ -23,6 +23,22 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Migrated custom dtype ufuncs to NumPy 2 `ArrayMethod`s and promoters
+  ([#424](https://github.com/jax-ml/ml_dtypes/pull/424)):
+  * Mixed operations between `ml_dtypes` arrays or scalars and Python scalars
+    (`int`, `float`, `complex`) now follow NumPy 2 (NEP 50) weak promotion rules
+    instead of upcasting custom floating-point values to `float64` or
+    `complex128`. Notably, arithmetic such as `bfloat16(2.0) + 1e-3` stays in
+    `bfloat16`, and comparing a finite-only or unsigned custom float against an
+    out-of-range Python float converts the Python float to the custom dtype
+    first (for example, `float8_e4m3fn(448.0) < 1000.0` returns `False` because
+    `float8_e4m3fn(1000.0)` overflows to `NaN`; explicitly cast via
+    `float(x) < 1000.0` when comparing against wider bounds).
+  * Multi-axis and empty-array ufunc reductions now work across custom float,
+    integer, and complex dtypes.
+  * Integer floor division and remainder by zero now set floating-point status
+    flags respected by `np.errstate`, and `np.ldexp` supports 64-bit integer
+    exponents across platforms.
 * Migrated cross-dtype casts to NumPy 2 `ArrayMethod`s
   ([#418](https://github.com/jax-ml/ml_dtypes/pull/418)):
   * Fixed `np.can_cast` so lossy casts between same-size custom dtypes (such as

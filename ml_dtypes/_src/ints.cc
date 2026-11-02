@@ -43,7 +43,7 @@ PyObject* CustomIntType<T>::type_ptr = nullptr;
 template <typename T>
 PyArray_Descr* CustomIntType<T>::npy_descr = nullptr;
 template <typename T>
-PyArray_DTypeMeta CustomIntType<T>::dtype_meta = {};
+PyArray_DTypeMeta* CustomIntType<T>::dtype_meta = nullptr;
 
 namespace {
 
@@ -602,15 +602,13 @@ int NPyIntN_ArgMinFunc(void* data, npy_intp n, npy_intp* min_ind, void* arr) {
 
 template <typename T>
 bool RegisterIntNUFuncs(PyObject* numpy) {
-  bool ok = RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>, T>(numpy, "add") &&
-            RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>, T>(numpy,
-                                                                  "subtract") &&
-            RegisterUFunc<UFunc<ufuncs::Multiply<T>, T, T, T>, T>(numpy,
-                                                                  "multiply") &&
-            RegisterUFunc<UFunc<ufuncs::FloorDivide<T>, T, T, T>, T>(
-                numpy, "floor_divide") &&
-            RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>, T>(numpy,
-                                                                   "remainder");
+  bool ok =
+      RegisterUFunc<UFunc<ufuncs::Add<T>, T, T, T>>(numpy, "add") &&
+      RegisterUFunc<UFunc<ufuncs::Subtract<T>, T, T, T>>(numpy, "subtract") &&
+      RegisterUFunc<UFunc<ufuncs::Multiply<T>, T, T, T>>(numpy, "multiply") &&
+      RegisterUFunc<UFunc<ufuncs::FloorDivide<T>, T, T, T>>(numpy,
+                                                            "floor_divide") &&
+      RegisterUFunc<UFunc<ufuncs::Remainder<T>, T, T, T>>(numpy, "remainder");
 
   return ok;
 }
@@ -726,10 +724,21 @@ bool RegisterIntNDtype(PyObject* numpy) {
   Py_SET_TYPE(&descr_proto, &PyArrayDescr_Type);
   descr_proto.typeobj = reinterpret_cast<PyTypeObject*>(type);
 
-  PyArray_DTypeMeta& dm = CustomIntType<T>::dtype_meta;
-  if (!InitDTypeMeta(&dm, CustomIntTraits<T>::kTypeName)) {
+  // Use the same abstract base as built-in signed/unsigned integer DTypes
+  // (`_IntegerAbstractDType` on NumPy < 2.6, `SignedIntegerAbstractDType` or
+  // `UnsignedIntegerAbstractDType` on NumPy >= 2.6).
+  PyArray_DTypeMeta* base_dtype = reinterpret_cast<PyArray_DTypeMeta*>(
+      reinterpret_cast<PyTypeObject*>(std::numeric_limits<T>::is_signed
+                                          ? &PyArray_IntDType
+                                          : &PyArray_UIntDType)
+          ->tp_base);
+  static PyArray_DTypeMeta static_dtype_meta = {};
+  PyArray_DTypeMeta* dm = InitDTypeMeta(
+      &static_dtype_meta, CustomIntTraits<T>::kQualifiedTypeName, base_dtype);
+  if (!dm) {
     return false;
   }
+  CustomIntType<T>::dtype_meta = dm;
 
   PyType_Slot dtype_slots[] = {
       {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
@@ -740,11 +749,11 @@ bool RegisterIntNDtype(PyObject* numpy) {
       {NPY_DT_common_dtype, reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
       {0, nullptr}};
   CastSpecList cast_specs = BuildCastSpecs<T>();
-  if (InitDTypeFromSlots(&dm, reinterpret_cast<PyTypeObject*>(type),
-                         dtype_slots, cast_specs.specs()) < 0) {
+  if (InitDTypeFromSlots(dm, reinterpret_cast<PyTypeObject*>(type), dtype_slots,
+                         cast_specs.specs()) < 0) {
     return false;
   }
-  CustomIntType<T>::npy_type = dm.type_num;
+  CustomIntType<T>::npy_type = dm->type_num;
 
   // TODO(phawkins): We intentionally leak the pointer to the descriptor.
   // Implement a better module destructor to handle this.

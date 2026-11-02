@@ -19,6 +19,7 @@ limitations under the License.
 #include "ml_dtypes/_src/floats.h"
 #include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
+#include "ml_dtypes/_src/ufuncs.h"
 
 namespace ml_dtypes {
 
@@ -46,7 +47,8 @@ bool Initialize() {
   }
 
   return RegisterCustomFloats(numpy.get()) && RegisterCustomInts(numpy.get()) &&
-         RegisterCustomComplex(numpy.get());
+         RegisterCustomComplex(numpy.get()) &&
+         RegisterUFuncPromoters(numpy.get());
 }
 
 static PyModuleDef module_def = {

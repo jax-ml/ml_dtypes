@@ -189,7 +189,7 @@ struct CustomFloatType {
   static PyArray_Descr* npy_descr;
 
   // DType class populated during registration.
-  static PyArray_DTypeMeta dtype_meta;
+  static PyArray_DTypeMeta* dtype_meta;
 };
 
 template <typename T>
@@ -212,7 +212,7 @@ inline PyArray_DTypeMeta* CommonCustomFloatDTypeImpl(
 template <typename T, bool defer, typename OtherT, typename... Rest>
 inline PyArray_DTypeMeta* CommonCustomFloatDTypeImpl(PyArray_DTypeMeta* self,
                                                      PyArray_DTypeMeta* other) {
-  if (other != &CustomFloatType<OtherT>::dtype_meta) {
+  if (other != CustomFloatType<OtherT>::dtype_meta) {
     return CommonCustomFloatDTypeImpl<T, defer, Rest...>(self, other);
   }
   if constexpr (defer) {
@@ -252,7 +252,7 @@ template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
   static int Dtype() { return CustomFloatType<T>::Dtype(); }
   static PyArray_DTypeMeta* DTypeMeta() {
-    return &CustomFloatType<T>::dtype_meta;
+    return CustomFloatType<T>::dtype_meta;
   }
 };
 

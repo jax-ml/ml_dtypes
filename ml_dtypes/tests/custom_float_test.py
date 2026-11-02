@@ -1017,6 +1017,30 @@ class CustomFloatNumPyTest(parameterized.TestCase):
       with self.subTest(op.__name__):
         np.testing.assert_equal(op.reduce(x), float_type(expected))
 
+  def testMultiAxisReductions(self, float_type):
+    x = np.array([[1, 1], [2, 4]], dtype=float_type)
+    for fn in [np.sum, np.prod, np.amax, np.amin]:
+      res = fn(x)
+      self.assertEqual(res.dtype, np.dtype(float_type))
+      expected = float_type(fn(x.astype(np.float32)))
+      np.testing.assert_equal(res, expected)
+
+  def testUfuncByteSwappedAndUnaligned(self, float_type):
+    x = np.array([1, 2, 4], dtype=float_type)
+    y = np.array([2, 1, 2], dtype=float_type)
+    expected = x + y
+    if np.dtype(float_type).itemsize > 1:
+      x_swapped = x.byteswap().view(x.dtype.newbyteorder())
+      res_swapped = x_swapped + y
+      self.assertEqual(res_swapped.dtype, np.dtype(float_type))
+      np.testing.assert_array_equal(res_swapped, expected)
+    buf = bytearray(1 + x.nbytes)
+    x_unaligned = np.frombuffer(buf, dtype=float_type, count=x.size, offset=1)
+    x_unaligned[...] = x
+    res_unaligned = x_unaligned + y
+    self.assertEqual(res_unaligned.dtype, np.dtype(float_type))
+    np.testing.assert_array_equal(res_unaligned, expected)
+
   @ignore_warning(category=RuntimeWarning, message="invalid value encountered")
   def testPredicateUfunc(self, float_type):
     for op in [np.isfinite, np.isinf, np.isnan, np.signbit, np.logical_not]:
@@ -1134,10 +1158,25 @@ class CustomFloatNumPyTest(parameterized.TestCase):
 
   def testLdexpInt64(self, float_type):
     x = np.array([0.5, 1.0], dtype=float_type)
-    y = np.array([1, 2], dtype=np.int64)
-    np.testing.assert_array_equal(
-        np.ldexp(x, y), np.array([1.0, 4.0], dtype=float_type)
-    )
+    expected = np.array([1.0, 4.0], dtype=float_type)
+    exp_dtypes = [
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.intc,
+        np.int_,
+        np.longlong,
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uintc,
+    ]
+    if np.dtype(np.uint).itemsize <= 4:
+      exp_dtypes.append(np.uint)
+    for exp_dtype in exp_dtypes:
+      y = np.array([1, 2], dtype=exp_dtype)
+      np.testing.assert_array_equal(np.ldexp(x, y), expected)
 
   def testLdexpPythonInt(self, float_type):
     x = np.array([1.0, 2.0], dtype=float_type)
