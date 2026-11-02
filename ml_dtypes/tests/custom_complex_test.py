@@ -210,6 +210,71 @@ def test_complex_byteswap_round_trip(sctype):
   np.testing.assert_array_equal(swapped.astype(np.complex64), expected)
 
 
+@pytest.fixture
+def complex_sort_values():
+  return np.array(
+      [
+          complex(0, np.nan),
+          1 + 0j,
+          complex(np.nan, 1),
+          complex(np.nan, 0),
+          0 + 1j,
+          complex(np.nan, np.nan),
+          complex(-2, np.nan),
+          complex(3, np.nan),
+          complex(np.nan, -2),
+          -1 - 1j,
+          complex(-np.inf, 2),
+          complex(np.inf, -2),
+          1 + 0j,
+      ],
+      dtype=np.complex64,
+  )
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("kind", ["quicksort", "heapsort", "stable"])
+@pytest.mark.parametrize("strided", [False, True])
+def test_sort_nan_order(sctype, kind, strided, complex_sort_values):
+  x = np.stack([complex_sort_values, complex_sort_values[::-1]]).astype(sctype)
+  if strided:
+    x = x[:, ::-1]
+  expected = np.sort(x.astype(np.complex64), kind=kind)
+
+  result = np.sort(x, kind=kind)
+
+  assert result.dtype == sctype
+  # Compare components separately: a complex NaN must not hide its other part.
+  np.testing.assert_array_equal(result.astype(np.complex64).real, expected.real)
+  np.testing.assert_array_equal(result.astype(np.complex64).imag, expected.imag)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("strided", [False, True])
+def test_argsort_nan_order(sctype, strided, complex_sort_values):
+  x = complex_sort_values.astype(sctype)
+  if strided:
+    x = x[::-1]
+
+  np.testing.assert_array_equal(
+      np.argsort(x, kind="stable"),
+      np.argsort(x.astype(np.complex64), kind="stable"),
+  )
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_searchsorted_nan_order(sctype, side, complex_sort_values):
+  ordered = np.sort(complex_sort_values)
+
+  np.testing.assert_array_equal(
+      np.searchsorted(
+          ordered.astype(sctype), complex_sort_values.astype(sctype), side=side
+      ),
+      np.searchsorted(ordered, complex_sort_values, side=side),
+  )
+
+
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 @pytest.mark.skipif(
     np.lib.NumpyVersion(np.__version__) < "2.5.0",
