@@ -81,7 +81,7 @@ float CastToFloat(T value) {
 // `Eigen::half(float)` uses software bit manipulation instead of hardware FP16.
 half FloatToHalf(float value, bool& overflow) {
   const half result = static_cast<half>(value);
-  if (std::isfinite(value) && (Eigen::numext::isinf)(result)) {
+  if ((Eigen::numext::isinf)(result) && !(Eigen::numext::isinf)(value)) {
     overflow = true;
   }
   return result;
