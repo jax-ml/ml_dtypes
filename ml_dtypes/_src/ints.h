@@ -126,15 +126,18 @@ inline bool IsUnsignedCustomIntDType(const PyArray_DTypeMeta* meta) {
          meta == CustomIntType<uint4>::dtype_meta;
 }
 
-// All intN values fit exactly when the float has enough precision and range.
-// The exponent-only format cannot represent zero.
+// All intN values fit exactly when the float has zero, a sign if needed, enough
+// precision, a step of at most 1 (denorm_min <= 2^0), and enough range.
 template <typename Int, typename Float>
 inline constexpr bool IntNSafeToFloat() {
-  return (!std::numeric_limits<Int>::is_signed ||
+  return float8_internal::Traits<Float>::kHasZero &&
+         (!std::numeric_limits<Int>::is_signed ||
           std::numeric_limits<Float>::is_signed) &&
-         !std::is_same_v<Float, float8_e8m0fnu> &&
          std::numeric_limits<Float>::digits >=
              std::numeric_limits<Int>::digits &&
+         std::numeric_limits<Float>::min_exponent -
+                 std::numeric_limits<Float>::digits <=
+             0 &&
          std::numeric_limits<Float>::max_exponent >=
              std::numeric_limits<Int>::digits +
                  std::numeric_limits<Int>::is_signed;

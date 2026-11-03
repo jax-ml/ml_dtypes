@@ -154,8 +154,8 @@ template <typename Src, typename Dst>
 inline constexpr bool CustomFloatSafeTo() {
   return (!std::numeric_limits<Src>::is_signed ||
           std::numeric_limits<Dst>::is_signed) &&
-         (!std::is_same_v<Dst, float8_e8m0fnu> ||
-          std::is_same_v<Src, float8_e8m0fnu>) &&
+         (!float8_internal::Traits<Src>::kHasZero ||
+          float8_internal::Traits<Dst>::kHasZero) &&
          std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
          std::numeric_limits<Dst>::min_exponent -
                  std::numeric_limits<Dst>::digits <=
