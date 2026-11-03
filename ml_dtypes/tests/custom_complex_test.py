@@ -316,6 +316,116 @@ def test_comparisons(sctype, op, other):
   assert result == expected
 
 
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_casts_from_wide_floats_round_once(sctype):
+  # Values just below and above the midpoint between 1 and the next larger
+  # value of the component type. Rounding them to float32 first would produce
+  # the midpoint itself.
+  eps = float(ml_dtypes.finfo(sctype).eps)
+  midpoint = 1 + eps / 2
+  below, above = midpoint - 2**-40, midpoint + 2**-40
+  expected = complex(1, 1 + eps)
+  assert complex(sctype(complex(below, above))) == expected
+  assert complex(sctype(below, above)) == expected
+  assert complex(sctype(above)) == 1 + eps
+  for dtype in [np.complex128, np.clongdouble]:
+    x = np.array([complex(below, above)], dtype=dtype)
+    assert complex(x.astype(sctype)[0]) == expected
+    assert complex(sctype(x[0])) == expected
+  for dtype in [np.float64, np.longdouble]:
+    x = np.array([below, above], dtype=dtype)
+    np.testing.assert_array_equal(
+        x.astype(sctype).astype(np.complex128), [1, 1 + eps]
+    )
+    assert complex(sctype(x[1])) == 1 + eps
+    assert complex(sctype(x[0], x[1])) == expected
+
+  if np.finfo(np.longdouble).nmant > 52:
+    # Offsets below float64 precision collapse onto `midpoint` if narrowed
+    # through double before rounding to `sctype`.
+    delta_ld = np.longdouble(2) ** -60
+    below_ld = np.longdouble(midpoint) - delta_ld
+    above_ld = np.longdouble(midpoint) + delta_ld
+    assert np.float64(below_ld) == midpoint
+    assert np.float64(above_ld) == midpoint
+    x_ld = np.array([below_ld, above_ld], dtype=np.longdouble)
+    np.testing.assert_array_equal(
+        x_ld.astype(sctype).astype(np.complex128), [1, 1 + eps]
+    )
+    assert complex(sctype(below_ld)) == 1
+    assert complex(sctype(above_ld)) == 1 + eps
+    assert complex(sctype(below_ld, above_ld)) == expected
+    assert complex(sctype(above_ld, 0)) == 1 + eps
+    assert complex(sctype(0, above_ld)) == complex(0, 1 + eps)
+    z_ld = np.empty(1, dtype=np.clongdouble)
+    z_ld.real[0] = below_ld
+    z_ld.imag[0] = above_ld
+    assert complex(z_ld.astype(sctype)[0]) == expected
+    assert complex(sctype(z_ld[0])) == expected
+
+
+def test_bcomplex32_casts_from_wide_integers_round_once():
+  # 2**30 + 2**22 + 1 rounds to 2**30 + 2**22 as a float32, which is halfway
+  # between two bfloat16 values.
+  value = 2**30 + 2**22 + 1
+  expected = 2**30 + 2**23
+  assert complex(ml_dtypes.bcomplex32(value)) == expected
+  assert complex(ml_dtypes.bcomplex32(-value)) == -expected
+  assert complex(ml_dtypes.bcomplex32(value, -value)) == complex(
+      expected, -expected
+  )
+  assert complex(ml_dtypes.bcomplex32(np.int64(value))) == expected
+  assert complex(ml_dtypes.bcomplex32(np.int64(-value))) == -expected
+  for dtype in [np.int32, np.uint32, np.int64, np.uint64]:
+    x = np.array([value], dtype=dtype)
+    assert complex(x.astype(ml_dtypes.bcomplex32)[0]) == expected
+    assert complex(ml_dtypes.bcomplex32(x[0])) == expected
+    assert complex(ml_dtypes.bcomplex32(x[0], 0)) == expected
+    assert complex(ml_dtypes.bcomplex32(0, x[0])) == complex(0, expected)
+  for dtype in [np.int32, np.int64]:
+    x = np.array([-value], dtype=dtype)
+    assert complex(x.astype(ml_dtypes.bcomplex32)[0]) == -expected
+    assert complex(ml_dtypes.bcomplex32(x[0])) == -expected
+    assert complex(ml_dtypes.bcomplex32(x[0], 0)) == -expected
+
+  # (1 << 53) + (1 << 45) + 1 rounds to 2**53 + 2**45 as a float64 (an even
+  # bfloat16 tie), so narrowing through double rounds down instead of up.
+  wide_val = (1 << 53) + (1 << 45) + 1
+  wide_expected = float((1 << 53) + (1 << 46))
+  assert float(wide_val) == float((1 << 53) + (1 << 45))
+  assert complex(ml_dtypes.bcomplex32(wide_val)) == wide_expected
+  assert complex(ml_dtypes.bcomplex32(wide_val, 0)) == wide_expected
+  assert complex(ml_dtypes.bcomplex32(0, wide_val)) == complex(0, wide_expected)
+  assert complex(ml_dtypes.bcomplex32(wide_val, -wide_val)) == complex(
+      wide_expected, -wide_expected
+  )
+  for scalar in [np.int64(wide_val), np.uint64(wide_val)]:
+    assert complex(ml_dtypes.bcomplex32(scalar)) == wide_expected
+    assert complex(ml_dtypes.bcomplex32(scalar, 0)) == wide_expected
+    assert complex(ml_dtypes.bcomplex32(0, scalar)) == complex(0, wide_expected)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_construct_from_invalid_value_raises(sctype):
+  for bad in ("not a number", np.str_("not a number")):
+    with pytest.raises(ValueError):
+      sctype(bad)
+  with pytest.raises(TypeError):
+    sctype(b"not a number")
+  for args in (("1", 2), (1, "2"), (np.str_("1"), 2), (1, np.str_("2"))):
+    with pytest.raises(TypeError):
+      sctype(*args)
+  with pytest.raises((TypeError, ValueError)):
+    sctype(np.datetime64("2020-01-01"))
+  with pytest.raises((TypeError, ValueError)):
+    sctype(np.datetime64("2020-01-01"), 0)
+  with pytest.raises((TypeError, ValueError)):
+    np.array([np.str_("not a number")], dtype=sctype)
+  assert complex(sctype("0.5+1j")) == 0.5 + 1j
+  assert complex(sctype(np.str_("0.5+1j"))) == 0.5 + 1j
+  assert complex(sctype(1 + 2j, 3 + 4j)) == -3 + 5j
+
+
 # ==========================
 # UFunc/array function tests
 # ==========================

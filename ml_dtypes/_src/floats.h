@@ -256,6 +256,24 @@ struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
   }
 };
 
+// Converts `value` to `float` so that a following round to nearest conversion
+// to a reduced precision type (with at least two fewer significand bits than
+// `float`, such as `half`, `bfloat16`, or `float8_*`) rounds only once: exact
+// when `value` fits in `float`, and round to odd otherwise. Complex inputs drop
+// their imaginary part to match NumPy.
+template <typename From>
+inline float NarrowToFloat(From value) {
+  if constexpr (is_complex_v<From>) {
+    return NarrowToFloat(value.real());
+  } else if constexpr (std::is_integral_v<From> ||
+                       std::is_floating_point_v<From>) {
+    return float8_internal::RoundToOddFloat(value);
+  } else {
+    // Custom floats, `half`, and `intN` fit in `float` without rounding.
+    return static_cast<float>(value);
+  }
+}
+
 bool RegisterCustomFloats(PyObject* numpy);
 
 }  // namespace ml_dtypes

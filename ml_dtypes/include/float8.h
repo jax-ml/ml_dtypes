@@ -70,8 +70,7 @@ class float8_base {
   template <typename T>
   explicit EIGEN_DEVICE_FUNC float8_base(
       T i, std::enable_if_t<std::is_integral_v<T>, int> = 0)
-      : float8_base(ConvertFrom(static_cast<float>(i)).rep(),
-                    ConstructFromRepTag{}) {}
+      : float8_base(ConvertFrom(i).rep(), ConstructFromRepTag{}) {}
   template <typename T>
   explicit EIGEN_DEVICE_FUNC float8_base(
       T f, std::enable_if_t<std::is_floating_point_v<T>, int> = 0)
@@ -1775,44 +1774,121 @@ struct ConvertImpl<float8_e5m2, Eigen::half, kSaturate, kTruncate> {
   }
 };
 
+// Converts `from` to float such that rounding (or truncating) the result to a
+// type with at least two fewer significand bits than float gives the same
+// result as rounding (or truncating) `from` to that type directly.
+//
+// Narrowing to float with round to nearest and then rounding again ("double
+// rounding") may alter the result: the first rounding can produce a value that
+// lies halfway between two values of the narrower type even though `from` did
+// not, leaving the second rounding to break a tie that does not exist. We avoid
+// this by narrowing with round to odd: if `from` is not exactly representable,
+// the result is whichever of the two floats bracketing it has an odd
+// significand. This value is never halfway between two values of the narrower
+// type and lies between the same two such values as `from`. See: Boldo, Sylvie,
+// and Guillaume Melquiond. "When double rounding is odd." 17th IMACS World
+// Congress. 2005.
+template <typename From>
+EIGEN_DEVICE_FUNC inline float RoundToOddFloat(From from) {
+  static_assert(std::numeric_limits<float>::is_iec559);
+  static_assert(std::numeric_limits<float>::radix == 2);
+  constexpr int kFloatDigits = std::numeric_limits<float>::digits;
+  if constexpr (std::is_integral_v<From>) {
+    if constexpr (std::numeric_limits<From>::digits <= kFloatDigits) {
+      // Every value of `From` is representable without rounding.
+      return static_cast<float>(from);
+    } else {
+      static_assert(std::numeric_limits<From>::digits <=
+                        std::numeric_limits<uint64_t>::digits,
+                    "Integer types wider than 64 bits are not supported.");
+      bool is_negative = false;
+      uint64_t magnitude = static_cast<uint64_t>(from);
+      if constexpr (std::is_signed_v<From>) {
+        if (from < 0) {
+          is_negative = true;
+          // Unsigned negation is exact, even for the minimum value.
+          magnitude = uint64_t{0} - magnitude;
+        }
+      }
+      if ((magnitude >> kFloatDigits) == 0) {
+        return static_cast<float>(from);
+      }
+      const int bit_width =
+          std::numeric_limits<uint64_t>::digits - countl_zero(magnitude);
+      // Keep the `kFloatDigits` leading bits, and set the lowest of them if
+      // any of the discarded bits are set.
+      const int shift = bit_width - kFloatDigits;
+      const uint64_t sticky = (magnitude & ((uint64_t{1} << shift) - 1)) != 0;
+      magnitude = ((magnitude >> shift) | sticky) << shift;
+      // `magnitude` has at most `kFloatDigits` significant bits now, so this
+      // conversion is exact.
+      const float abs_narrow = static_cast<float>(magnitude);
+      return is_negative ? -abs_narrow : abs_narrow;
+    }
+  } else {
+    static_assert(std::is_floating_point_v<From>);
+    if constexpr (std::numeric_limits<From>::digits <= kFloatDigits) {
+      return static_cast<float>(from);
+    } else if constexpr (std::numeric_limits<From>::is_iec559 &&
+                         sizeof(From) == sizeof(uint64_t)) {
+      static_assert(std::numeric_limits<From>::digits >= kFloatDigits + 2);
+      static_assert(std::numeric_limits<float>::min_exponent >=
+                    std::numeric_limits<From>::min_exponent + 2);
+      // Compare IEEE 754 binary64 magnitudes via integer bits so quiet NaNs
+      // never undergo ordered floating point comparisons (which raise
+      // FE_INVALID, including under ARM64 NEON vectorization).
+      const uint64_t wide_bits = Eigen::numext::bit_cast<uint64_t>(from);
+      const bool is_negative = (wide_bits >> 63) != 0;
+      const uint64_t abs_wide_bits = wide_bits & 0x7FFF'FFFF'FFFF'FFFFULL;
+      if (abs_wide_bits > 0x7FF0'0000'0000'0000ULL) {
+        return is_negative ? -std::numeric_limits<float>::quiet_NaN()
+                           : std::numeric_limits<float>::quiet_NaN();
+      }
+      const From abs_wide = Eigen::numext::bit_cast<From>(abs_wide_bits);
+      float abs_narrow = static_cast<float>(abs_wide);
+      const uint64_t abs_narrow_as_wide_bits =
+          Eigen::numext::bit_cast<uint64_t>(static_cast<From>(abs_narrow));
+      uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
+      const bool keep_narrow =
+          (abs_wide_bits == abs_narrow_as_wide_bits) || (narrow_bits & 1);
+      const bool narrow_is_rd = abs_wide_bits > abs_narrow_as_wide_bits;
+      narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
+      abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
+      return is_negative ? -abs_narrow : abs_narrow;
+    } else {
+      static_assert(std::numeric_limits<From>::digits >= kFloatDigits + 2);
+      static_assert(std::numeric_limits<float>::min_exponent >=
+                    std::numeric_limits<From>::min_exponent + 2);
+      if ((Eigen::numext::isnan)(from)) {
+        return std::signbit(from) ? -std::numeric_limits<float>::quiet_NaN()
+                                  : std::numeric_limits<float>::quiet_NaN();
+      }
+      const bool is_negative = std::signbit(from);
+      const From abs_wide = std::fabs(from);
+      float abs_narrow = static_cast<float>(abs_wide);
+      const From abs_narrow_as_wide = static_cast<From>(abs_narrow);
+
+      uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
+      const bool keep_narrow =
+          (abs_wide == abs_narrow_as_wide) || (narrow_bits & 1);
+      const bool narrow_is_rd = abs_wide > abs_narrow_as_wide;
+      narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
+      abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
+      return is_negative ? -abs_narrow : abs_narrow;
+    }
+  }
+}
+
 template <typename Derived>
 template <bool kSaturate, bool kTruncate, typename From>
 EIGEN_DEVICE_FUNC Derived float8_base<Derived>::ConvertFrom(const From from) {
-  // We are rounding long double -> float -> float8. This can induce
-  // double-rounding which may alter the results. We can correct for this using
-  // a trick explained in: Boldo, Sylvie, and Guillaume Melquiond. "When double
-  // rounding is odd." 17th IMACS World Congress. 2005.
-  if constexpr (std::is_floating_point_v<From> &&
-                sizeof(From) > sizeof(double)) {
-    // float80, binary128, etc. end up here.
-    static_assert(std::numeric_limits<From>::digits >=
-                  std::numeric_limits<float>::digits + 2);
-    static_assert(std::numeric_limits<float>::min_exponent >=
-                  std::numeric_limits<From>::min_exponent + 2);
-    static_assert(std::numeric_limits<float>::is_iec559);
-    static_assert(std::numeric_limits<float>::radix == 2);
-    const bool is_negative = std::signbit(from);
-    const From abs_wide = std::fabs(from);
-    float abs_narrow = static_cast<float>(abs_wide);
-    const From abs_narrow_as_wide = static_cast<From>(abs_narrow);
-
-    uint32_t narrow_bits = Eigen::numext::bit_cast<uint32_t>(abs_narrow);
-    // We can keep the narrow value as-is if narrowing was exact (no rounding
-    // error), the wide value was NaN (the narrow value is also NaN and should
-    // be preserved) or if we rounded to the odd value.
-    const bool keep_narrow = (abs_wide == abs_narrow_as_wide) ||
-                             std::isnan(abs_narrow) || (narrow_bits & 1);
-    // We morally performed a round-down if `abs_narrow` is smaller than
-    // `abs_wide`.
-    const bool narrow_is_rd = abs_wide > abs_narrow_as_wide;
-    // If the narrow value is odd or exact, pick it.
-    // Otherwise, narrow is even and corresponds to either the rounded-up or
-    // rounded-down value. If narrow is the rounded-down value, we want the
-    // rounded-up value as it will be odd.
-    narrow_bits += keep_narrow ? 0 : narrow_is_rd ? 1 : -1;
-    abs_narrow = Eigen::numext::bit_cast<float>(narrow_bits);
+  // Integers and floating point types wider than double (float80, binary128,
+  // etc.) have no direct conversion. Narrowing them to float first must not
+  // round twice, so use round to odd.
+  if constexpr (std::is_integral_v<From> || (std::is_floating_point_v<From> &&
+                                             sizeof(From) > sizeof(double))) {
     return ConvertImpl<float, Derived, kSaturate, kTruncate>::run(
-        is_negative ? -abs_narrow : abs_narrow);
+        RoundToOddFloat(from));
   } else {
     return ConvertImpl<From, Derived, kSaturate, kTruncate>::run(from);
   }

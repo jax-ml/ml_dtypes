@@ -22,6 +22,8 @@ limitations under the License.
 
 #include <array>
 #include <cmath>
+#include <complex>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -98,32 +100,57 @@ bool CastToCustomFloat(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    *output = T(d);
+    *output = static_cast<T>(NarrowToFloat(d));
     return true;
   }
   if (PyLong_Check(arg)) {
-    long l = PyLong_AsLong(arg);  // NOLINT
+    // Read as long long: a long is only 32 bits on Windows.
+    long long l = PyLong_AsLongLong(arg);  // NOLINT
     if (PyErr_Occurred()) {
       return false;
     }
-    // TODO(phawkins): check for overflow
-    *output = T(static_cast<float>(l));
+    *output = static_cast<T>(NarrowToFloat(l));
     return true;
   }
   if (PyArray_IsScalar(arg, Generic)) {
-    // Allow conversion from any NumPy scalar if conversion to float32
-    // is defined.
-    // NOTE: Should use `PyArray_Pack` with NumPy>=2, which is better and may
-    // make even more conversions (ie. casts) work. (May want to use new dtypes
-    // then also.) (If a limitation is found, could do this already on NumPy 2
-    // at runtime.)
+    // Read numeric scalars at full width and narrow with NarrowToFloat so
+    // scalar construction rounds once, matching array casts.
     float c;
-    PyArray_Descr* f_descr = PyArray_DescrFromType(NPY_FLOAT32);
-    // Similar to our code, NumPy accepts the array to be NULL here.
-    // TODO(phawkins): check for overflow
-    PyDataType_GetArrFuncs(f_descr)->setitem(arg, &c, NULL);
-    Py_DECREF(f_descr);
-    *output = T(c);
+    if (PyArray_IsScalar(arg, UnsignedInteger)) {
+      unsigned long long value;  // NOLINT
+      if (!ReadNumpyScalar(arg, NPY_ULONGLONG, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    } else if (PyArray_IsScalar(arg, Integer)) {
+      long long value;  // NOLINT
+      if (!ReadNumpyScalar(arg, NPY_LONGLONG, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    } else if (PyArray_IsScalar(arg, LongDouble)) {
+      long double value;
+      if (!ReadNumpyScalar(arg, NPY_LONGDOUBLE, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    } else if (PyArray_IsScalar(arg, CLongDouble)) {
+      if (GiveComplexWarning() < 0) {
+        return false;
+      }
+      std::complex<long double> value;
+      if (!ReadNumpyScalar(arg, NPY_CLONGDOUBLE, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value.real());
+    } else {
+      double value;
+      if (!ReadNumpyScalar(arg, NPY_DOUBLE, &value)) {
+        return false;
+      }
+      c = NarrowToFloat(value);
+    }
+    *output = static_cast<T>(c);
     return true;
   }
   if (PyArray_IsZeroDim(arg)) {
@@ -233,6 +260,8 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
     return arg;
   } else if (CastToCustomFloat<T>(arg, &value)) {
     return PyCustomFloat_FromT<T>(value).release();
+  } else if (PyErr_Occurred()) {
+    return nullptr;
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != CustomFloatType<T>::Dtype()) {
@@ -243,9 +272,15 @@ PyObject* PyCustomFloat_New(PyTypeObject* type, PyObject* args,
     }
   } else if (PyUnicode_Check(arg) || PyBytes_Check(arg)) {
     // Parse float from string, then cast to T.
-    PyObject* f = PyFloat_FromString(arg);
-    if (CastToCustomFloat<T>(f, &value)) {
+    Safe_PyObjectPtr f = make_safe(PyFloat_FromString(arg));
+    if (f == nullptr) {
+      return nullptr;
+    }
+    if (CastToCustomFloat<T>(f.get(), &value)) {
       return PyCustomFloat_FromT<T>(value).release();
+    }
+    if (PyErr_Occurred()) {
+      return nullptr;
     }
   }
   PyErr_Format(PyExc_TypeError, "expected number, got %s",
@@ -451,6 +486,9 @@ static int NPyCustomFloat_NewStyleSetItem(PyArray_Descr* descr, PyObject* item,
                                           char* data) {
   T x;
   if (!CastToCustomFloat<T>(item, &x)) {
+    if (PyErr_Occurred()) {
+      return -1;
+    }
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;
