@@ -715,6 +715,41 @@ TEST(Float8E8m0fnuTest, ConvertFromWideIntegers) {
             0x1p63);
 }
 
+TEST(Float8E8m0fnuTest, ConvertFromLowestBinade) {
+  // 2^-127 is the smallest value, not a subnormal: inputs below the midpoint of
+  // [2^-127, 2^-126] round down, and positive inputs below 2^-127 saturate to
+  // 2^-127.
+  const std::vector<std::pair<float, uint8_t>> cases = {
+      {0x1p-149f, 0x00},        {0x1.fffff8p-128f, 0x00}, {0x1p-127f, 0x00},
+      {0x1.000004p-127f, 0x00}, {0x1.1p-127f, 0x00},      {0x1.4p-127f, 0x00},
+      {0x1.7ffffcp-127f, 0x00}, {0x1.8p-127f, 0x01},      {0x1.4p-126f, 0x01},
+      {0x1.8p-126f, 0x02},
+  };
+  for (const auto& [input, rep] : cases) {
+    EXPECT_EQ(float8_e8m0fnu(input).rep(), rep) << "input: " << input;
+    EXPECT_EQ((float8_e8m0fnu::ConvertFrom</*kSaturate=*/true>(input)).rep(),
+              rep)
+        << "input: " << input;
+    EXPECT_EQ(float8_e8m0fnu(static_cast<double>(input)).rep(), rep)
+        << "input: " << input;
+    const Eigen::bfloat16 bf16_input(input);
+    if (static_cast<float>(bf16_input) == input) {
+      EXPECT_EQ(float8_e8m0fnu(bf16_input).rep(), rep) << "input: " << input;
+    }
+  }
+  EXPECT_EQ(float8_e8m0fnu(0x1p-1022).rep(), 0x00);
+  EXPECT_EQ(float8_e8m0fnu(0x1.7ffffffffffffp-127).rep(), 0x00);
+  EXPECT_EQ(float8_e8m0fnu(0x1.8p-127).rep(), 0x01);
+  EXPECT_EQ((float8_e8m0fnu::ConvertFrom</*kSaturate=*/false,
+                                         /*kTruncate=*/true>(0x1.cp-127f))
+                .rep(),
+            0x00);
+  EXPECT_EQ((float8_e8m0fnu::ConvertFrom</*kSaturate=*/false,
+                                         /*kTruncate=*/true>(0x1.cp-126f))
+                .rep(),
+            0x01);
+}
+
 TEST(Float8Test, Float8E5m2_To_Float8E4m3fn) {
   // Saturation.
   float8_e5m2 max = std::numeric_limits<float8_e5m2>::max();
