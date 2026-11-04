@@ -63,6 +63,19 @@ template <typename T>
 inline constexpr bool is_integer_target_v =
     is_intn_v<T> || (std::is_integral_v<T> && !std::is_same_v<T, bool>);
 
+// Converts `value` to `float` as an intermediate representation for casts
+// involving custom float types (all of which fit losslessly in `float`).
+// Complex inputs drop their imaginary part to match NumPy's complex-to-float
+// cast behavior.
+template <typename T>
+float CastToFloat(T value) {
+  if constexpr (is_complex_v<T>) {
+    return CastToFloat(value.real());
+  } else {
+    return static_cast<float>(value);
+  }
+}
+
 // Converts `value` to `half`, setting `overflow` when a finite `float` rounds
 // to `+-inf` so `FE_OVERFLOW` is raised consistently on platforms where
 // `Eigen::half(float)` uses software bit manipulation instead of hardware FP16.
@@ -206,28 +219,24 @@ int CastLoop(PyArrayMethod_Context* /*context*/, char* const data[],
       } else if constexpr (is_intn_v<From>) {
         out = static_cast<bool>(in);
       } else {
-        out = static_cast<bool>(static_cast<float>(in));
+        out = static_cast<bool>(CastToFloat(in));
       }
     } else if constexpr (std::is_same_v<To, half>) {
-      out = FloatToHalf(NarrowToFloat(in), overflow);
+      out = FloatToHalf(CastToFloat(in), overflow);
     } else if constexpr (std::is_same_v<To, complex32>) {
       if constexpr (is_complex_v<From>) {
-        out = complex32(FloatToHalf(NarrowToFloat(in.real()), overflow),
-                        FloatToHalf(NarrowToFloat(in.imag()), overflow));
+        const auto cf = static_cast<std::complex<float>>(in);
+        out = complex32(FloatToHalf(cf.real(), overflow),
+                        FloatToHalf(cf.imag(), overflow));
       } else {
-        out = complex32(FloatToHalf(NarrowToFloat(in), overflow), half(0));
-      }
-    } else if constexpr (std::is_same_v<To, bcomplex32>) {
-      if constexpr (is_complex_v<From>) {
-        out = bcomplex32(bfloat16(NarrowToFloat(in.real())),
-                         bfloat16(NarrowToFloat(in.imag())));
-      } else {
-        out = bcomplex32(bfloat16(NarrowToFloat(in)), bfloat16(0));
+        out = complex32(FloatToHalf(CastToFloat(in), overflow), half(0));
       }
     } else if constexpr (is_complex_v<From> && is_complex_v<To>) {
       out = static_cast<To>(static_cast<std::complex<float>>(in));
+    } else if constexpr (is_intn_v<From>) {
+      out = static_cast<To>(static_cast<float>(in));
     } else {
-      out = static_cast<To>(NarrowToFloat(in));
+      out = static_cast<To>(CastToFloat(in));
     }
   }
   int exceptions = 0;

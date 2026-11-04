@@ -23,12 +23,6 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-* Fixed double rounding when converting to custom float and complex types from
-  `float64`, `longdouble`, `complex128`, and `clongdouble` values, from 32 bit
-  and 64 bit integers, and from Python and NumPy scalars (including `float8` C++
-  integer conversions), and fixed a crash when constructing custom floats from
-  strings that do not parse as numbers
-  ([#401](https://github.com/jax-ml/ml_dtypes/pull/401)).
 * Migrated custom dtype ufuncs to NumPy 2 `ArrayMethod`s and promoters
   ([#424](https://github.com/jax-ml/ml_dtypes/pull/424)):
   * Mixed operations between `ml_dtypes` arrays or scalars and Python scalars

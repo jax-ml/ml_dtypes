@@ -559,16 +559,16 @@ def _expected_cast(arr, source, target):
     )
   if target in CUSTOM_FLOATS:
     return np.array(
-        [target(v) for v in ml_dtypes.real(arr)],
+        [target(v) for v in ml_dtypes.real(arr).astype(np.float32)],
         dtype=target,
     )
   out = np.empty(len(arr), dtype=target)
-  real_vals = ml_dtypes.real(arr)
-  imag_vals = ml_dtypes.imag(arr)
+  real_f32 = ml_dtypes.real(arr).astype(np.float32)
+  imag_f32 = ml_dtypes.imag(arr).astype(np.float32)
   comp = ml_dtypes.real(out).dtype.type
   # Wide integer samples (>= 65520) overflow `complex32`'s `float16` component.
   overflows_f16 = comp is np.float16 and (
-      _overflows_float16(real_vals) or _overflows_float16(imag_vals)
+      _overflows_float16(real_f32) or _overflows_float16(imag_f32)
   )
   over_ctx = (
       pytest.warns(RuntimeWarning, match="overflow")
@@ -576,8 +576,8 @@ def _expected_cast(arr, source, target):
       else contextlib.nullcontext()
   )
   with over_ctx:
-    ml_dtypes.real(out)[:] = [comp(v) for v in real_vals]
-    ml_dtypes.imag(out)[:] = [comp(v) for v in imag_vals]
+    ml_dtypes.real(out)[:] = [comp(v) for v in real_f32]
+    ml_dtypes.imag(out)[:] = [comp(v) for v in imag_f32]
   return out
 
 
@@ -849,27 +849,3 @@ def test_cast_overflow_to_float16_and_complex32(
   with np.errstate(over="raise"), warn_ctx:
     with pytest.raises(FloatingPointError):
       arr.astype(target)
-
-
-@pytest.mark.parametrize("float_type", CUSTOM_FLOATS, ids=lambda t: t.__name__)
-@pytest.mark.parametrize("source", [np.complex128, np.clongdouble])
-def test_wide_complex_to_custom_float_does_not_double_round(float_type, source):
-  eps = float(ml_dtypes.finfo(float_type).eps)
-  midpoint = 1.0 + eps / 2.0
-  deltas = [np.longdouble(2) ** -40]
-  if source is np.clongdouble and np.finfo(np.longdouble).nmant > 52:
-    deltas.append(np.longdouble(2) ** -60)
-  for delta in deltas:
-    for value, expected in [
-        (np.longdouble(midpoint) - delta, 1.0),
-        (np.longdouble(midpoint) + delta, 1.0 + eps),
-    ]:
-      arr = np.empty(1, dtype=source)
-      arr.real[0] = value
-      arr.imag[0] = 2.0
-      if delta < np.longdouble(2) ** -53:
-        assert np.float64(arr.real[0]) == midpoint
-      with pytest.warns(np.exceptions.ComplexWarning):
-        assert float(arr.astype(float_type)[0]) == expected
-      with pytest.warns(np.exceptions.ComplexWarning):
-        assert float(float_type(arr[0])) == expected

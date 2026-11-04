@@ -112,8 +112,7 @@ bool CastToCustomComplex(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    *output = T(static_cast<real_type>(NarrowToFloat(c.real())),
-                static_cast<real_type>(NarrowToFloat(c.imag())));
+    *output = T(c);
     return true;
   }
   if (PyFloat_Check(arg)) {
@@ -121,54 +120,32 @@ bool CastToCustomComplex(PyObject* arg, T* output) {
     if (PyErr_Occurred()) {
       return false;
     }
-    output->real(static_cast<real_type>(NarrowToFloat(d)));
+    output->real(static_cast<real_type>(d));
     return true;
   }
   if (PyLong_Check(arg)) {
-    // Read as long long: a long is only 32 bits on Windows.
-    long long l = PyLong_AsLongLong(arg);  // NOLINT
+    long l = PyLong_AsLong(arg);  // NOLINT
     if (PyErr_Occurred()) {
       return false;
     }
-    output->real(static_cast<real_type>(NarrowToFloat(l)));
+    // TODO(phawkins): check for overflow
+    output->real(static_cast<real_type>(l));
     return true;
   }
   if (PyArray_IsScalar(arg, Generic)) {
-    // Read numeric scalars at full width and narrow with NarrowToFloat so
-    // scalar construction rounds once, matching array casts.
-    if (PyArray_IsScalar(arg, UnsignedInteger)) {
-      unsigned long long value;  // NOLINT
-      if (!ReadNumpyScalar(arg, NPY_ULONGLONG, &value)) {
-        return false;
-      }
-      output->real(static_cast<real_type>(NarrowToFloat(value)));
-    } else if (PyArray_IsScalar(arg, Integer)) {
-      long long value;  // NOLINT
-      if (!ReadNumpyScalar(arg, NPY_LONGLONG, &value)) {
-        return false;
-      }
-      output->real(static_cast<real_type>(NarrowToFloat(value)));
-    } else if (PyArray_IsScalar(arg, LongDouble)) {
-      long double value;
-      if (!ReadNumpyScalar(arg, NPY_LONGDOUBLE, &value)) {
-        return false;
-      }
-      output->real(static_cast<real_type>(NarrowToFloat(value)));
-    } else if (PyArray_IsScalar(arg, CLongDouble)) {
-      std::complex<long double> value;
-      if (!ReadNumpyScalar(arg, NPY_CLONGDOUBLE, &value)) {
-        return false;
-      }
-      *output = T(static_cast<real_type>(NarrowToFloat(value.real())),
-                  static_cast<real_type>(NarrowToFloat(value.imag())));
-    } else {
-      std::complex<double> value;
-      if (!ReadNumpyScalar(arg, NPY_CDOUBLE, &value)) {
-        return false;
-      }
-      *output = T(static_cast<real_type>(NarrowToFloat(value.real())),
-                  static_cast<real_type>(NarrowToFloat(value.imag())));
-    }
+    // Allow conversion from any NumPy scalar if conversion to complex float
+    // is defined.
+    // NOTE: Should use `PyArray_Pack` with NumPy>=2, which is better and may
+    // make even more conversions (ie. casts) work. (May want to use new dtypes
+    // then also.) (If a limitation is found, could do this already on NumPy 2
+    // at runtime.)
+    std::complex<float> c;
+    PyArray_Descr* cf_descr = PyArray_DescrFromType(NPY_COMPLEX64);
+    // Similar to our code, NumPy accepts the array to be NULL here.
+    // TODO(phawkins): check for overflow
+    PyDataType_GetArrFuncs(cf_descr)->setitem(arg, &c, NULL);
+    Py_DECREF(cf_descr);
+    *output = T(c);
     return true;
   }
   if (PyArray_IsZeroDim(arg)) {
@@ -269,27 +246,6 @@ PyObject* PyCustomComplex_TrueDivide(PyObject* a, PyObject* b) {
   return PyArray_Type.tp_as_number->nb_true_divide(a, b);
 }
 
-bool IsComplexOrStringArg(PyObject* arg) {
-  if (PyComplex_Check(arg) || PyUnicode_Check(arg) || PyBytes_Check(arg) ||
-      PyCustomComplex_Check<bcomplex32>(arg) ||
-      PyCustomComplex_Check<complex32>(arg) ||
-      PyArray_IsScalar(arg, ComplexFloating) ||
-      PyArray_IsScalar(arg, Flexible)) {
-    return true;
-  }
-  if (PyArray_IsZeroDim(arg)) {
-    PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
-    const int type_num = PyArray_TYPE(arr);
-    if (PyDataType_ISCOMPLEX(PyArray_DESCR(arr)) ||
-        PyDataType_ISFLEXIBLE(PyArray_DESCR(arr)) ||
-        type_num == CustomComplexType<bcomplex32>::Dtype() ||
-        type_num == CustomComplexType<complex32>::Dtype()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Constructs a new PyCustomComplex.
 template <typename T>
 PyObject* PyCustomComplex_New(PyTypeObject* type, PyObject* args,
@@ -302,20 +258,8 @@ PyObject* PyCustomComplex_New(PyTypeObject* type, PyObject* args,
   }
   Py_ssize_t size = PyTuple_Size(args);
   if (size == 2) {
-    PyObject* real_arg = PyTuple_GetItem(args, 0);
-    PyObject* imag_arg = PyTuple_GetItem(args, 1);
-    T real_val, imag_val;
-    // Convert real numeric arguments directly so 64 bit integers and longdouble
-    // scalars are not narrowed to double via PyComplex_Type.tp_new first.
-    if (!IsComplexOrStringArg(real_arg) && !IsComplexOrStringArg(imag_arg) &&
-        CastToCustomComplex<T>(real_arg, &real_val) &&
-        CastToCustomComplex<T>(imag_arg, &imag_val)) {
-      return PyCustomComplex_FromT<T>(T(real_val.real(), imag_val.real()))
-          .release();
-    }
-    if (PyErr_Occurred()) {
-      return nullptr;
-    }
+    // The user passed two arguments, just forward them to the complex
+    // constructor.
     Safe_PyObjectPtr c =
         make_safe(PyComplex_Type.tp_new(&PyComplex_Type, args, kwds));
     if (!c) {
@@ -324,13 +268,6 @@ PyObject* PyCustomComplex_New(PyTypeObject* type, PyObject* args,
     if (CastToCustomComplex<T>(c.get(), &value)) {
       return PyCustomComplex_FromT<T>(value).release();
     }
-    if (PyErr_Occurred()) {
-      return nullptr;
-    }
-    PyErr_Format(PyExc_TypeError,
-                 "expected number as argument to %s constructor",
-                 CustomComplexTraits<T>::kTypeName);
-    return nullptr;
   } else if (size != 1) {
     PyErr_Format(PyExc_TypeError,
                  "expected number as argument to %s constructor",
@@ -344,8 +281,6 @@ PyObject* PyCustomComplex_New(PyTypeObject* type, PyObject* args,
     return arg;
   } else if (CastToCustomComplex<T>(arg, &value)) {
     return PyCustomComplex_FromT<T>(value).release();
-  } else if (PyErr_Occurred()) {
-    return nullptr;
   } else if (PyArray_Check(arg)) {
     PyArrayObject* arr = reinterpret_cast<PyArrayObject*>(arg);
     if (PyArray_TYPE(arr) != CustomComplexType<T>::Dtype()) {
@@ -363,9 +298,6 @@ PyObject* PyCustomComplex_New(PyTypeObject* type, PyObject* args,
     }
     if (CastToCustomComplex<T>(f.get(), &value)) {
       return PyCustomComplex_FromT<T>(value).release();
-    }
-    if (PyErr_Occurred()) {
-      return nullptr;
     }
   }
   PyErr_Format(PyExc_TypeError, "expected number, got %s",
@@ -673,9 +605,6 @@ static int NPyCustomComplex_NewStyleSetItem(PyArray_Descr* descr,
                                             PyObject* item, char* data) {
   T x;
   if (!CastToCustomComplex<T>(item, &x)) {
-    if (PyErr_Occurred()) {
-      return -1;
-    }
     PyErr_Format(PyExc_TypeError, "expected number, got %s",
                  Py_TYPE(item)->tp_name);
     return -1;

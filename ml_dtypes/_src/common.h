@@ -68,20 +68,6 @@ inline Safe_PyObjectPtr make_safe(PyObject* object) {
   return Safe_PyObjectPtr(object);
 }
 
-// Reads a NumPy scalar as the C type behind `numpy_type`. Returns false with a
-// Python error set on failure.
-template <typename C>
-inline bool ReadNumpyScalar(PyObject* arg, int numpy_type, C* out) {
-  PyArray_Descr* descr = PyArray_DescrFromType(numpy_type);
-  if (descr == nullptr) {
-    return false;
-  }
-  // Similar to our code, NumPy accepts the array to be nullptr here.
-  const int result = PyDataType_GetArrFuncs(descr)->setitem(arg, out, nullptr);
-  Py_DECREF(descr);
-  return result >= 0;
-}
-
 template <typename T, typename Enable = void>
 struct DtypeTraits {
   // static int Dtype() { return NPY_...; }  // Numpy type number for T.
