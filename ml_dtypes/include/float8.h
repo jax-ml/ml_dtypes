@@ -1546,8 +1546,6 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
   static constexpr int kToMantissaBits = ToTraits::kMantissaBits;
   static constexpr int kToExponentBits = ToTraits::kExponentBits;
   static constexpr int kToExponentBias = ToTraits::kExponentBias;
-  // See Step 4 for why a target without zero gets one more binade.
-  static constexpr int kToEncodingBias = kToExponentBias + !kToHasZero;
 
   static EIGEN_DEVICE_FUNC inline To run(From from) {
     const FromBits from_bits = Eigen::numext::bit_cast<FromBits>(from);
@@ -1645,11 +1643,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     //
     // If the result is negative, it indicates the value is too small for the
     // normal range of the target (underflow), requiring denormalization.
-    //
-    // A target without zero (e.g., E8M0) has no subnormals: biased exponent 0
-    // is its smallest normal binade. We encode it as if it had zero and
-    // subnormals one binade below that, and Step 6 shifts the encoding down.
-    int target_biased_exponent_base = unbiased_exponent + kToEncodingBias - 1;
+    int target_biased_exponent_base = unbiased_exponent + kToExponentBias - 1;
 
     // 5. Apply Shift and Rounding.
     // We calculate the shift needed to align the source mantissa to the target
@@ -1701,14 +1695,6 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     // bit in this case.
     WideToBits result_bits_wide =
         aligned_mantissa + (target_exp_bits << kToMantissaBits);
-    if constexpr (!kToHasZero) {
-      // Undo the extra binade from Step 4. Values that rounded or truncated to
-      // zero or a subnormal clamp to the smallest representable value (which is
-      // the nearest value when rounding, and matches llvm::APFloat rmTowardZero
-      // when truncating since no representable value is <= x).
-      constexpr WideToBits kSmallest = WideToBits{1} << kToMantissaBits;
-      result_bits_wide = std::max(result_bits_wide, kSmallest) - kSmallest;
-    }
 
     const ToBits kToMaxFinite =
         Eigen::numext::bit_cast<ToBits>(Eigen::NumTraits<To>::highest());
@@ -1719,7 +1705,7 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     // (handles cases where rounding pushed a max-value into infinity).
     ToBits result_bits;
     if (target_biased_exponent_base >=
-            std::numeric_limits<To>::max_exponent + kToEncodingBias ||
+            std::numeric_limits<To>::max_exponent + kToExponentBias ||
         result_bits_wide > kToMaxFinite) {
       if constexpr (kSaturate) {
         result_bits = kToMaxFinite;

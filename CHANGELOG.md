@@ -23,10 +23,6 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-* Casts to `float8_e8m0fnu` now round values between 2<sup>-127</sup> and
-  1.5 × 2<sup>-127</sup> down to 2<sup>-127</sup> instead of up to
-  2<sup>-126</sup>
-  ([#406](https://github.com/jax-ml/ml_dtypes/issues/406)).
 * Fixed double rounding when converting to custom float and complex types from
   `float64`, `longdouble`, `complex128`, and `clongdouble` values, from 32 bit
   and 64 bit integers, and from Python and NumPy scalars (including `float8` C++
