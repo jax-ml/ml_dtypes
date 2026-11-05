@@ -27,3 +27,21 @@ information on using pull requests.
 
 This project follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+## Testing
+
+To test your changes, you will need to install abseil:
+```
+cd ml_dtypes/test
+git clone https://github.com/abseil/abseil-cpp.git
+cd ../../third_party
+ln -s ../ml_dtypes/tests/abseil-cpp/absl
+```
+
+Run pytest and cmake test as follows:
+```
+pip install -e .
+pytest .
+cmake -B build ml_dtypes/tests
+cmake --build build -- all test
+```
