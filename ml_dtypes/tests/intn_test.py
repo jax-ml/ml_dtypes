@@ -318,6 +318,7 @@ class ScalarTest(parameterized.TestCase):
     num_workers=3,
     skip_tests=[
         "testBinaryUfuncs",
+        "testDivideByZeroWarningAsError",  # warnings.catch_warnings is not thread-safe
         "testZeroSizeReduction",  # pytest 9.0.1's subtest appears not to be thread-safe
     ],
 )
