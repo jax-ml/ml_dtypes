@@ -45,10 +45,10 @@ jobs:
           - python-version: "3.13"
             freethreaded: true
         include:
-          - os: macos-14
+          - os: macos-15
             python-version: "3.12"
             freethreaded: false
-          - os: macos-14
+          - os: macos-15
             python-version: "3.14"
             freethreaded: true
           - os: windows-2022

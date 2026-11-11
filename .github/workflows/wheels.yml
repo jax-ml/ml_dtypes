@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-14, windows-2022]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2022]
         cibw_build: ["cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-* cp315-* cp315t-*"]
         include:
           - os: windows-11-arm
