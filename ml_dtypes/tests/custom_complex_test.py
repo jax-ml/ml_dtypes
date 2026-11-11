@@ -412,7 +412,19 @@ def test_construct_from_invalid_value_raises(sctype):
       sctype(bad)
   with pytest.raises(TypeError):
     sctype(b"not a number")
-  for args in (("1", 2), (1, "2"), (np.str_("1"), 2), (1, np.str_("2"))):
+  for args in (
+      ("1", 2),
+      (1, "2"),
+      (np.str_("1"), 2),
+      (1, np.str_("2")),
+      (1 + 2j, 3 + 4j),
+      (1 + 2j, 3),
+      (1, 3 + 4j),
+      (sctype(1 + 2j), 3),
+      (1, sctype(3 + 4j)),
+      (np.complex64(1 + 2j), 3),
+      (1, np.complex64(3 + 4j)),
+  ):
     with pytest.raises(TypeError):
       sctype(*args)
   with pytest.raises((TypeError, ValueError)):
@@ -423,7 +435,6 @@ def test_construct_from_invalid_value_raises(sctype):
     np.array([np.str_("not a number")], dtype=sctype)
   assert complex(sctype("0.5+1j")) == 0.5 + 1j
   assert complex(sctype(np.str_("0.5+1j"))) == 0.5 + 1j
-  assert complex(sctype(1 + 2j, 3 + 4j)) == -3 + 5j
 
 
 # ==========================
