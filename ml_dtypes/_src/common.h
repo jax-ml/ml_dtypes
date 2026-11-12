@@ -199,14 +199,6 @@ struct DtypeTraits<std::complex<long double>> {
   static PyArray_DTypeMeta* DTypeMeta() { return &PyArray_CLongDoubleDType; }
 };
 
-template <class T>
-struct is_complex : std::false_type {};
-template <class T>
-struct is_complex<std::complex<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_complex_v = is_complex<T>::value;
-
 }  // namespace ml_dtypes
 
 #endif  // ML_DTYPES_COMMON_H_

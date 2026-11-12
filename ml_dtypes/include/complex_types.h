@@ -13,40 +13,51 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef ML_DTYPES_OTHER_INEXACT_H_
-#define ML_DTYPES_OTHER_INEXACT_H_
+#ifndef ML_DTYPES_COMPLEX_TYPES_H_
+#define ML_DTYPES_COMPLEX_TYPES_H_
 
 // Extensions for half and bfloat16 and their corresponding complex types.
 
+#include <cmath>
 #include <complex>
-#include <limits>
+#include <type_traits>
 
 #include "Eigen/Core"
-#include "ml_dtypes/_src/common.h"
 
 namespace ml_dtypes {
 
-struct bcomplex32 : std::complex<bfloat16> {
-  using std::complex<bfloat16>::complex;
+template <class T>
+struct is_complex : std::false_type {};
+template <class T>
+struct is_complex<std::complex<T>> : std::true_type {};
 
-  bcomplex32(const std::complex<bfloat16>& other)
+template <typename T>
+inline constexpr bool is_complex_v = is_complex<T>::value;
+
+struct bcomplex32 : std::complex<Eigen::bfloat16> {
+  using std::complex<Eigen::bfloat16>::complex;
+
+  bcomplex32(const std::complex<Eigen::bfloat16>& other)
       : bcomplex32(other.real(), other.imag()) {}
 
-  bcomplex32(const bfloat16& r) : bcomplex32(r, bfloat16{0}) {}
+  bcomplex32(const Eigen::bfloat16& r)
+      : bcomplex32(r, Eigen::bfloat16{0}) {}
 
   template <typename T>
-  explicit bcomplex32(const T& r) : bcomplex32(bfloat16{r}, bfloat16{0}) {}
+  explicit bcomplex32(const T& r)
+      : bcomplex32(Eigen::bfloat16{r}, Eigen::bfloat16{0}) {}
 
   template <typename T>
   explicit bcomplex32(const T& r, const T& c)
-      : bcomplex32(bfloat16{r}, bfloat16{c}) {}
+      : bcomplex32(Eigen::bfloat16{r}, Eigen::bfloat16{c}) {}
 
   template <typename T>
   explicit bcomplex32(const std::complex<T>& z)
-      : bcomplex32(bfloat16{z.real()}, bfloat16{z.imag()}) {}
+      : bcomplex32(Eigen::bfloat16{z.real()}, Eigen::bfloat16{z.imag()}) {}
 
   operator std::complex<float>() const {
-    return std::complex<float>{bfloat16{real()}, bfloat16{imag()}};
+    return std::complex<float>{Eigen::bfloat16{real()},
+                               Eigen::bfloat16{imag()}};
   }
 
   operator bool() const { return real() != 0 || imag() != 0; }
@@ -94,23 +105,25 @@ struct bcomplex32 : std::complex<bfloat16> {
   }
 };
 
-struct complex32 : std::complex<half> {
-  using std::complex<half>::complex;
+struct complex32 : std::complex<Eigen::half> {
+  using std::complex<Eigen::half>::complex;
 
-  complex32(const std::complex<half>& other)
+  complex32(const std::complex<Eigen::half>& other)
       : complex32(other.real(), other.imag()) {}
 
-  complex32(const half& r) : complex32(r, half{0}) {}
+  complex32(const Eigen::half& r) : complex32(r, Eigen::half{0}) {}
 
   template <typename T>
-  explicit complex32(const T& r) : complex32(half{r}, half{0}) {}
+  explicit complex32(const T& r)
+      : complex32(Eigen::half{r}, Eigen::half{0}) {}
 
   template <typename T>
-  explicit complex32(const T& r, const T& c) : complex32(half{r}, half{c}) {}
+  explicit complex32(const T& r, const T& c)
+      : complex32(Eigen::half{r}, Eigen::half{c}) {}
 
   template <typename T>
   explicit complex32(const std::complex<T>& z)
-      : complex32(half{z.real()}, half{z.imag()}) {}
+      : complex32(Eigen::half{z.real()}, Eigen::half{z.imag()}) {}
 
   operator std::complex<float>() const {
     return std::complex<float>{real(), imag()};
@@ -159,10 +172,10 @@ struct complex32 : std::complex<half> {
 };
 
 template <>
-inline constexpr bool is_complex_v<bcomplex32> = true;
+struct is_complex<bcomplex32> : std::true_type {};
 template <>
-inline constexpr bool is_complex_v<complex32> = true;
+struct is_complex<complex32> : std::true_type {};
 
 }  // namespace ml_dtypes
 
-#endif  // ML_DTYPES_OTHER_INEXACT_H_
+#endif  // ML_DTYPES_COMPLEX_TYPES_H_

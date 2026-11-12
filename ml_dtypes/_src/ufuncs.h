@@ -28,6 +28,7 @@ limitations under the License.
 
 #include "ml_dtypes/_src/common.h"
 #include "ml_dtypes/_src/numpy.h"
+#include "ml_dtypes/include/complex_types.h"
 
 // Some versions of MSVC define a "copysign" macro which wreaks havoc.
 #if defined(_MSC_VER) && defined(copysign)

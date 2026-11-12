@@ -23,6 +23,7 @@ limitations under the License.
 
 #include "Eigen/Core"
 #include "ml_dtypes/_src/common.h"
+#include "ml_dtypes/include/complex_types.h"
 #include "ml_dtypes/include/float8.h"
 #include "ml_dtypes/include/mxfloat.h"
 
