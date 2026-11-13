@@ -34,7 +34,13 @@ limitations under the License.
 
 namespace ml_dtypes {
 
-constexpr char kOutOfRange[] = "out of range value cannot be converted to int4";
+// Reports an OverflowError for a value outside the range of T.
+template <typename T>
+void SetOutOfRangeError() {
+  PyErr_Format(PyExc_OverflowError,
+               "out of range value cannot be converted to %s",
+               CustomIntTraits<T>::kTypeName);
+}
 
 template <typename T>
 int CustomIntType<T>::npy_type = NPY_NOTYPE;
@@ -112,7 +118,7 @@ bool CastToIntN(PyObject* arg, T* output) {
     }
     if (d < static_cast<double>(T::lowest()) ||
         d > static_cast<double>(T::highest())) {
-      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      SetOutOfRangeError<T>();
       return false;
     }
     *output = T(d);
@@ -132,7 +138,7 @@ bool CastToIntN(PyObject* arg, T* output) {
 
     if (!(std::numeric_limits<T>::min() <= v &&
           v <= std::numeric_limits<T>::max())) {
-      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      SetOutOfRangeError<T>();
       return false;
     }
     *output = T(v);
@@ -143,7 +149,7 @@ bool CastToIntN(PyObject* arg, T* output) {
     PyArray_ScalarAsCtype(arg, &f);
     if (!(std::numeric_limits<T>::min() <= f &&
           f <= std::numeric_limits<T>::max())) {
-      PyErr_SetString(PyExc_OverflowError, kOutOfRange);
+      SetOutOfRangeError<T>();
       return false;
     }
     *output = T(static_cast<::int8_t>(f));
