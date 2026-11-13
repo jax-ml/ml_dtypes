@@ -142,6 +142,24 @@ def test_float_and_int_conversion(sctype):
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_int_large_inf_nan(sctype):
+  z = sctype(1e20)
+  if np.isinf(float(z.real)):
+    with pytest.warns(ComplexWarning), pytest.raises(OverflowError):
+      int(z)
+  else:
+    with pytest.warns(ComplexWarning):
+      assert int(z) == int(float(z.real))
+
+  with pytest.warns(ComplexWarning), pytest.raises(OverflowError):
+    int(sctype(complex("inf")))
+  with pytest.warns(ComplexWarning), pytest.raises(OverflowError):
+    int(sctype(complex("-inf")))
+  with pytest.warns(ComplexWarning), pytest.raises(ValueError):
+    int(sctype(complex("nan")))
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 def test_real_imag_scalars(sctype):
   # real and image works on the scalar
   z = sctype(3 + 4j)

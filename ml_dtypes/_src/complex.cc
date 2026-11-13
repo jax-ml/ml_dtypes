@@ -265,8 +265,7 @@ PyObject* PyCustomComplex_Int(PyObject* self) {
     return nullptr;
   }
   T x = PyCustomComplex_CustomComplex<T>(self);
-  long y = static_cast<long>(static_cast<float>(x.real()));  // NOLINT
-  return PyLong_FromLong(y);
+  return PyLong_FromDouble(static_cast<double>(static_cast<float>(x.real())));
 }
 
 // Converts a PyReduceFloat into a PyInt.

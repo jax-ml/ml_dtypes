@@ -468,6 +468,18 @@ class CustomFloatTest(parameterized.TestCase):
       if dtype_is_signed(float_type):
         self.assertEqual(-v, int(float_type(-v)))
 
+  def testIntConversion(self, float_type):
+    for v in FLOAT_VALUES[float_type]:
+      val = float_type(v)
+      if np.isnan(v):
+        with self.assertRaises(ValueError):
+          int(val)
+      elif np.isinf(v):
+        with self.assertRaises(OverflowError):
+          int(val)
+      else:
+        self.assertEqual(int(val), int(float(val)))
+
   @ignore_warning(category=RuntimeWarning, message="overflow encountered")
   def testRoundTripToNumpy(self, float_type):
     for dtype in [

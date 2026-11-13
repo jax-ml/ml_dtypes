@@ -190,8 +190,7 @@ PyObject* PyCustomFloat_Float(PyObject* self) {
 template <typename T>
 PyObject* PyCustomFloat_Int(PyObject* self) {
   T x = PyCustomFloat_CustomFloat<T>(self);
-  long y = static_cast<long>(static_cast<float>(x));  // NOLINT
-  return PyLong_FromLong(y);
+  return PyLong_FromDouble(static_cast<double>(static_cast<float>(x)));
 }
 
 // Negates a PyCustomFloat.
