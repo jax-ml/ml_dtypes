@@ -40,8 +40,7 @@ struct bcomplex32 : std::complex<Eigen::bfloat16> {
   bcomplex32(const std::complex<Eigen::bfloat16>& other)
       : bcomplex32(other.real(), other.imag()) {}
 
-  bcomplex32(const Eigen::bfloat16& r)
-      : bcomplex32(r, Eigen::bfloat16{0}) {}
+  bcomplex32(const Eigen::bfloat16& r) : bcomplex32(r, Eigen::bfloat16{0}) {}
 
   template <typename T>
   explicit bcomplex32(const T& r)
@@ -114,8 +113,7 @@ struct complex32 : std::complex<Eigen::half> {
   complex32(const Eigen::half& r) : complex32(r, Eigen::half{0}) {}
 
   template <typename T>
-  explicit complex32(const T& r)
-      : complex32(Eigen::half{r}, Eigen::half{0}) {}
+  explicit complex32(const T& r) : complex32(Eigen::half{r}, Eigen::half{0}) {}
 
   template <typename T>
   explicit complex32(const T& r, const T& c)
