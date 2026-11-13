@@ -764,13 +764,21 @@ int NPyCustomComplex_Compare(const void* a, const void* b, void* arr) {
   T y;
   memcpy(&y, b, sizeof(T));
 
-  int res =
-      CompareFloats(static_cast<float>(x.real()), static_cast<float>(y.real()));
+  const float xr = static_cast<float>(x.real());
+  const float xi = static_cast<float>(x.imag());
+  const float yr = static_cast<float>(y.real());
+  const float yi = static_cast<float>(y.imag());
+  // NumPy orders non-NaNs, imaginary NaNs, real NaNs, then two NaNs.
+  const int x_nan = 2 * Eigen::numext::isnan(xr) + Eigen::numext::isnan(xi);
+  const int y_nan = 2 * Eigen::numext::isnan(yr) + Eigen::numext::isnan(yi);
+  if (x_nan != y_nan) {
+    return x_nan < y_nan ? -1 : 1;
+  }
+  int res = CompareFloats(xr, yr);
   if (res != 0) {
     return res;
   }
-  return CompareFloats(static_cast<float>(x.imag()),
-                       static_cast<float>(y.imag()));
+  return CompareFloats(xi, yi);
 }
 
 template <typename T>
@@ -846,25 +854,6 @@ void NPyCustomComplex_DotFunc(void* ip1, npy_intp is1, void* ip2, npy_intp is2,
   }
   T* out = reinterpret_cast<T*>(op);
   *out = static_cast<T>(acc);
-}
-
-template <typename T>
-int NPyCustomComplex_CompareFunc(const void* v1, const void* v2, void* arr) {
-  T b1 = *reinterpret_cast<const T*>(v1);
-  T b2 = *reinterpret_cast<const T*>(v2);
-  if (b1.real() < b2.real()) {
-    return -1;
-  }
-  if (b1.real() > b2.real()) {
-    return 1;
-  }
-  if (b1.imag() < b2.imag()) {
-    return -1;
-  }
-  if (b1.imag() > b2.imag()) {
-    return 1;
-  }
-  return 0;
 }
 
 template <typename T>
@@ -1170,7 +1159,6 @@ bool RegisterComplexDtype(PyObject* numpy) {
   arr_funcs.nonzero = NPyCustomComplex_NonZero<T>;
   arr_funcs.fill = NPyCustomComplex_Fill<T>;
   arr_funcs.dotfunc = NPyCustomComplex_DotFunc<T>;
-  arr_funcs.compare = NPyCustomComplex_CompareFunc<T>;
   arr_funcs.argmax = nullptr;
   arr_funcs.argmin = nullptr;
 
