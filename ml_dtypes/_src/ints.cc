@@ -116,6 +116,7 @@ bool CastToIntN(PyObject* arg, T* output) {
                       "cannot convert float infinity to integer");
       return false;
     }
+    d = std::trunc(d);
     if (d < static_cast<double>(T::lowest()) ||
         d > static_cast<double>(T::highest())) {
       SetOutOfRangeError<T>();
