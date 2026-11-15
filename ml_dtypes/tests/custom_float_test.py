@@ -462,6 +462,38 @@ class CustomFloatTest(parameterized.TestCase):
             self.assertEqual(float(float_type(cast(-(mid + 1)))), -hi)
             self.assertEqual(float(float_type(cast(-(mid - 1)))), -lo)
 
+  def testConstructFromPythonIntBeyondInt64(self, float_type):
+    # Python ints outside the int64 range convert like floats, rounding once.
+    pairs = self._adjacent_finite_pairs(float_type, lower=2.0**64)
+    is_signed = dtype_is_signed(float_type)
+    for lo, hi in pairs:
+      mid = (int(lo) + int(hi)) // 2
+      self.assertEqual(2 * mid, int(lo) + int(hi))
+      # mid + 1 and mid - 1 round onto mid in float64.
+      self.assertEqual(float(mid + 1), float(mid))
+      self.assertEqual(float(float_type(mid + 1)), hi)
+      self.assertEqual(float(float_type(mid - 1)), lo)
+      self.assertEqual(
+          float(float_type(mid)), float(float_type(np.float64(mid)))
+      )
+      if is_signed:
+        self.assertEqual(float(float_type(-(mid + 1))), -hi)
+        self.assertEqual(float(float_type(-(mid - 1))), -lo)
+    with np.errstate(all="ignore"):
+      for value in (2**63, 2**64, 2**100, 2**1000 + 1, 2**1024 - 2**971):
+        for signed_value in (value, -value) if is_signed else (value,):
+          np.testing.assert_equal(
+              float(float_type(signed_value)),
+              float(float_type(float(signed_value))),
+          )
+          np.testing.assert_equal(
+              float(np.array([signed_value], object).astype(float_type)[0]),
+              float(float_type(float(signed_value))),
+          )
+    for value in (2**1024 - 1, 2**1024):
+      with self.assertRaises(OverflowError):
+        float_type(value)
+
   def testRoundTripToInt(self, float_type):
     for v in INT_VALUES[float_type]:
       self.assertEqual(v, int(float_type(v)))
