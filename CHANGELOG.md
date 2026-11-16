@@ -23,60 +23,84 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-* Constructing a custom float or complex scalar from a Python `int` outside
-  the int64 range no longer raises `OverflowError` when the value converts to
-  a `float`: it now rounds once to the target type, like other casts
-  ([#446](https://github.com/jax-ml/ml_dtypes/issues/446)).
-* Casts to `float8_e8m0fnu` now round values between 2<sup>-127</sup> and
-  1.5 × 2<sup>-127</sup> down to 2<sup>-127</sup> instead of up to
-  2<sup>-126</sup>
-  ([#406](https://github.com/jax-ml/ml_dtypes/issues/406)).
-* Fixed double rounding when converting to custom float and complex types from
-  `float64`, `longdouble`, `complex128`, and `clongdouble` values, from 32 bit
-  and 64 bit integers, and from Python and NumPy scalars (including `float8` C++
-  integer conversions), and fixed a crash when constructing custom floats from
-  strings that do not parse as numbers
-  ([#401](https://github.com/jax-ml/ml_dtypes/pull/401)).
-* Migrated custom dtype ufuncs to NumPy 2 `ArrayMethod`s and promoters
-  ([#424](https://github.com/jax-ml/ml_dtypes/pull/424)):
-  * Mixed operations between `ml_dtypes` arrays or scalars and Python scalars
-    (`int`, `float`, `complex`) now follow NumPy 2 (NEP 50) weak promotion rules
-    instead of upcasting custom floating-point values to `float64` or
-    `complex128`. Notably, arithmetic such as `bfloat16(2.0) + 1e-3` stays in
-    `bfloat16`, and comparing a finite-only or unsigned custom float against an
-    out-of-range Python float converts the Python float to the custom dtype
-    first (for example, `float8_e4m3fn(448.0) < 1000.0` returns `False` because
-    `float8_e4m3fn(1000.0)` overflows to `NaN`; explicitly cast via
-    `float(x) < 1000.0` when comparing against wider bounds).
-  * Multi-axis and empty-array ufunc reductions now work across custom float,
-    integer, and complex dtypes.
-  * Integer floor division and remainder by zero now set floating-point status
-    flags respected by `np.errstate`, and `np.ldexp` supports 64-bit integer
-    exponents across platforms.
-* Migrated cross-dtype casts to NumPy 2 `ArrayMethod`s
-  ([#418](https://github.com/jax-ml/ml_dtypes/pull/418)):
-  * Fixed `np.can_cast` so lossy casts between same-size custom dtypes (such as
+## [0.7.0] - 2026-11-16
+
+* Added new 8-bit unsigned float type: `ml_dtypes.float8_e5m3fnu`
+  ([#407](https://github.com/jax-ml/ml_dtypes/pull/407)).
+* `ml_dtypes` types now use the NumPy 2 DType API
+  ([#374](https://github.com/jax-ml/ml_dtypes/pull/374),
+  [#418](https://github.com/jax-ml/ml_dtypes/pull/418),
+  [#424](https://github.com/jax-ml/ml_dtypes/pull/424)):
+  * Fixed `np.result_type` and `np.promote_types` for `ml_dtypes` types and
+    Python scalars. Mixed operations with Python `int`, `float`, and `complex`
+    values now follow NumPy 2 (NEP 50) promotion rules instead of upcasting to
+    `float64` or `complex128` (for example, `bfloat16(2.0) + 1e-3` stays in
+    `bfloat16`). Comparing a finite-only or unsigned float against an
+    out-of-range Python float converts the Python float to the `ml_dtypes` type
+    first (e.g., `float8_e4m3fn(448.0) < 1000.0` is `False` because
+    `float8_e4m3fn(1000.0)` overflows to `NaN`; use `float(x) < 1000.0` for
+    wider bounds).
+  * Fixed `np.can_cast` so lossy casts between 1-byte types (such as
     `float8_e4m3fn` to `float4_e2m1fn`) are no longer reported as `"safe"`, and
     widening `intN` casts to `longlong` and `ulonglong` are now `"safe"`.
-  * Registered casts between all pairs of custom dtypes, including narrowing and
+  * Added casts between all pairs of `ml_dtypes` types, including narrowing and
     mixed-sign `intN` casts, `int4`/`uint4` <-> `float6_e2m3fn`, and casts
-    between `float8_e8m0fnu` and other custom dtypes.
-  * Casting non-finite or out-of-range floating-point values to integers now
-    consistently returns `0` and raises the `invalid` floating-point warning;
-    casting any complex dtype to a custom float or `intN` dtype now emits
-    `ComplexWarning` once per cast.
-* Added new 8-bit float type: `ml_dtypes.float8_e5m3fnu`.
-* `float8.h` no longer depends on `Eigen::numext::get_integer_by_size`, which is
-  unavailable in Eigen 3.4.x.
-* `np.heaviside` of the smallest `float8_e8m0fnu` value now returns 1
-  instead of the second argument.
-* `np.copysign` of zero no longer returns NaN for the `*fnuz` types, and
-  `np.sign` of the smallest `float8_e8m0fnu` value now returns 1
-  ([#408](https://github.com/jax-ml/ml_dtypes/pull/408)).
+    involving `float8_e8m0fnu`.
+  * Multi-axis and empty-array ufunc reductions now work across all `ml_dtypes`
+    types.
+  * Casting non-finite or out-of-range floats to integers now consistently
+    returns `0` and emits an `invalid` warning; casting complex types to real or
+    integer `ml_dtypes` types emits `ComplexWarning`; integer division by zero
+    respects `np.errstate`; and `np.ldexp` supports 64-bit integer exponents on
+    all platforms.
+* Registered byte-aligned `ml_dtypes` types with NumPy's DLPack support on
+  NumPy 2.5+ ([#402](https://github.com/jax-ml/ml_dtypes/pull/402)).
+* `np.finfo` now supports `ml_dtypes` float and complex types, `ml_dtypes.finfo`
+  now accepts `"complex32"`, and `np.float_power` is now supported for float and
+  complex types ([#395](https://github.com/jax-ml/ml_dtypes/pull/395)).
+* Changed `np.dtype(complex32).kind` from `'V'` to `'c'`, and changed
+  `dtype.char` for `complex32` and `bcomplex32` to `'J'` and `'K'`
+  ([#357](https://github.com/jax-ml/ml_dtypes/pull/357)).
 * `arr.real` and `arr.imag` now return correct results for `bcomplex32` and
   `complex32` arrays on NumPy 2.5+ ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
 * Fixed byte-swapping of `bcomplex32` and `complex32` arrays
   ([#383](https://github.com/jax-ml/ml_dtypes/pull/383)).
+* Fixed `NaN` ordering for `complex32` and `bcomplex32` in `np.sort` and
+  `np.searchsorted` ([#429](https://github.com/jax-ml/ml_dtypes/pull/429)),
+  casting purely imaginary values to `bool`
+  ([#395](https://github.com/jax-ml/ml_dtypes/pull/395)), and `TypeError`
+  handling in two-argument `complex32(real, imag)` / `bcomplex32(real, imag)`
+  ([#439](https://github.com/jax-ml/ml_dtypes/pull/439)).
+* Fixed double rounding when converting to `ml_dtypes` float and complex types
+  from `float64`, `longdouble`, `complex128`, `clongdouble`, 32- and 64-bit
+  integers, and Python/NumPy scalars, and fixed a crash when constructing floats
+  from invalid strings ([#401](https://github.com/jax-ml/ml_dtypes/pull/401)).
+* Constructing a float or complex scalar from a Python `int` outside the `int64`
+  range no longer raises `OverflowError` when the value fits in `float64`
+  ([#447](https://github.com/jax-ml/ml_dtypes/pull/447)).
+* Fixed `int(x)` on `ml_dtypes` float and complex scalars for large values,
+  `inf`, and `NaN` ([#444](https://github.com/jax-ml/ml_dtypes/pull/444)).
+* Constructing `intN` values from Python floats now truncates toward zero before
+  range checking (e.g. `int4(7.5)` returns `7` instead of raising
+  `OverflowError`) ([#443](https://github.com/jax-ml/ml_dtypes/pull/443)), and
+  out-of-range errors now name the actual `intN` type instead of `"int4"`
+  ([#403](https://github.com/jax-ml/ml_dtypes/pull/403)).
+* Casts to `float8_e8m0fnu` now round values between 2<sup>-127</sup> and
+  1.5 × 2<sup>-127</sup> down to 2<sup>-127</sup> instead of up to
+  2<sup>-126</sup>
+  ([#434](https://github.com/jax-ml/ml_dtypes/pull/434)).
+* `np.copysign` of zero no longer returns `NaN` for `*fnuz` types, and
+  `np.sign` and `np.heaviside` of the smallest `float8_e8m0fnu` value now
+  return 1 ([#408](https://github.com/jax-ml/ml_dtypes/pull/408),
+  [#416](https://github.com/jax-ml/ml_dtypes/pull/416)).
+* Fixed spurious `invalid value` warnings when casting quiet `NaN`s on ARM64
+  ([#426](https://github.com/jax-ml/ml_dtypes/pull/426),
+  [#428](https://github.com/jax-ml/ml_dtypes/pull/428)).
+* `complex_types.h` can now be included in C++ without Python or NumPy headers
+  ([#422](https://github.com/jax-ml/ml_dtypes/pull/422)).
+* `float8.h` no longer depends on `Eigen::numext::get_integer_by_size`, which is
+  unavailable in Eigen 3.4.x
+  ([#414](https://github.com/jax-ml/ml_dtypes/pull/414)).
 
 ## [0.6.0] - 2026-08-13
 
@@ -185,7 +209,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Initial release
 
-[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/jax-ml/ml_dtypes/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/jax-ml/ml_dtypes/compare/v0.5.2....v0.5.3
