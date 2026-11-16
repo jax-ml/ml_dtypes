@@ -23,6 +23,10 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Constructing a custom float or complex scalar from a Python `int` outside
+  the int64 range no longer raises `OverflowError` when the value converts to
+  a `float`: it now rounds once to the target type, like other casts
+  ([#446](https://github.com/jax-ml/ml_dtypes/issues/446)).
 * Casts to `float8_e8m0fnu` now round values between 2<sup>-127</sup> and
   1.5 × 2<sup>-127</sup> down to 2<sup>-127</sup> instead of up to
   2<sup>-126</sup>

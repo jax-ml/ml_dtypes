@@ -18,7 +18,10 @@ limitations under the License.
 
 #include <Python.h>
 
+#include <cmath>
 #include <complex>
+#include <cstdint>
+#include <limits>
 #include <memory>
 
 #include "Eigen/Core"
@@ -66,6 +69,69 @@ struct PyDecrefDeleter {
 using Safe_PyObjectPtr = std::unique_ptr<PyObject, PyDecrefDeleter>;
 inline Safe_PyObjectPtr make_safe(PyObject* object) {
   return Safe_PyObjectPtr(object);
+}
+
+// Converts a Python int `arg` (negative iff `is_negative`) whose magnitude does
+// not fit in `long long` to a double, rounding to odd: if the int is not
+// exactly representable, the result is whichever of the two doubles bracketing
+// it has an odd significand. A following round to nearest conversion to `float`
+// or a narrower type then rounds only once (see RoundToOddFloat). Returns false
+// with a Python error set on failure, raising OverflowError where `float(arg)`
+// would.
+inline bool PyLongToDoubleRoundToOdd(PyObject* arg, bool is_negative,
+                                     double* out) {
+  constexpr int kDoubleDigits = std::numeric_limits<double>::digits;
+  // Raise OverflowError where `float(arg)` would, as NumPy scalars do.
+  if (PyLong_AsDouble(arg) == -1.0 && PyErr_Occurred()) {
+    return false;
+  }
+  Safe_PyObjectPtr magnitude = make_safe(PyNumber_Absolute(arg));
+  if (!magnitude) {
+    return false;
+  }
+  Safe_PyObjectPtr bit_length_obj =
+      make_safe(PyObject_CallMethod(magnitude.get(), "bit_length", nullptr));
+  if (!bit_length_obj) {
+    return false;
+  }
+  const Py_ssize_t bit_length = PyLong_AsSsize_t(bit_length_obj.get());
+  if (bit_length == -1 && PyErr_Occurred()) {
+    return false;
+  }
+  // Keep the `kDoubleDigits` leading bits, and set the lowest of them if any of
+  // the discarded bits are set.
+  const Py_ssize_t shift =
+      bit_length > kDoubleDigits ? bit_length - kDoubleDigits : 0;
+  Safe_PyObjectPtr shift_obj = make_safe(PyLong_FromSsize_t(shift));
+  if (!shift_obj) {
+    return false;
+  }
+  Safe_PyObjectPtr leading =
+      make_safe(PyNumber_Rshift(magnitude.get(), shift_obj.get()));
+  if (!leading) {
+    return false;
+  }
+  Safe_PyObjectPtr restored =
+      make_safe(PyNumber_Lshift(leading.get(), shift_obj.get()));
+  if (!restored) {
+    return false;
+  }
+  const int exact =
+      PyObject_RichCompareBool(restored.get(), magnitude.get(), Py_EQ);
+  if (exact < 0) {
+    return false;
+  }
+  uint64_t significand = PyLong_AsUnsignedLongLong(leading.get());
+  if (PyErr_Occurred()) {
+    return false;
+  }
+  significand |= exact ? 0 : 1;
+  // `significand` has at most `kDoubleDigits` bits and `float(arg)` is finite,
+  // so this is exact.
+  double abs_value =
+      std::ldexp(static_cast<double>(significand), static_cast<int>(shift));
+  *out = is_negative ? -abs_value : abs_value;
+  return true;
 }
 
 // Reads a NumPy scalar as the C type behind `numpy_type`. Returns false with a

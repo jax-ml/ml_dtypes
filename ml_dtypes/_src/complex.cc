@@ -133,9 +133,18 @@ bool CastToReal(PyObject* arg, RealT* output) {
   }
   if (PyLong_Check(arg)) {
     // Read as long long: a long is only 32 bits on Windows.
-    long long l = PyLong_AsLongLong(arg);  // NOLINT
+    int overflow;
+    long long l = PyLong_AsLongLongAndOverflow(arg, &overflow);  // NOLINT
     if (PyErr_Occurred()) {
       return false;
+    }
+    if (overflow != 0) {
+      double d;
+      if (!PyLongToDoubleRoundToOdd(arg, overflow < 0, &d)) {
+        return false;
+      }
+      *output = static_cast<RealT>(NarrowToFloat(d));
+      return true;
     }
     *output = static_cast<RealT>(NarrowToFloat(l));
     return true;

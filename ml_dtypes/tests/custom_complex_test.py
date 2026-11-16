@@ -133,6 +133,17 @@ def test_constructor(sctype):
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+def test_constructor_python_int_beyond_int64(sctype):
+  with np.errstate(all="ignore"):
+    for value in (2**63, -(2**63) - 1, 2**64, 2**100):
+      np.testing.assert_equal(
+          complex(sctype(value)), complex(sctype(float(value)))
+      )
+  with pytest.raises(OverflowError):
+    sctype(2**1024)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
 def test_float_and_int_conversion(sctype):
   z = sctype(1.5)
   with pytest.warns(ComplexWarning):
