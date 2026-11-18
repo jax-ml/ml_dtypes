@@ -10,11 +10,17 @@ execute_process(
     COMMAND_ERROR_IS_FATAL ANY
 )
 
-# Add Eigen as a submodule. This will run Eigen's configuration step and generate headers.
-set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
-set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-add_subdirectory(third_party/eigen EXCLUDE_FROM_ALL)
+option(VENDOR_EIGEN "Build with a vendored copy of eigen" ON)
+
+if(VENDOR_EIGEN)
+    # Add Eigen as a submodule. This will run Eigen's configuration step and generate headers.
+    set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
+    set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+    add_subdirectory(third_party/eigen EXCLUDE_FROM_ALL)
+else()
+    find_package(Eigen3 5.0.1 REQUIRED)
+endif()
 
 Python_add_library(_ml_dtypes_ext MODULE WITH_SOABI
     ml_dtypes/_src/casts.cc
