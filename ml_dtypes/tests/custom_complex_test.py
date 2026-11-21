@@ -714,10 +714,6 @@ def test_binary_ufuncs(sctype, ufunc):
   x = np.concatenate([x, rng.random(20).astype(np.float32).view(np.complex64)])
   x = x.astype(sctype)
 
-  if ufunc in [np.power, np.float_power]:
-    # TODO(seberg): std::power deals poorly with some values, drop for now.
-    x = x[(ml_dtypes.real(x) != 0) & np.isfinite(x)]
-
   y = x[:, np.newaxis]
 
   result = ufunc(x, y)
@@ -742,6 +738,20 @@ def test_binary_ufuncs(sctype, ufunc):
     dtype = expected.dtype
     expected = expected.astype(result.dtype).astype(dtype)
     np.testing.assert_array_equal(result.astype(dtype), expected)
+
+
+@pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
+@pytest.mark.parametrize("ufunc", [np.power, np.float_power])
+@np.errstate(all="ignore")
+def test_power_special_cases(sctype, ufunc):
+  """Test that power has the special cases of NumPy's complex power."""
+  x = np.array([0j, 0j, 0j, complex("inf"), complex("nan"), 1j, 1j, 1 + 1j, 2j])
+  y = np.array([0j, 2, -1, 0j, 0j, 2, 3, 2, -2])
+  result = ufunc(x.astype(sctype), y.astype(sctype))
+  expected = ufunc(x.astype(np.complex64), y.astype(np.complex64))
+  # `0**0` is 1, `0**2` is 0, `0**-1` is NaN, `x**0` is 1 for any `x`, and
+  # integer powers are exact, e.g. `1j**2` is -1 with a zero imaginary part.
+  np.testing.assert_array_equal(result.astype(np.complex64), expected)
 
 
 @pytest.mark.parametrize("sctype", COMPLEX_SCTYPES)
