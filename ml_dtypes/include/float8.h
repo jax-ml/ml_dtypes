@@ -204,13 +204,17 @@ class float8_base {
   SignAndMagnitude(Derived x) {
     const uint8_t x_abs_bits =
         Eigen::numext::bit_cast<uint8_t>(Eigen::numext::abs(x));
+    if constexpr (!std::numeric_limits<Derived>::is_signed) {
+      return {0, x_abs_bits};
+    }
     const uint8_t x_bits = Eigen::numext::bit_cast<uint8_t>(x);
-    const uint8_t x_sign = (x_bits ^ x_abs_bits) << (CHAR_BIT - Derived::kBits);
+    constexpr uint8_t kSignMask = uint8_t{1} << (Derived::kBits - 1);
+    const uint8_t x_sign = x_bits & kSignMask;
     return {x_sign, x_abs_bits};
   }
   static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int8_t
   SignAndMagnitudeToTwosComplement(uint8_t sign, uint8_t magnitude) {
-    return magnitude ^ (static_cast<int8_t>(sign) < 0 ? -1 : 0);
+    return magnitude ^ (sign ? -1 : 0);
   }
 
   enum Ordering : int8_t {
@@ -1551,7 +1555,8 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
 
   static EIGEN_DEVICE_FUNC inline To run(From from) {
     const FromBits from_bits = Eigen::numext::bit_cast<FromBits>(from);
-    const bool from_sign = (from_bits >> (kFromBits - 1)) && kFromIsSigned;
+    const bool from_sign =
+        (from_bits & (FromBits{1} << (kFromBits - 1))) && kFromIsSigned;
     FromBits from_abs_bits;
     bool from_isinf;
     bool from_isnan;
@@ -1561,7 +1566,8 @@ struct ConvertImpl<From, To, kSaturate, kTruncate,
     // which sets the hardware FE_INVALID exception flag on quiet NaNs.
     // Integer comparisons never raise floating-point exceptions.
     if constexpr (std::numeric_limits<From>::is_iec559) {
-      from_abs_bits = from_bits & ~(FromBits{1} << (kFromBits - 1));
+      from_abs_bits =
+          from_bits & (FromTraits::kExponentMask | FromTraits::kMantissaMask);
       from_isinf = from_abs_bits == FromTraits::kExponentMask;
       from_isnan = from_abs_bits > FromTraits::kExponentMask;
     } else {

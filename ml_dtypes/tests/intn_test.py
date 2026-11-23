@@ -527,6 +527,120 @@ class ArrayTest(parameterized.TestCase):
     self.assertTrue(np.all(x < 1000))
     self.assertTrue(np.all(1000 > x))
 
+  @parameterized.parameters(INTN_TYPES)
+  def testUpperPaddingBits(self, scalar_type):
+    bits = ml_dtypes.iinfo(scalar_type).bits
+    mask = np.uint8((1 << bits) - 1)
+    raw_bytes = np.arange(256, dtype=np.uint8)
+    raw = raw_bytes.view(scalar_type)
+    canonical = (raw_bytes & mask).view(scalar_type)
+
+    scalar_byte = lambda v: int(np.frombuffer(v, dtype=np.uint8)[0])
+    probe_indices = [0, 1, int(mask), 0x80, 0xC0 | int(mask), 0xFF]
+    for i in range(256):
+      s = raw[i]
+      cs = canonical[i]
+      self.assertEqual(scalar_byte(s), i)
+      self.assertEqual(int(s), int(cs))
+      self.assertEqual(float(s), float(cs))
+      self.assertEqual(bool(s), bool(cs))
+      self.assertEqual(hash(s), hash(cs))
+      self.assertEqual(repr(s), repr(cs))
+      self.assertEqual(str(s), str(cs))
+      self.assertEqual(format(s, "d"), format(cs, "d"))
+      self.assertEqual(s.item(), cs.item())
+
+      for out, exp in [
+          (scalar_type(s), cs),
+          (-s, -cs),
+          (+s, +cs),
+          (s + raw[0x81], cs + canonical[0x81]),
+          (s - raw[0x81], cs - canonical[0x81]),
+          (s * raw[0x81], cs * canonical[0x81]),
+          (s // raw[0x81], cs // canonical[0x81]),
+          (s % raw[0x81], cs % canonical[0x81]),
+      ]:
+        self.assertEqual(int(out), int(exp))
+
+      dst = np.full(1, 0xFF, dtype=np.uint8).view(scalar_type)
+      dst[0] = s
+      self.assertEqual(int(dst[0]), int(cs))
+
+      for j in probe_indices:
+        t, ct = raw[j], canonical[j]
+        for op in (
+            operator.eq,
+            operator.ne,
+            operator.lt,
+            operator.le,
+            operator.gt,
+            operator.ge,
+        ):
+          self.assertEqual(op(s, t), op(cs, ct))
+
+    for op in (
+        np.equal,
+        np.not_equal,
+        np.less,
+        np.less_equal,
+        np.greater,
+        np.greater_equal,
+        np.logical_and,
+        np.logical_or,
+        np.logical_xor,
+    ):
+      np.testing.assert_array_equal(
+          op(raw[:, None], raw[None, :]),
+          op(canonical[:, None], canonical[None, :]),
+      )
+    np.testing.assert_array_equal(
+        np.logical_not(raw), np.logical_not(canonical)
+    )
+    np.testing.assert_array_equal(np.nonzero(raw)[0], np.nonzero(canonical)[0])
+    np.testing.assert_array_equal(
+        np.argsort(raw, kind="stable"), np.argsort(canonical, kind="stable")
+    )
+    np.testing.assert_array_equal(
+        np.sort(raw).astype(np.int8), np.sort(canonical).astype(np.int8)
+    )
+    for r_slice, c_slice in [
+        (raw, canonical),
+        (raw[::-1], canonical[::-1]),
+        (raw[128:], canonical[128:]),
+    ]:
+      self.assertEqual(np.argmax(r_slice), np.argmax(c_slice))
+      self.assertEqual(np.argmin(r_slice), np.argmin(c_slice))
+      self.assertEqual(
+          int(np.dot(r_slice, r_slice[::-1])),
+          int(np.dot(c_slice, c_slice[::-1])),
+      )
+
+    rhs_bytes = np.array([0x00, 0x01, int(mask), 0x80, 0x81, 0xFF], np.uint8)
+    rhs_raw = rhs_bytes.view(scalar_type)
+    rhs_can = (rhs_bytes & mask).view(scalar_type)
+    with np.errstate(divide="ignore", invalid="ignore"):
+      for op in (
+          np.add,
+          np.subtract,
+          np.multiply,
+          np.floor_divide,
+          np.remainder,
+          np.maximum,
+          np.minimum,
+          np.fmax,
+          np.fmin,
+          np.fmod,
+          np.divide,
+      ):
+        np.testing.assert_array_equal(
+            op(raw[:, None], rhs_raw[None, :]),
+            op(canonical[:, None], rhs_can[None, :]),
+        )
+    for op in (np.add, np.multiply):
+      self.assertEqual(
+          int(op.reduce(raw[128:160])), int(op.reduce(canonical[128:160]))
+      )
+
 
 if __name__ == "__main__":
   absltest.main()

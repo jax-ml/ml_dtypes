@@ -873,3 +873,96 @@ def test_wide_complex_to_custom_float_does_not_double_round(float_type, source):
         assert float(arr.astype(float_type)[0]) == expected
       with pytest.warns(np.exceptions.ComplexWarning):
         assert float(float_type(arr[0])) == expected
+
+
+SUBBYTE_FLOATS = [
+    ml_dtypes.float4_e2m1fn,
+    ml_dtypes.float6_e2m3fn,
+    ml_dtypes.float6_e3m2fn,
+]
+SUBBYTE_DTYPES = SUBBYTE_FLOATS + CUSTOM_INTS
+
+
+def _subbyte_mask(dtype):
+  t = np.dtype(dtype).type
+  if t in SUBBYTE_FLOATS:
+    return np.uint8((1 << ml_dtypes.finfo(t).bits) - 1)
+  if t in CUSTOM_INTS:
+    return np.uint8((1 << ml_dtypes.iinfo(t).bits) - 1)
+  return None
+
+
+def _assert_bit_exact_array_equal(actual, expected, dtype):
+  """Asserts exact equality of value, signed zero, and NaN bits."""
+  dt = np.dtype(dtype)
+  assert actual.dtype == dt
+  assert expected.dtype == dt
+  mask = _subbyte_mask(dt)
+  if mask is not None:
+    np.testing.assert_array_equal(
+        actual.view(np.uint8) & mask, expected.view(np.uint8) & mask
+    )
+  elif dt.type in CUSTOM_COMPLEX:
+    comp = COMPLEX_COMPONENTS[dt.type]
+    _assert_bit_exact_array_equal(
+        ml_dtypes.real(actual), ml_dtypes.real(expected), comp
+    )
+    _assert_bit_exact_array_equal(
+        ml_dtypes.imag(actual), ml_dtypes.imag(expected), comp
+    )
+  elif dt.type in CUSTOM_FLOATS:
+    storage = np.uint16 if dt.itemsize == 2 else np.uint8
+    np.testing.assert_array_equal(actual.view(storage), expected.view(storage))
+  elif dt.kind == "c":
+    np.testing.assert_array_equal(actual.real, expected.real)
+    np.testing.assert_array_equal(actual.imag, expected.imag)
+    np.testing.assert_array_equal(
+        np.signbit(actual.real), np.signbit(expected.real)
+    )
+    np.testing.assert_array_equal(
+        np.signbit(actual.imag), np.signbit(expected.imag)
+    )
+  elif dt.kind == "f":
+    np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
+  else:
+    np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("source", SUBBYTE_DTYPES, ids=lambda t: t.__name__)
+@pytest.mark.parametrize(
+    "target", [*ALL_DTYPES, np.dtype(object)], ids=lambda t: np.dtype(t).name
+)
+def test_subbyte_upper_padding_bits_cast(source, target):
+  """Verifies casts ignore unused upper padding bits in sub byte dtypes."""
+  src_mask = _subbyte_mask(source)
+  assert src_mask is not None
+  raw_bytes = np.arange(256, dtype=np.uint8)
+  raw = raw_bytes.view(source)
+  canonical = (raw_bytes & src_mask).view(source)
+  raw_strided = np.repeat(raw_bytes, 2).view(source)[::2]
+
+  with warnings.catch_warnings(), np.errstate(all="ignore"):
+    warnings.simplefilter("ignore")
+    actual = raw.astype(target)
+    actual_strided = raw_strided.astype(target)
+    expected = canonical.astype(target)
+
+  if target == np.dtype(object):
+    for a, s, e in zip(
+        actual.tolist(), actual_strided.tolist(), expected.tolist()
+    ):
+      assert type(a) is type(e) and a == e
+      assert type(s) is type(e) and s == e
+      if isinstance(e, float):
+        assert np.signbit(a) == np.signbit(e)
+        assert np.signbit(s) == np.signbit(e)
+  else:
+    _assert_bit_exact_array_equal(actual, expected, target)
+    _assert_bit_exact_array_equal(actual_strided, expected, target)
+
+  with warnings.catch_warnings(), np.errstate(all="ignore"):
+    warnings.simplefilter("ignore")
+    back_actual = actual.astype(source)
+    back_expected = expected.astype(source)
+  _assert_bit_exact_array_equal(back_actual, back_expected, source)

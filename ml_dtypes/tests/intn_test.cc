@@ -320,6 +320,94 @@ TYPED_TEST(IntNTest, Operators) {
   }
 }
 
+template <typename To, typename From>
+void ExpectIntNCastEqual(From raw, From canonical) {
+  EXPECT_EQ(static_cast<To>(raw), static_cast<To>(canonical));
+}
+
+TYPED_TEST(IntNTest, UpperPaddingBits) {
+  using IntN = TypeParam;
+  using Underlying = typename IntN::underlying_type;
+  constexpr uint8_t kValueMask = (uint8_t{1} << IntN::bits) - 1;
+  constexpr uint8_t kPaddingMask = static_cast<uint8_t>(~kValueMask);
+
+  for (int i = 0; i < 256; ++i) {
+    const uint8_t b = static_cast<uint8_t>(i);
+    const uint8_t cb = b & kValueMask;
+    const IntN raw = Eigen::numext::bit_cast<IntN>(b);
+    const IntN c = Eigen::numext::bit_cast<IntN>(cb);
+
+    EXPECT_EQ(IntN(Eigen::numext::bit_cast<Underlying>(b)), c);
+    EXPECT_EQ(IntN(i), c);
+    EXPECT_EQ(static_cast<bool>(raw), static_cast<bool>(c));
+    EXPECT_EQ(static_cast<int8_t>(raw), static_cast<int8_t>(c));
+    EXPECT_EQ(static_cast<uint8_t>(raw), static_cast<uint8_t>(c));
+    EXPECT_EQ(static_cast<int32_t>(raw), static_cast<int32_t>(c));
+    EXPECT_EQ(static_cast<uint32_t>(raw), static_cast<uint32_t>(c));
+    EXPECT_EQ(static_cast<int64_t>(raw), static_cast<int64_t>(c));
+    EXPECT_EQ(static_cast<uint64_t>(raw), static_cast<uint64_t>(c));
+    EXPECT_EQ(static_cast<float>(raw), static_cast<float>(c));
+    EXPECT_EQ(static_cast<double>(raw), static_cast<double>(c));
+    EXPECT_EQ(static_cast<std::optional<int64_t>>(raw),
+              static_cast<std::optional<int64_t>>(c));
+    EXPECT_EQ(raw.ToString(), c.ToString());
+    ExpectIntNCastEqual<int1>(raw, c);
+    ExpectIntNCastEqual<uint1>(raw, c);
+    ExpectIntNCastEqual<int2>(raw, c);
+    ExpectIntNCastEqual<uint2>(raw, c);
+    ExpectIntNCastEqual<int4>(raw, c);
+    ExpectIntNCastEqual<uint4>(raw, c);
+
+    EXPECT_EQ(-raw, -c);
+    EXPECT_EQ(~raw, ~c);
+    EXPECT_EQ(Eigen::numext::signbit(raw), Eigen::numext::signbit(c));
+
+    IntN a = raw;
+    EXPECT_EQ(++a, c + IntN(1));
+    EXPECT_EQ(a, c + IntN(1));
+    a = raw;
+    EXPECT_EQ(a++, c);
+    EXPECT_EQ(a, c + IntN(1));
+    a = raw;
+    EXPECT_EQ(--a, c - IntN(1));
+    EXPECT_EQ(a, c - IntN(1));
+    a = raw;
+    EXPECT_EQ(a--, c);
+    EXPECT_EQ(a, c - IntN(1));
+
+    for (int s = 0; s < IntN::bits; ++s) {
+      EXPECT_EQ(raw << s, c << s);
+      EXPECT_EQ(raw >> s, c >> s);
+    }
+
+    for (uint8_t pad :
+         {uint8_t{0x00}, uint8_t{0x50}, uint8_t{0x80}, uint8_t{0xF0}}) {
+      for (int v = 0; v < (1 << IntN::bits); ++v) {
+        const uint8_t rb = static_cast<uint8_t>((pad & kPaddingMask) | v);
+        const IntN raw_rhs = Eigen::numext::bit_cast<IntN>(rb);
+        const IntN c_rhs =
+            Eigen::numext::bit_cast<IntN>(static_cast<uint8_t>(v));
+        EXPECT_EQ(raw == raw_rhs, c == c_rhs);
+        EXPECT_EQ(raw != raw_rhs, c != c_rhs);
+        EXPECT_EQ(raw < raw_rhs, c < c_rhs);
+        EXPECT_EQ(raw <= raw_rhs, c <= c_rhs);
+        EXPECT_EQ(raw > raw_rhs, c > c_rhs);
+        EXPECT_EQ(raw >= raw_rhs, c >= c_rhs);
+        EXPECT_EQ(raw + raw_rhs, c + c_rhs);
+        EXPECT_EQ(raw - raw_rhs, c - c_rhs);
+        EXPECT_EQ(raw * raw_rhs, c * c_rhs);
+        EXPECT_EQ(raw & raw_rhs, c & c_rhs);
+        EXPECT_EQ(raw | raw_rhs, c | c_rhs);
+        EXPECT_EQ(raw ^ raw_rhs, c ^ c_rhs);
+        if (c_rhs != 0) {
+          EXPECT_EQ(raw / raw_rhs, c / c_rhs);
+          EXPECT_EQ(raw % raw_rhs, c % c_rhs);
+        }
+      }
+    }
+  }
+}
+
 TYPED_TEST(IntNTest, ToString) {
   using IntN = TypeParam;
   for (int i = static_cast<int>(std::numeric_limits<IntN>::min());

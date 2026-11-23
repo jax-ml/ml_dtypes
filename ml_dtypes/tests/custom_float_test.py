@@ -1572,5 +1572,252 @@ class Float8E8m0fnuTest(absltest.TestCase):
     )
 
 
+class SubByteFloatPaddingBitsTest(parameterized.TestCase):
+  """Exhaustive 256 byte padding bit tests for sub byte float dtypes."""
+
+  @staticmethod
+  def _raw_and_canonical(float_type):
+    bits = ml_dtypes.finfo(float_type).bits
+    mask = np.uint8((1 << bits) - 1)
+    raw_bytes = np.arange(256, dtype=np.uint8)
+    return raw_bytes.view(float_type), (raw_bytes & mask).view(float_type), mask
+
+  @staticmethod
+  def _scalar_byte(s):
+    return int(np.frombuffer(s, dtype=np.uint8)[0])
+
+  def _assert_equal_with_sign(self, actual, expected, float_type, mask):
+    self.assertEqual(actual.dtype, np.dtype(float_type))
+    self.assertEqual(expected.dtype, np.dtype(float_type))
+    if isinstance(actual, np.ndarray):
+      actual_u8 = actual.view(np.uint8)
+      expected_u8 = expected.view(np.uint8)
+    else:
+      actual_u8 = np.array([self._scalar_byte(actual)], dtype=np.uint8)
+      expected_u8 = np.array([self._scalar_byte(expected)], dtype=np.uint8)
+    np.testing.assert_array_equal(actual_u8 & mask, expected_u8 & mask)
+    actual_f32 = np.asarray(actual).astype(np.float32)
+    expected_f32 = np.asarray(expected).astype(np.float32)
+    np.testing.assert_array_equal(actual_f32, expected_f32)
+    np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
+    np.testing.assert_array_equal(
+        np.signbit(actual_f32), np.signbit(expected_f32)
+    )
+
+  @parameterized.parameters(float4_e2m1fn, float6_e2m3fn, float6_e3m2fn)
+  def testPythonScalarsAndArrayMethods(self, float_type):
+    raw, canonical, mask = self._raw_and_canonical(float_type)
+
+    # Scalar observers and operations across all 256 raw byte values.
+    probe_indices = [0, 1, int(mask), int(mask) ^ 1, 0x80, 0xC0, 0xE1, 0xFF]
+    for i in range(256):
+      s = raw[i]
+      cs = canonical[i]
+      self.assertEqual(self._scalar_byte(s), i)
+      sf, csf = float(s), float(cs)
+      self.assertEqual(sf, csf)
+      self.assertEqual(math.copysign(1.0, sf), math.copysign(1.0, csf))
+      si, csi = s.item(), cs.item()
+      self.assertEqual(si, csi)
+      self.assertEqual(math.copysign(1.0, si), math.copysign(1.0, csi))
+      self.assertEqual(int(s), int(cs))
+      self.assertEqual(bool(s), bool(cs))
+      self.assertEqual(hash(s), hash(cs))
+      self.assertEqual(hash(s), hash(csf))
+      self.assertEqual(repr(s), repr(cs))
+      self.assertEqual(str(s), str(cs))
+      self.assertEqual(format(s, ".3f"), format(cs, ".3f"))
+
+      # Scalar and setitem operations match canonical value and sign.
+      for out, exp in [
+          (float_type(s), cs),
+          (float_type(raw[i : i + 1].reshape(())), cs),
+          (-s, -cs),
+          (+s, +cs),
+          (abs(s), abs(cs)),
+          (s + raw[0xC1], cs + canonical[0xC1]),
+          (s - raw[0xC1], cs - canonical[0xC1]),
+          (s * raw[0xC1], cs * canonical[0xC1]),
+      ]:
+        self.assertEqual(float(out), float(exp))
+        self.assertEqual(
+            math.copysign(1.0, float(out)), math.copysign(1.0, float(exp))
+        )
+
+      dst = np.full(1, 0xFF, dtype=np.uint8).view(float_type)
+      dst[0] = s
+      self._assert_equal_with_sign(dst, canonical[i : i + 1], float_type, mask)
+
+      for j in probe_indices:
+        t, ct = raw[j], canonical[j]
+        for op in (
+            operator.eq,
+            operator.ne,
+            operator.lt,
+            operator.le,
+            operator.gt,
+            operator.ge,
+        ):
+          self.assertEqual(op(s, t), op(cs, ct))
+          self.assertEqual(op(s, csf), op(cs, csf))
+
+    # Full 256x256 comparisons and binary predicates.
+    for op in BINARY_PREDICATE_UFUNCS:
+      np.testing.assert_array_equal(
+          op(raw[:, None], raw[None, :]),
+          op(canonical[:, None], canonical[None, :]),
+      )
+
+    # Nonzero, sorting, argmax, argmin, dot, copy, and reductions.
+    np.testing.assert_array_equal(np.nonzero(raw)[0], np.nonzero(canonical)[0])
+    np.testing.assert_array_equal(
+        np.argsort(raw, kind="stable"), np.argsort(canonical, kind="stable")
+    )
+    np.testing.assert_array_equal(
+        canonical[np.argsort(raw)].astype(np.float32),
+        np.sort(canonical).astype(np.float32),
+    )
+    sorted_raw = np.sort(raw)
+    np.testing.assert_array_equal(
+        sorted_raw.astype(np.float32), np.sort(canonical).astype(np.float32)
+    )
+    for r_slice, c_slice in [
+        (raw, canonical),
+        (raw[::-1], canonical[::-1]),
+        (raw[192:], canonical[192:]),
+        (raw[128:192:3], canonical[128:192:3]),
+    ]:
+      self.assertEqual(np.argmax(r_slice), np.argmax(c_slice))
+      self.assertEqual(np.argmin(r_slice), np.argmin(c_slice))
+      self._assert_equal_with_sign(
+          np.dot(r_slice, r_slice[::-1]),
+          np.dot(c_slice, c_slice[::-1]),
+          float_type,
+          mask,
+      )
+
+    for reduce_op in (
+        np.add,
+        np.multiply,
+        np.maximum,
+        np.minimum,
+        np.fmax,
+        np.fmin,
+        np.hypot,
+    ):
+      self._assert_equal_with_sign(
+          reduce_op.reduce(raw),
+          reduce_op.reduce(canonical),
+          float_type,
+          mask,
+      )
+      self._assert_equal_with_sign(
+          reduce_op.reduce(raw[192:200]),
+          reduce_op.reduce(canonical[192:200]),
+          float_type,
+          mask,
+      )
+    for reduce_op in (np.add, np.multiply, np.hypot):
+      self._assert_equal_with_sign(
+          reduce_op.reduce(raw[241:242]),
+          reduce_op.reduce(canonical[241:242]),
+          float_type,
+          mask,
+      )
+
+  @parameterized.parameters(float4_e2m1fn, float6_e2m3fn, float6_e3m2fn)
+  def testAllUfuncs(self, float_type):
+    raw, canonical, mask = self._raw_and_canonical(float_type)
+
+    # Boolean predicate ufuncs (signbit must ignore dirty upper padding bits).
+    for op in (np.isfinite, np.isinf, np.isnan, np.signbit, np.logical_not):
+      np.testing.assert_array_equal(op(raw), op(canonical))
+    sign_bit = np.uint8(1 << (ml_dtypes.finfo(float_type).bits - 1))
+    np.testing.assert_array_equal(
+        np.signbit(raw), (np.arange(256, dtype=np.uint8) & sign_bit) != 0
+    )
+
+    # Unary ufuncs (including sign, spacing, negative, positive, abs, conj,
+    # rint, floor, ceil, trunc) and two output / mixed unary ufuncs.
+    with np.errstate(all="ignore"):
+      for op in (*UNARY_UFUNCS, np.spacing):
+        self._assert_equal_with_sign(op(raw), op(canonical), float_type, mask)
+
+      frac_r, int_r = np.modf(raw)
+      frac_c, int_c = np.modf(canonical)
+      self._assert_equal_with_sign(frac_r, frac_c, float_type, mask)
+      self._assert_equal_with_sign(int_r, int_c, float_type, mask)
+
+      mant_r, exp_r = np.frexp(raw)
+      mant_c, exp_c = np.frexp(canonical)
+      self._assert_equal_with_sign(mant_r, mant_c, float_type, mask)
+      np.testing.assert_array_equal(exp_r, exp_c)
+
+      for exp in (-3, 0, 2):
+        for exp_dt in (np.intc, np.int64):
+          e = np.array(exp, dtype=exp_dt)
+          self._assert_equal_with_sign(
+              np.ldexp(raw, e), np.ldexp(canonical, e), float_type, mask
+          )
+
+      # Exhaustive 256x256 matrix for bit manipulating and ordering binary
+      # ufuncs (covers dirty equal pairs, dirty +max/-max, dirty -0.0/+0.0).
+      for op in (
+          np.copysign,
+          np.nextafter,
+          np.minimum,
+          np.maximum,
+          np.fmin,
+          np.fmax,
+          np.heaviside,
+      ):
+        self._assert_equal_with_sign(
+            op(raw[:, None], raw[None, :]),
+            op(canonical[:, None], canonical[None, :]),
+            float_type,
+            mask,
+        )
+
+      # All remaining binary ufuncs across all 256 raw left/right bytes paired
+      # with dirty and clean probe operands (0, negative 0, 1, max, and min).
+      max_pos = int(sign_bit) - 1
+      max_neg = int(mask)
+      probe_bytes = np.array(
+          [
+              0x00,
+              int(sign_bit),
+              0x01,
+              max_pos,
+              max_neg,
+              0x80,
+              0xC0 | int(sign_bit),
+              0xC0 | 0x01,
+              0xC0 | max_pos,
+              0xFF,
+          ],
+          dtype=np.uint8,
+      )
+      rhs_raw = probe_bytes.view(float_type)
+      rhs_can = (probe_bytes & mask).view(float_type)
+      for op in BINARY_UFUNCS:
+        self._assert_equal_with_sign(
+            op(raw[:, None], rhs_raw[None, :]),
+            op(canonical[:, None], rhs_can[None, :]),
+            float_type,
+            mask,
+        )
+        self._assert_equal_with_sign(
+            op(rhs_raw[:, None], raw[None, :]),
+            op(rhs_can[:, None], canonical[None, :]),
+            float_type,
+            mask,
+        )
+
+      q_r, r_r = np.divmod(raw[:, None], rhs_raw[None, :])
+      q_c, r_c = np.divmod(canonical[:, None], rhs_can[None, :])
+      self._assert_equal_with_sign(q_r, q_c, float_type, mask)
+      self._assert_equal_with_sign(r_r, r_c, float_type, mask)
+
+
 if __name__ == "__main__":
   absltest.main()

@@ -15,6 +15,15 @@ limitations under the License.
 
 #include "ml_dtypes/include/mxfloat.h"
 
+#include <climits>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <sstream>
+#include <string>
+#include <type_traits>
+#include <utility>
+
 #include <gtest/gtest.h>
 
 namespace ml_dtypes {
@@ -337,6 +346,121 @@ TYPED_TEST(FloatMXCastTest, ToFloatMX) {
     FloatMX converted = static_cast<FloatMX>(fp);
     FloatMX expected = static_cast<FloatMX>(static_cast<double>(fp));
     EXPECT_EQ(converted, expected);
+  }
+}
+
+template <typename To, typename From>
+void ExpectCastBitsEqual(From raw, From canonical) {
+  using Bits = float8_internal::GetUnsignedInteger<sizeof(To)>;
+  const To from_raw = static_cast<To>(raw);
+  const To from_canonical = static_cast<To>(canonical);
+  if constexpr (std::is_base_of_v<float8_internal::float8_base<To>, To>) {
+    constexpr uint8_t kMask = (1U << To::kBits) - 1;
+    EXPECT_EQ(from_raw.rep() & kMask, from_canonical.rep() & kMask);
+  } else {
+    EXPECT_EQ(Eigen::numext::bit_cast<Bits>(from_raw),
+              Eigen::numext::bit_cast<Bits>(from_canonical));
+  }
+}
+
+TYPED_TEST(FloatMXTest, UpperPaddingBits) {
+  using FloatMX = TypeParam;
+  constexpr uint8_t kValueMask = (uint8_t{1} << FloatMX::kBits) - 1;
+  constexpr uint8_t kSignMask = uint8_t{1} << (FloatMX::kBits - 1);
+
+  for (int i = 0; i < 256; ++i) {
+    const uint8_t b = static_cast<uint8_t>(i);
+    const FloatMX raw = FloatMX::FromRep(b);
+    const FloatMX c = FloatMX::FromRep(b & kValueMask);
+
+    // Negation, abs, classification, signbit, and formatting ignore upper bits.
+    ExpectCastBitsEqual<float>(-raw, -c);
+    EXPECT_EQ((-raw).rep() & kValueMask, (-c).rep() & kValueMask);
+    ExpectCastBitsEqual<float>(Eigen::numext::abs(raw), Eigen::numext::abs(c));
+    EXPECT_EQ(Eigen::numext::abs(raw).rep() & kValueMask,
+              Eigen::numext::abs(c).rep() & kValueMask);
+    EXPECT_FALSE(Eigen::numext::isnan(raw));
+    EXPECT_FALSE(Eigen::numext::isinf(raw));
+    EXPECT_TRUE(Eigen::numext::isfinite(raw));
+    EXPECT_EQ(Eigen::numext::signbit(raw).rep(),
+              Eigen::numext::signbit(c).rep());
+    EXPECT_EQ(Eigen::numext::signbit(raw).rep(),
+              (b & kSignMask) != 0 ? 0xFF : 0x00);
+
+    std::ostringstream raw_os, c_os;
+    raw_os << raw;
+    c_os << c;
+    EXPECT_EQ(raw_os.str(), c_os.str());
+
+    // Conversions to floating point types (bit exact, including -0.0 sign).
+    ExpectCastBitsEqual<float>(raw, c);
+    ExpectCastBitsEqual<double>(raw, c);
+    ExpectCastBitsEqual<Eigen::half>(raw, c);
+    ExpectCastBitsEqual<Eigen::bfloat16>(raw, c);
+    ExpectCastBitsEqual<float8_e3m4>(raw, c);
+    ExpectCastBitsEqual<float8_e4m3>(raw, c);
+    ExpectCastBitsEqual<float8_e4m3fn>(raw, c);
+    ExpectCastBitsEqual<float8_e4m3fnuz>(raw, c);
+    ExpectCastBitsEqual<float8_e4m3b11fnuz>(raw, c);
+    ExpectCastBitsEqual<float8_e5m2>(raw, c);
+    ExpectCastBitsEqual<float8_e5m2fnuz>(raw, c);
+    ExpectCastBitsEqual<float8_e5m3fnu>(raw, c);
+    ExpectCastBitsEqual<float8_e8m0fnu>(raw, c);
+    ExpectCastBitsEqual<float6_e2m3fn>(raw, c);
+    ExpectCastBitsEqual<float6_e3m2fn>(raw, c);
+    ExpectCastBitsEqual<float4_e2m1fn>(raw, c);
+    EXPECT_EQ(
+        (FloatMX::template ConvertTo<float8_e8m0fnu, /*kSaturate=*/true>(raw)
+             .rep()),
+        (FloatMX::template ConvertTo<float8_e8m0fnu, /*kSaturate=*/true>(c)
+             .rep()));
+    if constexpr (!std::is_same_v<FloatMX, float4_e2m1fn>) {
+      EXPECT_EQ((FloatMX::template ConvertTo<float4_e2m1fn, /*kSaturate=*/false,
+                                             /*kTruncate=*/true>(raw)
+                     .rep()),
+                (FloatMX::template ConvertTo<float4_e2m1fn, /*kSaturate=*/false,
+                                             /*kTruncate=*/true>(c)
+                     .rep()));
+    }
+
+    // Conversions to bool and integer types.
+    EXPECT_EQ(static_cast<bool>(raw), static_cast<bool>(c));
+    EXPECT_EQ(static_cast<int8_t>(raw), static_cast<int8_t>(c));
+    EXPECT_EQ(static_cast<int16_t>(raw), static_cast<int16_t>(c));
+    EXPECT_EQ(static_cast<int32_t>(raw), static_cast<int32_t>(c));
+    EXPECT_EQ(static_cast<int64_t>(raw), static_cast<int64_t>(c));
+    if (static_cast<float>(c) > -1.0f) {
+      EXPECT_EQ(static_cast<uint8_t>(raw), static_cast<uint8_t>(c));
+      EXPECT_EQ(static_cast<uint16_t>(raw), static_cast<uint16_t>(c));
+      EXPECT_EQ(static_cast<uint32_t>(raw), static_cast<uint32_t>(c));
+      EXPECT_EQ(static_cast<uint64_t>(raw), static_cast<uint64_t>(c));
+    }
+
+    // Exhaustive 256x256 comparisons.
+    for (int j = 0; j < 256; ++j) {
+      const FloatMX raw_rhs = FloatMX::FromRep(static_cast<uint8_t>(j));
+      const FloatMX c_rhs =
+          FloatMX::FromRep(static_cast<uint8_t>(j & kValueMask));
+      EXPECT_EQ(raw == raw_rhs, c == c_rhs);
+      EXPECT_EQ(raw != raw_rhs, c != c_rhs);
+      EXPECT_EQ(raw < raw_rhs, c < c_rhs);
+      EXPECT_EQ(raw <= raw_rhs, c <= c_rhs);
+      EXPECT_EQ(raw > raw_rhs, c > c_rhs);
+      EXPECT_EQ(raw >= raw_rhs, c >= c_rhs);
+    }
+
+    // Arithmetic with dirty and clean operands matches c.
+    for (uint8_t rhs_byte :
+         {uint8_t{0x00}, kSignMask, uint8_t{0x01}, kValueMask, uint8_t{0x80},
+          static_cast<uint8_t>(0xC0 | kSignMask), uint8_t{0xC1},
+          uint8_t{0xFF}}) {
+      const FloatMX raw_rhs = FloatMX::FromRep(rhs_byte);
+      const FloatMX c_rhs = FloatMX::FromRep(rhs_byte & kValueMask);
+      ExpectCastBitsEqual<float>(raw + raw_rhs, c + c_rhs);
+      ExpectCastBitsEqual<float>(raw - raw_rhs, c - c_rhs);
+      ExpectCastBitsEqual<float>(raw * raw_rhs, c * c_rhs);
+      ExpectCastBitsEqual<float>(raw / raw_rhs, c / c_rhs);
+    }
   }
 }
 

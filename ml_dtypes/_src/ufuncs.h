@@ -18,6 +18,7 @@ limitations under the License.
 
 #include <array>
 #include <cfenv>  // NOLINT(build/c++11)
+#include <climits>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -29,6 +30,7 @@ limitations under the License.
 #include "ml_dtypes/_src/common.h"
 #include "ml_dtypes/_src/numpy.h"
 #include "ml_dtypes/include/complex_types.h"
+#include "ml_dtypes/include/float8.h"
 
 // Some versions of MSVC define a "copysign" macro which wreaks havoc.
 #if defined(_MSC_VER) && defined(copysign)
@@ -356,24 +358,29 @@ template <typename T>
 using BitsType = typename GetUnsignedInteger<sizeof(T)>::type;
 
 template <typename T>
-std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
-  const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
-  // Unsigned floating point format (e.g. E8M0) => no sign bit (zero by
-  // default).
-  if constexpr (!std::numeric_limits<T>::is_signed) {
-    return {BitsType<T>(0), x_bits};
+constexpr int FloatBitWidth() {
+  if constexpr (std::is_base_of_v<float8_internal::float8_base<T>, T>) {
+    return T::kBits;
+  } else {
+    return sizeof(BitsType<T>) * CHAR_BIT;
   }
-  // For types that represent NaN by -0, (i.e. *fnuz), abs(x) remains -0 without
-  // flipping the sign. Therefore, we need to explicitly check the
-  // most-significant bit.
-  // For types without NaNs (i.e. mxfloat), use xor to keep the sign bit, which
-  // may be not the most-significant bit.
-  constexpr BitsType<T> kSignMask = BitsType<T>(1)
-                                    << (sizeof(BitsType<T>) * CHAR_BIT - 1);
-  constexpr bool has_nan = std::numeric_limits<T>::has_quiet_NaN;
+}
+
+template <typename T>
+std::pair<BitsType<T>, BitsType<T>> SignAndMagnitude(T x) {
   const BitsType<T> x_abs_bits =
       Eigen::numext::bit_cast<BitsType<T>>(Eigen::numext::abs(x));
-  return {has_nan ? x_bits & kSignMask : x_bits ^ x_abs_bits, x_abs_bits};
+  if constexpr (!std::numeric_limits<T>::is_signed) {
+    return {0, x_abs_bits};
+  }
+  // Extract the single sign bit directly. This handles *fnuz formats (where
+  // 0x80 encodes NaN and abs(x) leaves it unchanged) as well as sub byte
+  // mxfloat formats (where the sign bit is at kBits - 1 and upper bits are
+  // unused padding).
+  const BitsType<T> x_bits = Eigen::numext::bit_cast<BitsType<T>>(x);
+  constexpr BitsType<T> kSignMask = BitsType<T>{1} << (FloatBitWidth<T>() - 1);
+  const BitsType<T> x_sign = x_bits & kSignMask;
+  return {x_sign, x_abs_bits};
 }
 
 template <typename T>
@@ -807,16 +814,14 @@ struct LogicalXor {
 template <typename T>
 struct NextAfter {
   T operator()(T from, T to) {
-    BitsType<T> from_rep = Eigen::numext::bit_cast<BitsType<T>>(from);
-    BitsType<T> to_rep = Eigen::numext::bit_cast<BitsType<T>>(to);
     if (Eigen::numext::isnan(from) || Eigen::numext::isnan(to)) {
       return std::numeric_limits<T>::quiet_NaN();
     }
-    if (from_rep == to_rep) {
-      return to;
-    }
     auto [from_sign, from_abs] = SignAndMagnitude(from);
     auto [to_sign, to_abs] = SignAndMagnitude(to);
+    if (from_sign == to_sign && from_abs == to_abs) {
+      return to;
+    }
     if (from_abs == 0) {
       if (to_abs == 0) {
         return to;
@@ -830,7 +835,7 @@ struct NextAfter {
         (from_abs > to_abs || from_sign != to_sign)
             ? static_cast<BitsType<T>>(-1)
             : static_cast<BitsType<T>>(1);
-    BitsType<T> out_int = from_rep + magnitude_adjustment;
+    BitsType<T> out_int = (from_sign | from_abs) + magnitude_adjustment;
     T out = Eigen::numext::bit_cast<T>(out_int);
     // Some non-IEEE compatible formats may have a representation for NaN
     // instead of -0, ensure we return a zero in such cases.

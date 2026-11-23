@@ -51,7 +51,7 @@ struct intN {
 
   // Mask the upper bits and sign-extend for signed types.
   static inline constexpr UnderlyingTy ExtendToFullWidth(UnderlyingTy v) {
-    return static_cast<UnderlyingTy>(static_cast<UnderlyingTy>(v)
+    return static_cast<UnderlyingTy>(static_cast<UnsignedUnderlyingTy>(v)
                                      << (kUnderlyingBits - N)) >>
            (kUnderlyingBits - N);
   }
@@ -119,7 +119,9 @@ struct intN {
   constexpr intN operator>>(int amount) const {
     return intN(IntValue() >> amount);
   }
-  constexpr intN operator<<(int amount) const { return intN(v_ << amount); }
+  constexpr intN operator<<(int amount) const {
+    return intN(static_cast<UnsignedUnderlyingTy>(v_) << amount);
+  }
 
   constexpr bool operator==(const intN& other) const {
     return Mask(v_) == Mask(other.v_);
