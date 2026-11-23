@@ -23,6 +23,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+* Fixed `np.power` and `np.float_power` for `complex32` and `bcomplex32` to
+  match NumPy's complex power: `x**0` is now `1` (it was `nan` for `x` equal to
+  `0`, `inf` or `nan`), and integer exponents are now exact (`1j**2` was
+  `-1-5.96e-08j`).
+
 ## [0.7.0] - 2026-11-16
 
 * Added new 8-bit unsigned float type: `ml_dtypes.float8_e5m3fnu`

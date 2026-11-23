@@ -313,9 +313,58 @@ template <typename T>
 struct Positive {
   T operator()(T a) { return a; }
 };
+// Complex power with the special cases of NumPy's `npy_cpow`: `x**0` is 1,
+// `0**y` is 0 for `y.real > 0` and NaN otherwise, and integer exponents with
+// `|y| < 100` use repeated multiplication, so that `1j**2` is exactly -1.
+inline std::complex<float> ComplexPow(std::complex<float> a,
+                                      std::complex<float> b) {
+  using C = std::complex<float>;
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  // Plain products (no C99 Annex G infinity recovery), as in NumPy.
+  auto mul = [](C x, C y) {
+    return C(x.real() * y.real() - x.imag() * y.imag(),
+             x.real() * y.imag() + x.imag() * y.real());
+  };
+  const float br = b.real(), bi = b.imag();
+  if (br == 0.0f && bi == 0.0f) return C(1.0f, 0.0f);
+  if (a.real() == 0.0f && a.imag() == 0.0f) {
+    return br > 0.0f ? C(0.0f, 0.0f) : C(nan, nan);
+  }
+  if (bi == 0.0f && br == std::trunc(br) && std::abs(br) < 100.0f) {
+    int n = static_cast<int>(std::abs(br));
+    if (br == 1.0f) return a;
+    if (br == 2.0f) return mul(a, a);
+    if (br == 3.0f) return mul(a, mul(a, a));
+    C result(1.0f, 0.0f);
+    for (C p = a; n > 0; n >>= 1, p = mul(p, p)) {
+      if (n & 1) result = mul(result, p);
+    }
+    if (br < 0.0f) {
+      // 1 / result with Smith's algorithm, as NumPy's `cdiv`.
+      const float r = result.real(), i = result.imag();
+      if (r == 0.0f && i == 0.0f) return C(1.0f / r, 0.0f / i);
+      if (std::abs(r) >= std::abs(i)) {
+        const float rat = i / r, scl = 1.0f / (r + i * rat);
+        return C(scl, -rat * scl);
+      }
+      const float rat = r / i, scl = 1.0f / (i + r * rat);
+      return C(rat * scl, -scl);
+    }
+    return result;
+  }
+  return std::pow(a, b);
+}
+
 template <typename T>
 struct Power {
-  T operator()(T a, T b) { return T(std::pow(to_system(a), to_system(b))); }
+  template <typename U = T, std::enable_if_t<!is_complex_v<U>, bool> = false>
+  T operator()(T a, T b) {
+    return T(std::pow(to_system(a), to_system(b)));
+  }
+  template <typename U = T, std::enable_if_t<is_complex_v<U>, bool> = false>
+  T operator()(T a, T b) {
+    return T(ComplexPow(to_system(a), to_system(b)));
+  }
 };
 template <typename T>
 struct Abs {
