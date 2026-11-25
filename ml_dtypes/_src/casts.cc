@@ -37,10 +37,12 @@ limitations under the License.
 
 #include "ml_dtypes/_src/casts.h"
 
+#include <array>
 #include <cfenv>  // NOLINT(build/c++11)
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <type_traits>
@@ -52,6 +54,12 @@ limitations under the License.
 #include "ml_dtypes/_src/ints.h"
 #include "ml_dtypes/_src/numpy.h"
 
+#if defined(__GNUC__) || defined(__clang__)
+#define ML_DTYPES_ALWAYS_INLINE __attribute__((always_inline)) inline
+#else
+#define ML_DTYPES_ALWAYS_INLINE inline
+#endif
+
 namespace ml_dtypes {
 namespace {
 
@@ -62,6 +70,370 @@ inline constexpr bool is_custom_dtype_v =
 template <typename T>
 inline constexpr bool is_integer_target_v =
     is_intn_v<T> || (std::is_integral_v<T> && !std::is_same_v<T, bool>);
+
+template <typename T>
+inline constexpr bool is_byte_custom_float_v =
+    is_custom_float_v<T> && sizeof(T) == 1;
+
+template <typename From, typename To>
+inline constexpr bool kHasByteLutFastPath =
+    !std::is_same_v<From, To> &&
+    (is_byte_custom_float_v<From> || is_intn_v<From>) &&
+    (std::is_same_v<To, float> || std::is_same_v<To, double> ||
+     std::is_same_v<To, bfloat16> || is_byte_custom_float_v<To>);
+
+template <typename From, typename To>
+inline constexpr bool kHasIntBitwiseFastPath =
+    !std::is_same_v<From, To> && (is_intn_v<From> || is_intn_v<To>) &&
+    is_integer_target_v<From> && is_integer_target_v<To>;
+
+// --- Contiguous fast-path cast kernels ---
+
+// Lookup table mapping each raw byte of a 1-byte custom dtype to `To`.
+template <typename From, typename To>
+const std::array<To, 256>& ByteTypeLut() {
+  static const std::array<To, 256> kTable = [] {
+    std::array<To, 256> table;
+    for (int i = 0; i < 256; ++i) {
+      const From v = Eigen::numext::bit_cast<From>(static_cast<uint8_t>(i));
+      table[i] = static_cast<To>(NarrowToFloat(v));
+    }
+    return table;
+  }();
+  return kTable;
+}
+
+// Casts `n` contiguous elements of 1-byte custom dtype `From` to `To` via
+// `ByteTypeLut`. Unrolled so independent table loads can overlap.
+template <typename From, typename To>
+void CastByteTypeViaLutContiguous(const uint8_t* src, To* dst, npy_intp n) {
+  const auto& table = ByteTypeLut<From, To>();
+#if defined(__clang__) && defined(__OPTIMIZE__) && !defined(__OPTIMIZE_SIZE__)
+#pragma clang loop unroll_count(4)
+#elif defined(__GNUC__) && !defined(__clang__) && defined(__OPTIMIZE__) && \
+    !defined(__OPTIMIZE_SIZE__)
+#pragma GCC unroll 4
+#endif
+  for (npy_intp i = 0; i < n; ++i) {
+    dst[i] = table[src[i]];
+  }
+}
+
+// Widens raw bfloat16 bits to float32 bits by zero-extending the low 16 bits.
+ML_DTYPES_ALWAYS_INLINE uint32_t Bf16BitsToF32Bits(uint16_t u) {
+  return static_cast<uint32_t>(u) << 16;
+}
+
+// Matches Eigen's `float_to_bfloat16_rtne` (round-to-nearest-even, signed
+// qNaN).
+ML_DTYPES_ALWAYS_INLINE uint16_t F32BitsToBf16Bits(uint32_t u) {
+  const uint32_t abs_u = u & 0x7fffffffu;
+  const uint32_t lsb = (u >> 16) & 1u;
+  const uint32_t rounded = (u + (0x7fffu + lsb)) >> 16;
+  const uint32_t nan_val = ((u & 0x80000000u) >> 16) | 0x7fc0u;
+  return static_cast<uint16_t>(abs_u > 0x7f800000u ? nan_val : rounded);
+}
+
+// Branchless float32 -> 1-byte custom float bit conversion (RTNE).
+template <typename To>
+ML_DTYPES_ALWAYS_INLINE uint8_t F32BitsToByteFloatBits(uint32_t u) {
+  using T = float8_internal::Traits<To>;
+  const uint32_t sign_bit = u >> 31;
+  const uint32_t abs_u = u & 0x7fffffffu;
+
+  constexpr uint32_t kPosInf = std::numeric_limits<To>::infinity().rep();
+  constexpr uint32_t kNegInf = (-std::numeric_limits<To>::infinity()).rep();
+  constexpr uint32_t kPosNan = std::numeric_limits<To>::quiet_NaN().rep();
+  constexpr uint32_t kNegNan = (-std::numeric_limits<To>::quiet_NaN()).rep();
+  constexpr uint32_t kMaxFinite = std::numeric_limits<To>::max().rep();
+
+  if constexpr (!T::kHasZero) {
+    // Unsigned exponent-only format (float8_e8m0fnu).
+    const uint32_t normal_res = (abs_u + 0x400000u) >> 23;
+    const uint32_t subnorm_res = abs_u >= 0x00600000u ? 1u : 0u;
+    uint32_t res = abs_u >= 0x00800000u ? normal_res : subnorm_res;
+    res = res > kMaxFinite ? kPosInf : res;
+    res = (sign_bit != 0u || abs_u == 0u) ? kPosNan : res;
+    res = abs_u == 0x7f800000u ? (sign_bit ? kNegInf : kPosInf) : res;
+    res = abs_u > 0x7f800000u ? (sign_bit ? kNegNan : kPosNan) : res;
+    return static_cast<uint8_t>(res);
+  } else {
+    constexpr int kM = T::kMantissaBits;
+    constexpr int kB = T::kExponentBias;
+    constexpr int kMantShift = 23 - kM;
+    constexpr uint32_t kBiasDiff = static_cast<uint32_t>(127 - kB) << 23;
+    constexpr uint32_t kHalfMinus1 = (uint32_t{1} << (kMantShift - 1)) - 1u;
+    constexpr uint32_t kMinNormal = static_cast<uint32_t>(128 - kB) << 23;
+    constexpr uint32_t kUnderflow = static_cast<uint32_t>(127 - kB - kM) << 23;
+    constexpr int kSubnormShiftBase = 151 - kM - kB;
+    constexpr bool kHasNegZero = (-To::FromRep(0)).rep() != 0;
+
+    const uint32_t n_clamped = abs_u < 0x7f800000u ? abs_u : 0x7f800000u;
+    const uint32_t n_sub = n_clamped - kBiasDiff;
+    const uint32_t n_lsb = (n_sub >> kMantShift) & 1u;
+    const uint32_t n_raw = (n_sub + kHalfMinus1 + n_lsb) >> kMantShift;
+    const uint32_t n_res = n_raw > kMaxFinite ? kPosInf : n_raw;
+
+    // Clamp `shift` to [1, 31] so unconditional shifts are defined on unused
+    // lanes.
+    const uint32_t exp = abs_u >> 23;
+    const uint32_t raw_shift = static_cast<uint32_t>(kSubnormShiftBase) - exp;
+    const uint32_t shift =
+        raw_shift < 1u ? 1u : (raw_shift > 31u ? 31u : raw_shift);
+    const uint32_t mant = (abs_u & 0x007fffffu) | 0x00800000u;
+    const uint32_t s_lsb = (mant >> shift) & 1u;
+    const uint32_t half_m1 = (uint32_t{1} << (shift - 1u)) - 1u;
+    const uint32_t s_rounded = (mant + half_m1 + s_lsb) >> shift;
+    const uint32_t s_res = abs_u > kUnderflow ? s_rounded : 0u;
+
+    uint32_t res = abs_u >= kMinNormal ? n_res : s_res;
+    if constexpr (T::kIsSigned) {
+      const uint32_t sign = sign_bit << (T::kBits - 1);
+      if constexpr (kHasNegZero) {
+        res = sign | res;
+      } else {
+        res = res == 0u ? 0u : (sign | res);
+      }
+    } else {
+      res = (sign_bit != 0u && abs_u != 0u) ? kPosNan : res;
+    }
+
+    res = abs_u == 0x7f800000u ? (sign_bit ? kNegInf : kPosInf) : res;
+    res = abs_u > 0x7f800000u ? (sign_bit ? kNegNan : kPosNan) : res;
+    return static_cast<uint8_t>(res);
+  }
+}
+
+template <typename To>
+ML_DTYPES_ALWAYS_INLINE uint8_t Bf16BitsToByteFloatBits(uint16_t u) {
+  return F32BitsToByteFloatBits<To>(Bf16BitsToF32Bits(u));
+}
+
+template <typename From, typename To>
+struct IntBitCastTypes {
+  using SrcBits = std::conditional_t<is_intn_v<From>, uint8_t, From>;
+  using DstBits = std::conditional_t<is_intn_v<To>, uint8_t, To>;
+};
+
+// Converts between raw integer representations where at least one side is a
+// sub-byte `intN` type: masks unused upper bits, sign-extends signed `intN`
+// inputs, and reduces `intN` outputs modulo 2^To::bits.
+template <typename From, typename To>
+ML_DTYPES_ALWAYS_INLINE typename IntBitCastTypes<From, To>::DstBits
+IntBitsToIntBits(typename IntBitCastTypes<From, To>::SrcBits in) {
+  using DstBits = typename IntBitCastTypes<From, To>::DstBits;
+  if constexpr (is_intn_v<From>) {
+    constexpr int kShift = 8 - From::bits;
+    using Underlying = typename From::underlying_type;
+    const Underlying extended =
+        static_cast<Underlying>(static_cast<uint8_t>(in << kShift)) >> kShift;
+    if constexpr (is_intn_v<To>) {
+      constexpr uint8_t kMask = (uint8_t{1} << To::bits) - 1;
+      return static_cast<uint8_t>(extended) & kMask;
+    } else {
+      return static_cast<DstBits>(extended);
+    }
+  } else {
+    static_assert(is_intn_v<To>);
+    constexpr uint8_t kMask = (uint8_t{1} << To::bits) - 1;
+    return static_cast<uint8_t>(in) & kMask;
+  }
+}
+
+// Runtime-dispatched SIMD targets in priority order:
+//   X(Name, TargetAttr, VecBytes, Scalable, ProbeExpr)
+inline bool InitCpuDispatch() {
+#if defined(__GNUC__) && !defined(__clang__) && defined(__x86_64__)
+  __builtin_cpu_init();
+#endif
+  return true;
+}
+#define ML_DTYPES_CPU_SUPPORTS(feature) \
+  (InitCpuDispatch() && __builtin_cpu_supports(feature))
+
+#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
+#define ML_DTYPES_DISPATCH_TARGETS(X)                                \
+  X(Avx512, "avx512f", 64, false, ML_DTYPES_CPU_SUPPORTS("avx512f")) \
+  X(Avx2, "avx2", 32, false, ML_DTYPES_CPU_SUPPORTS("avx2"))
+#elif defined(__aarch64__) && defined(__clang__) && !defined(__APPLE__) && \
+    __clang_major__ >= 19
+#define ML_DTYPES_DISPATCH_TARGETS(X) \
+  X(Sve, "+sve", 16, true, ML_DTYPES_CPU_SUPPORTS("sve"))
+#else
+#define ML_DTYPES_DISPATCH_TARGETS(X)
+#endif
+
+template <typename SrcT, typename DstT>
+inline constexpr int kMaxElemBytes = sizeof(SrcT) > sizeof(DstT) ? sizeof(SrcT)
+                                                                 : sizeof(DstT);
+
+// Converts element `i` from raw `SrcT` bits to raw `DstT` bits via `memcpy` to
+// avoid strict-aliasing and alignment UB.
+template <typename SrcT, typename DstT, DstT (*Fn)(SrcT)>
+ML_DTYPES_ALWAYS_INLINE void BitwiseConvertElement(const char* src, char* dst,
+                                                   npy_intp i) {
+  SrcT in;
+  std::memcpy(&in, src + i * sizeof(SrcT), sizeof(SrcT));
+  const DstT out = Fn(in);
+  std::memcpy(dst + i * sizeof(DstT), &out, sizeof(DstT));
+}
+
+// Contiguous elementwise loop over `Fn`. Explicit `vectorize_width` hints on
+// Clang override default vector-width caps (such as `-mprefer-vector-width`)
+// and opt into scalable SVE vectors on AArch64.
+template <typename SrcT, typename DstT, DstT (*Fn)(SrcT), int kVecBytes,
+          bool kScalable>
+struct BitwiseContiguousLoop {
+  ML_DTYPES_ALWAYS_INLINE void operator()(const char* src, char* dst,
+                                          npy_intp n) const {
+#if defined(__clang__) && defined(__OPTIMIZE__) && !defined(__OPTIMIZE_SIZE__)
+#pragma clang loop vectorize_width(kVecBytes / kMaxElemBytes<SrcT, DstT>)
+#endif
+    for (npy_intp i = 0; i < n; ++i) {
+      BitwiseConvertElement<SrcT, DstT, Fn>(src, dst, i);
+    }
+  }
+};
+
+template <typename SrcT, typename DstT, DstT (*Fn)(SrcT), int kVecBytes>
+struct BitwiseContiguousLoop<SrcT, DstT, Fn, kVecBytes, /*kScalable=*/true> {
+  ML_DTYPES_ALWAYS_INLINE void operator()(const char* src, char* dst,
+                                          npy_intp n) const {
+#if defined(__clang__) && defined(__OPTIMIZE__) && !defined(__OPTIMIZE_SIZE__)
+#pragma clang loop vectorize_width(kVecBytes / kMaxElemBytes<SrcT, DstT>, \
+                                   scalable)
+#endif
+    for (npy_intp i = 0; i < n; ++i) {
+      BitwiseConvertElement<SrcT, DstT, Fn>(src, dst, i);
+    }
+  }
+};
+
+template <typename SrcT, typename DstT, DstT (*Fn)(SrcT)>
+struct BitwiseContiguousLoop<SrcT, DstT, Fn, /*kVecBytes=*/0,
+                             /*kScalable=*/false> {
+  ML_DTYPES_ALWAYS_INLINE void operator()(const char* src, char* dst,
+                                          npy_intp n) const {
+    for (npy_intp i = 0; i < n; ++i) {
+      BitwiseConvertElement<SrcT, DstT, Fn>(src, dst, i);
+    }
+  }
+};
+
+template <typename SrcT, typename DstT, DstT (*Fn)(SrcT)>
+inline void RunContiguousDefault(const char* src, char* dst, npy_intp n) {
+  BitwiseContiguousLoop<SrcT, DstT, Fn, /*kVecBytes=*/0,
+                        /*kScalable=*/false>{}(src, dst, n);
+}
+
+#define ML_DTYPES_DEFINE_RUNNER(Name, TargetAttr, VecBytes, Scalable, Probe)  \
+  template <typename SrcT, typename DstT, DstT (*Fn)(SrcT)>                   \
+  __attribute__((target(TargetAttr), noinline)) static void                   \
+  RunContiguous##Name(const char* src, char* dst, npy_intp n) {               \
+    BitwiseContiguousLoop<SrcT, DstT, Fn, VecBytes, Scalable>{}(src, dst, n); \
+  }
+ML_DTYPES_DISPATCH_TARGETS(ML_DTYPES_DEFINE_RUNNER)
+#undef ML_DTYPES_DEFINE_RUNNER
+
+// Dispatches a contiguous bitwise loop to the highest-priority SIMD target
+// supported by the current CPU, caching the selected function pointer once.
+template <typename SrcT, typename DstT, DstT (*Fn)(SrcT)>
+inline void DispatchContiguous(const char* src, char* dst, npy_intp n) {
+  using LoopFn = void (*)(const char*, char*, npy_intp);
+  static const LoopFn kFn = []() -> LoopFn {
+#define ML_DTYPES_TRY_TARGET(Name, TargetAttr, VecBytes, Scalable, Probe) \
+  if (Probe) {                                                            \
+    return &RunContiguous##Name<SrcT, DstT, Fn>;                          \
+  }
+    ML_DTYPES_DISPATCH_TARGETS(ML_DTYPES_TRY_TARGET)
+#undef ML_DTYPES_TRY_TARGET
+    return &RunContiguousDefault<SrcT, DstT, Fn>;
+  }();
+  kFn(src, dst, n);
+}
+
+// Maps a `(From, To)` pair with a branchless bitwise fast path to its raw
+// integer bit types and element conversion function (used by both contiguous
+// and strided cast loops).
+template <typename From, typename To, typename Enable = void>
+struct BitwiseCastTraits {
+  static constexpr bool kSupported = false;
+};
+
+template <>
+struct BitwiseCastTraits<bfloat16, float> {
+  static constexpr bool kSupported = true;
+  using SrcBits = uint16_t;
+  using DstBits = uint32_t;
+  static constexpr DstBits (*kFn)(SrcBits) = &Bf16BitsToF32Bits;
+};
+
+template <>
+struct BitwiseCastTraits<float, bfloat16> {
+  static constexpr bool kSupported = true;
+  using SrcBits = uint32_t;
+  using DstBits = uint16_t;
+  static constexpr DstBits (*kFn)(SrcBits) = &F32BitsToBf16Bits;
+};
+
+template <typename To>
+struct BitwiseCastTraits<float, To,
+                         std::enable_if_t<is_byte_custom_float_v<To>>> {
+  static constexpr bool kSupported = true;
+  using SrcBits = uint32_t;
+  using DstBits = uint8_t;
+  static constexpr DstBits (*kFn)(SrcBits) = &F32BitsToByteFloatBits<To>;
+};
+
+template <typename To>
+struct BitwiseCastTraits<bfloat16, To,
+                         std::enable_if_t<is_byte_custom_float_v<To>>> {
+  static constexpr bool kSupported = true;
+  using SrcBits = uint16_t;
+  using DstBits = uint8_t;
+  static constexpr DstBits (*kFn)(SrcBits) = &Bf16BitsToByteFloatBits<To>;
+};
+
+template <typename From, typename To>
+struct BitwiseCastTraits<From, To,
+                         std::enable_if_t<kHasIntBitwiseFastPath<From, To>>> {
+  static constexpr bool kSupported = true;
+  using SrcBits = typename IntBitCastTypes<From, To>::SrcBits;
+  using DstBits = typename IntBitCastTypes<From, To>::DstBits;
+  static constexpr DstBits (*kFn)(SrcBits) = &IntBitsToIntBits<From, To>;
+};
+
+template <typename From, typename To>
+inline constexpr bool kHasContiguousFastPath =
+    BitwiseCastTraits<From, To>::kSupported || kHasByteLutFastPath<From, To>;
+
+// Bitwise and LUT casts never raise floating-point exceptions.
+template <typename From, typename To>
+inline constexpr bool kIsBitwiseNoFpErrorCast =
+    BitwiseCastTraits<From, To>::kSupported || kHasByteLutFastPath<From, To>;
+
+// NumPy `NPY_METH_contiguous_loop` entry point for casts with a vectorized
+// bitwise or lookup-table fast path. Runs without holding the Python GIL.
+template <typename From, typename To>
+int ContiguousCastLoop(PyArrayMethod_Context* /*context*/, char* const data[],
+                       const npy_intp dimensions[], const npy_intp* /*strides*/,
+                       NpyAuxData* /*auxdata*/) {
+  const npy_intp n = dimensions[0];
+  if constexpr (BitwiseCastTraits<From, To>::kSupported) {
+    using Traits = BitwiseCastTraits<From, To>;
+    DispatchContiguous<typename Traits::SrcBits, typename Traits::DstBits,
+                       Traits::kFn>(data[0], data[1], n);
+  } else if constexpr (kHasByteLutFastPath<From, To>) {
+    CastByteTypeViaLutContiguous<From, To>(
+        reinterpret_cast<const uint8_t*>(data[0]),
+        reinterpret_cast<To*>(data[1]), n);
+  } else {
+    static_assert(BitwiseCastTraits<From, To>::kSupported ||
+                      kHasByteLutFastPath<From, To>,
+                  "Missing contiguous fast path implementation");
+  }
+  return 0;
+}
 
 // Converts `value` to `half`, setting `overflow` when a finite `float` rounds
 // to `+-inf` so `FE_OVERFLOW` is raised consistently on platforms where
@@ -173,7 +545,8 @@ inline constexpr bool kIsIntegerOrBoolCast =
 
 template <typename From, typename To>
 constexpr NPY_ARRAYMETHOD_FLAGS CastMethodFlags() {
-  if constexpr (kIsIntegerOrBoolCast<From, To>) {
+  if constexpr (kIsIntegerOrBoolCast<From, To> ||
+                kIsBitwiseNoFpErrorCast<From, To>) {
     return NPY_METH_NO_FLOATINGPOINT_ERRORS;
   } else {
     return static_cast<NPY_ARRAYMETHOD_FLAGS>(0);
@@ -193,6 +566,27 @@ int CastLoop(PyArrayMethod_Context* /*context*/, char* const data[],
   const npy_intp dst_stride = strides[1];
   bool invalid = false;
   bool overflow = false;
+
+  if constexpr (kHasByteLutFastPath<From, To>) {
+    const auto& table = ByteTypeLut<From, To>();
+    for (npy_intp i = 0; i < n; ++i) {
+      uint8_t raw;
+      std::memcpy(&raw, src + i * src_stride, sizeof(raw));
+      const To out = table[raw];
+      std::memcpy(dst + i * dst_stride, &out, sizeof(out));
+    }
+    return 0;
+  }
+  if constexpr (BitwiseCastTraits<From, To>::kSupported) {
+    using Traits = BitwiseCastTraits<From, To>;
+    for (npy_intp i = 0; i < n; ++i) {
+      typename Traits::SrcBits raw;
+      std::memcpy(&raw, src + i * src_stride, sizeof(raw));
+      const typename Traits::DstBits out = Traits::kFn(raw);
+      std::memcpy(dst + i * dst_stride, &out, sizeof(out));
+    }
+    return 0;
+  }
 
   for (npy_intp i = 0; i < n; ++i) {
     const From& in = *reinterpret_cast<const From*>(src + i * src_stride);
@@ -400,6 +794,10 @@ void AddCast(CastSpecList& list, const char* name, PyArray_DTypeMeta* from,
   if constexpr (kWarnComplexToReal<From, To>) {
     list.Add(name, from, to, CastingLevel<From, To>(),
              CastMethodFlags<From, To>(), &ComplexToRealGetLoop<From, To>);
+  } else if constexpr (kHasContiguousFastPath<From, To>) {
+    list.Add(name, from, to, CastingLevel<From, To>(),
+             CastMethodFlags<From, To>(), &CastLoop<From, To>,
+             &ContiguousCastLoop<From, To>);
   } else {
     list.Add(name, from, to, CastingLevel<From, To>(),
              CastMethodFlags<From, To>(), &CastLoop<From, To>);
@@ -450,9 +848,16 @@ void AddAllCustomCasts(CastSpecList& list) {
 void CastSpecList::Add(const char* name, PyArray_DTypeMeta* from,
                        PyArray_DTypeMeta* to, NPY_CASTING casting,
                        NPY_ARRAYMETHOD_FLAGS flags,
-                       PyArrayMethod_StridedLoop* loop) {
+                       PyArrayMethod_StridedLoop* strided_loop,
+                       PyArrayMethod_StridedLoop* contiguous_loop) {
+  PyType_Slot extra_slot = {0, nullptr};
+  if (contiguous_loop != nullptr) {
+    extra_slot = {NPY_METH_contiguous_loop,
+                  reinterpret_cast<void*>(contiguous_loop)};
+  }
   AddSlot(name, from, to, casting, flags,
-          {NPY_METH_strided_loop, reinterpret_cast<void*>(loop)});
+          {NPY_METH_strided_loop, reinterpret_cast<void*>(strided_loop)},
+          extra_slot);
 }
 
 void CastSpecList::Add(const char* name, PyArray_DTypeMeta* from,
@@ -465,12 +870,14 @@ void CastSpecList::Add(const char* name, PyArray_DTypeMeta* from,
 
 void CastSpecList::AddSlot(const char* name, PyArray_DTypeMeta* from,
                            PyArray_DTypeMeta* to, NPY_CASTING casting,
-                           NPY_ARRAYMETHOD_FLAGS flags, PyType_Slot loop_slot) {
+                           NPY_ARRAYMETHOD_FLAGS flags, PyType_Slot loop_slot,
+                           PyType_Slot extra_slot) {
   auto entry = std::make_unique<CastSpecEntry>();
   entry->dtypes[0] = from;
   entry->dtypes[1] = to;
   entry->slots[0] = loop_slot;
-  entry->slots[1] = {0, nullptr};
+  entry->slots[1] = extra_slot;
+  entry->slots[2] = {0, nullptr};
   entry->spec.name = name;
   entry->spec.nin = 1;
   entry->spec.nout = 1;
