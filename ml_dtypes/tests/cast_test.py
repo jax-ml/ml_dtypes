@@ -966,3 +966,144 @@ def test_subbyte_upper_padding_bits_cast(source, target):
     back_actual = actual.astype(source)
     back_expected = expected.astype(source)
   _assert_bit_exact_array_equal(back_actual, back_expected, source)
+
+
+def _dense_float32_probes():
+  """Returns float32 bit patterns covering SIMD tails, ties, subnormals, NaNs."""
+  mantissas = [
+      0x000000,
+      0x000001,
+      0x007FFF,
+      0x008000,
+      0x008001,
+      0x018000,
+      0x0FFFFF,
+      0x100000,
+      0x100001,
+      0x200000,
+      0x300000,
+      0x3FFFFF,
+      0x400000,
+      0x400001,
+      0x600000,
+      0x6FFFFF,
+      0x700000,
+      0x700001,
+      0x77FFFF,
+      0x780000,
+      0x780001,
+      0x7FFFFE,
+      0x7FFFFF,
+  ]
+  bits = []
+  for sign in (0, 1):
+    for exp in range(256):
+      base = (sign << 31) | (exp << 23)
+      for mant in mantissas:
+        bits.append(base | mant)
+  return np.array(bits, dtype=np.uint32).view(np.float32)
+
+
+def test_bfloat16_float32_fast_path_bit_exact():
+  """Verifies vectorized bfloat16 <-> float32 casts across sizes and offsets."""
+  all_bf16 = np.arange(1 << 16, dtype=np.uint16).view(bf16)
+  expected_f32 = (all_bf16.view(np.uint16).astype(np.uint32) << 16).view(
+      np.float32
+  )
+  with warnings.catch_warnings(), np.errstate(all="raise"):
+    warnings.simplefilter("error")
+    actual_f32 = all_bf16.astype(np.float32)
+    actual_strided_f32 = np.repeat(all_bf16, 2)[::2].astype(np.float32)
+  np.testing.assert_array_equal(
+      actual_f32.view(np.uint32), expected_f32.view(np.uint32)
+  )
+  np.testing.assert_array_equal(
+      actual_strided_f32.view(np.uint32), expected_f32.view(np.uint32)
+  )
+  for offset in (0, 1, 3, 7, 15):
+    for length in (0, 1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65):
+      sub = all_bf16[offset : offset + length]
+      with warnings.catch_warnings(), np.errstate(all="raise"):
+        warnings.simplefilter("error")
+        got = sub.astype(np.float32)
+      np.testing.assert_array_equal(
+          got.view(np.uint32),
+          expected_f32[offset : offset + length].view(np.uint32),
+      )
+
+  probes = _dense_float32_probes()
+  expected_bf16 = np.array([bf16(v) for v in probes], dtype=bf16)
+  with warnings.catch_warnings(), np.errstate(all="raise"):
+    warnings.simplefilter("error")
+    actual_bf16 = probes.astype(bf16)
+    actual_strided_bf16 = np.repeat(probes, 2)[::2].astype(bf16)
+  np.testing.assert_array_equal(
+      actual_bf16.view(np.uint16), expected_bf16.view(np.uint16)
+  )
+  np.testing.assert_array_equal(
+      actual_strided_bf16.view(np.uint16), expected_bf16.view(np.uint16)
+  )
+  for offset in (0, 1, 3, 7, 15):
+    for length in (0, 1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65):
+      sub = probes[offset : offset + length]
+      with warnings.catch_warnings(), np.errstate(all="raise"):
+        warnings.simplefilter("error")
+        got = sub.astype(bf16)
+      np.testing.assert_array_equal(
+          got.view(np.uint16),
+          expected_bf16[offset : offset + length].view(np.uint16),
+      )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [t for t in CUSTOM_FLOATS if np.dtype(t).itemsize == 1],
+    ids=lambda t: t.__name__,
+)
+@pytest.mark.parametrize("target", [np.float32, np.float64])
+def test_byte_custom_float_lut_fast_path_bit_exact(source, target):
+  """Verifies 1-byte custom float LUT casts match scalar conversion bit-exact."""
+  raw = np.arange(256, dtype=np.uint8).view(source)
+  expected = np.array([target(v) for v in raw], dtype=target)
+  storage = np.uint32 if target is np.float32 else np.uint64
+  with warnings.catch_warnings(), np.errstate(all="raise"):
+    warnings.simplefilter("error")
+    actual = raw.astype(target)
+    actual_strided = np.repeat(raw, 2)[::2].astype(target)
+    actual_offset = raw[3:39].astype(target)
+  np.testing.assert_array_equal(actual.view(storage), expected.view(storage))
+  np.testing.assert_array_equal(
+      actual_strided.view(storage), expected.view(storage)
+  )
+  np.testing.assert_array_equal(
+      actual_offset.view(storage), expected[3:39].view(storage)
+  )
+
+
+@pytest.mark.parametrize(
+    "target",
+    [ml_dtypes.float8_e4m3fn, ml_dtypes.float8_e5m2],
+    ids=lambda t: t.__name__,
+)
+def test_float32_to_fp8_fast_path_bit_exact(target):
+  """Verifies vectorized float32 -> FP8 casts match scalar bit-for-bit."""
+  probes = _dense_float32_probes()
+  expected = np.array([target(v) for v in probes], dtype=target)
+  with warnings.catch_warnings(), np.errstate(all="raise"):
+    warnings.simplefilter("error")
+    actual = probes.astype(target)
+    actual_strided = np.repeat(probes, 2)[::2].astype(target)
+  np.testing.assert_array_equal(actual.view(np.uint8), expected.view(np.uint8))
+  np.testing.assert_array_equal(
+      actual_strided.view(np.uint8), expected.view(np.uint8)
+  )
+  for offset in (0, 1, 3, 7, 15):
+    for length in (0, 1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65):
+      sub = probes[offset : offset + length]
+      with warnings.catch_warnings(), np.errstate(all="raise"):
+        warnings.simplefilter("error")
+        got = sub.astype(target)
+      np.testing.assert_array_equal(
+          got.view(np.uint8),
+          expected[offset : offset + length].view(np.uint8),
+      )
