@@ -535,9 +535,7 @@ class ArrayTest(parameterized.TestCase):
     raw = raw_bytes.view(scalar_type)
     canonical = (raw_bytes & mask).view(scalar_type)
 
-    def scalar_byte(v):
-      return int(np.frombuffer(v, dtype=np.uint8)[0])
-
+    scalar_byte = lambda v: int(np.frombuffer(v, dtype=np.uint8)[0])
     probe_indices = [0, 1, int(mask), 0x80, 0xC0 | int(mask), 0xFF]
     for i in range(256):
       s = raw[i]

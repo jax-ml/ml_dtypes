@@ -23,9 +23,6 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
-* Speed up casts between `bfloat16`, 8-bit and smaller float types, sub-byte
-  integers, and standard NumPy float and integer types.
-
 ## [0.7.0] - 2026-11-16
 
 * Added new 8-bit unsigned float type: `ml_dtypes.float8_e5m3fnu`

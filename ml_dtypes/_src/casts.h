@@ -30,7 +30,7 @@ namespace ml_dtypes {
 // dtype finishes initializing.
 struct CastSpecEntry {
   PyArray_DTypeMeta* dtypes[2];
-  PyType_Slot slots[3];
+  PyType_Slot slots[2];
   PyArrayMethod_Spec spec;
 };
 
@@ -46,8 +46,7 @@ class CastSpecList {
 
   void Add(const char* name, PyArray_DTypeMeta* from, PyArray_DTypeMeta* to,
            NPY_CASTING casting, NPY_ARRAYMETHOD_FLAGS flags,
-           PyArrayMethod_StridedLoop* strided_loop,
-           PyArrayMethod_StridedLoop* contiguous_loop = nullptr);
+           PyArrayMethod_StridedLoop* loop);
   void Add(const char* name, PyArray_DTypeMeta* from, PyArray_DTypeMeta* to,
            NPY_CASTING casting, NPY_ARRAYMETHOD_FLAGS flags,
            PyArrayMethod_GetLoop* get_loop);
@@ -57,7 +56,7 @@ class CastSpecList {
  private:
   void AddSlot(const char* name, PyArray_DTypeMeta* from, PyArray_DTypeMeta* to,
                NPY_CASTING casting, NPY_ARRAYMETHOD_FLAGS flags,
-               PyType_Slot loop_slot, PyType_Slot extra_slot = {0, nullptr});
+               PyType_Slot loop_slot);
 
   std::vector<std::unique_ptr<CastSpecEntry>> entries_;
   std::vector<PyArrayMethod_Spec*> specs_;
