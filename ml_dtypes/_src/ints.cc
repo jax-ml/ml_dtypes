@@ -133,6 +133,19 @@ bool CastToIntN(PyObject* arg, T* output) {
     *output = T(l);
     return true;
   }
+  if (PyArray_IsScalar(arg, UnsignedInteger)) {
+    // Read unsigned scalars as uint64: through int64, values above INT64_MAX
+    // would wrap to negative numbers and pass the range check below.
+    uint64_t v;
+    PyArray_CastScalarToCtype(arg, &v, PyArray_DescrFromType(NPY_UINT64));
+    if (v > static_cast<uint64_t>(
+                static_cast<int64_t>(std::numeric_limits<T>::max()))) {
+      SetOutOfRangeError<T>();
+      return false;
+    }
+    *output = T(static_cast<int64_t>(v));
+    return true;
+  }
   if (PyArray_IsScalar(arg, Integer)) {
     int64_t v;
     PyArray_CastScalarToCtype(arg, &v, PyArray_DescrFromType(NPY_INT64));
