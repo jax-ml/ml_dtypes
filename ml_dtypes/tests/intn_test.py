@@ -221,6 +221,8 @@ class ScalarTest(parameterized.TestCase):
       scalar_type(np.float32(high + 1))
     with self.assertRaisesRegex(OverflowError, scalar_type.__name__):
       scalar_type(np.int64(high + 1))
+    with self.assertRaisesRegex(OverflowError, scalar_type.__name__):
+      scalar_type(np.uint64(np.iinfo(np.uint64).max))
     # But these shouldn't raise exceptions.
     with np.errstate(invalid="ignore"):
       np.array(np.nan).astype(scalar_type)
